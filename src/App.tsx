@@ -623,16 +623,19 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
         </div>
       )}
       {!player?.isVIP && (
-        <button
-          className="primary ready-button"
-          onClick={() => {
-            if (audioEnabled) unlockControllerAudio();
-            void requestLandscape();
-            send({ type: "set_ready", ready: !player?.isReady });
-          }}
-        >
-          {player?.isReady ? "I'm not ready" : "I'm ready"}
-        </button>
+        <>
+          <button
+            className="primary ready-button"
+            onClick={() => {
+              if (audioEnabled) unlockControllerAudio();
+              void requestLandscape();
+              send({ type: "set_ready", ready: !player?.isReady });
+            }}
+          >
+            {player?.isReady ? "I'm not ready" : "I'm ready"}
+          </button>
+          {player?.isReady && <small className="phone-note">Ready. Waiting for the VIP to start the race.</small>}
+        </>
       )}
       <small className="phone-note">Use earphones for clearer engine, tire, curb, and impact feedback. Full directional audio is not implemented yet.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
