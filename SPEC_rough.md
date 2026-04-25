@@ -88,3 +88,7 @@ Race screen now has minimap and live leaderboard
 Phone controllers can reconnect after refresh
 
 Visuals are procedural for now, not authored assets
+
+Rolling start is now warm-up / flying start
+
+Players can choose cockpit style: none, hands, paws

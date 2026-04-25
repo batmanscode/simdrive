@@ -15,7 +15,10 @@ Things that need real-device playtesting before we trust the tuning.
 - Test all three car setups in dry mode: Balanced should feel neutral, High Grip should corner/brake easier, and High Speed should be quicker but less settled.
 - Test sliding/lateral slip: tire sound and vibration should match moments where the car feels loose.
 - Test visible front-wheel direction: left input should show left lock, right input should show right lock, with no confusing partial-turn animation.
-- Test cockpit/nose view: front wing, nose, tyres, and cockpit shapes should read clearly without blocking the road.
+- Test cockpit/nose view: front wing, nose, tyres, cockpit shapes, and the None/Hands/Paws per-driver cockpit styles should read clearly without blocking the road.
+- Test lobby readability: QR code, room code, race settings, selected track, driver lineup, driver setups, and cockpit styles should be obvious at a glance.
+- Test warm-up/flying start: first pass should show `Warm-up`, timed lap 1 and total race time should begin at the line, and hard car-to-car contact during warm-up should not crash players out.
+- Test race presentation: countdown lights, first-place banner, live leaderboard, minimap, and podium results should feel useful without obstructing driving.
 - Test haptics on Android Chrome/Chromium and Samsung Internet if available.
 - Test haptics on Firefox Android if available, but treat failure as likely browser support rather than an app bug unless the test pulse reports a clear app-side error.
 - Test whether normal fast cornering produces enough tire sound/slip feedback; current web haptics mostly pulse for slip/curbs/grass/braking/impacts, not continuous true g-force.

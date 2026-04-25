@@ -64,10 +64,12 @@ Speed note: physics uses internal speed units. The speedometer displays `1 inter
 | Parameter | Current Value | Notes |
 | --- | ---: | --- |
 | Car visual type | Procedural formula-style open wheel | Built in `CarModel`. |
-| Cockpit visual type | Procedural nose/front tyres/cockpit | Built in `Cockpit`. |
+| Cockpit visual type | Procedural nose/front tyres/cockpit/wheel | Built in `Cockpit`. |
+| Cockpit cosmetics | None, Hands, or Paws | Per-driver preference; does not affect physics or car setup. |
 | Wheel spin scale | `wheelDistance * 3.1` | Visual only. |
 | External visual wheel steer | `0.48 rad` | Binary left/right/straight. |
-| Cockpit visual wheel steer | `0.52 rad` | Binary left/right/straight. |
+| Cockpit tyre steer | `0.52 rad` | Binary left/right/straight. |
+| Cockpit steering wheel steer | up to `0.8 rad` | Proportional to steering input; hands/paws rotate with the wheel. |
 
 ## Future Structure
 

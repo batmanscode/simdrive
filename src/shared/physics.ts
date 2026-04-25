@@ -8,7 +8,7 @@ export function speedToKmh(speed: number) {
   return speed * SPEEDOMETER_KMH_PER_UNIT;
 }
 
-export function createCar(player: Player, track: TrackDef, gridIndex: number): CarState {
+export function createCar(player: Player, track: TrackDef, gridIndex: number, warmupStart = true): CarState {
   const spawn = sampleTrack(track, 5 - gridIndex * 4);
   const side = gridIndex % 2 === 0 ? -1 : 1;
   const row = Math.floor(gridIndex / 2);
@@ -32,6 +32,8 @@ export function createCar(player: Player, track: TrackDef, gridIndex: number): C
     distanceThisLap: 0,
     nextCheckpoint: 0,
     lastValidProgress: spawnProgress,
+    timedLapStarted: !warmupStart,
+    timedRaceStartedAt: 0,
     currentLapStartedAt: 0,
     wheelDistance: 0,
     surface: "road",
@@ -150,16 +152,22 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     && car.distanceThisLap > totalLength * 0.82
     && car.nextCheckpoint >= CHECKPOINTS.length
   ) {
-    const lapTime = Math.max(0, raceTime - car.currentLapStartedAt);
-    car.lastLapTime = lapTime;
-    car.bestLapTime = car.bestLapTime === undefined ? lapTime : Math.min(car.bestLapTime, lapTime);
-    car.lap += 1;
+    if (car.timedLapStarted) {
+      const lapTime = Math.max(0, raceTime - car.currentLapStartedAt);
+      car.lastLapTime = lapTime;
+      car.bestLapTime = car.bestLapTime === undefined ? lapTime : Math.min(car.bestLapTime, lapTime);
+      car.lap += 1;
+    } else {
+      car.timedLapStarted = true;
+      car.timedRaceStartedAt = raceTime;
+      car.lap = 1;
+    }
     car.distanceThisLap = 0;
     car.nextCheckpoint = 0;
     car.currentLapStartedAt = raceTime;
     if (car.lap > settings.lapCount) {
       car.finished = true;
-      car.finishTime = raceTime;
+      car.finishTime = Math.max(0, raceTime - car.timedRaceStartedAt);
       car.velocityX *= 0.35;
       car.velocityZ *= 0.35;
       car.speed = Math.hypot(car.velocityX, car.velocityZ);
@@ -218,7 +226,8 @@ export function resolveCarContacts(cars: CarState[], settings: RaceSettings) {
       const closingSpeed = Math.max(0, rvx * nx + rvz * nz);
       const tangentialSpeed = Math.abs(rvx * -nz + rvz * nx);
       const impact = closingSpeed + tangentialSpeed * 0.22;
-      if (impact > 13.2) {
+      const warmupContact = settings.warmupStart && (!a.timedLapStarted || !b.timedLapStarted);
+      if (impact > 13.2 && !warmupContact) {
         a.crashed = true;
         b.crashed = true;
         a.impact = 1;

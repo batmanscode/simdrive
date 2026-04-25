@@ -12,6 +12,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 ## Audio
 
 - Start/test cue: short confirmation tone when audio is enabled or tested.
+- Audio test also triggers a small on-screen pulse preview on the phone controller.
 - Countdown: 3/2/1/go beeps after audio is unlocked.
 - Engine: persistent tone follows car speed and throttle.
 - Tire: filtered noise follows slip, grass/off-road driving, and curb contact.
@@ -22,7 +23,10 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 
 ## Vibration
 
+Speed thresholds below use the same km/h scale shown on the in-game speedometer.
+
 - Test pulse: `[35, 30, 55]`.
+- Haptic test also triggers a small on-screen pulse preview on the phone controller.
 - Impact: one pulse, roughly `45-140ms` depending on impact strength.
 - Hard braking: `[18, 24, 18]` when braking hard above about `35 km/h`.
 - Curb: `18ms` pulse while on curbs above about `18 km/h`.

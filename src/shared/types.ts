@@ -6,6 +6,8 @@ export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
 export type CarSetupId = "balanced" | "highGrip" | "highSpeed";
 
+export type CockpitStyle = "none" | "hands" | "paws";
+
 export type Vec2 = {
   x: number;
   z: number;
@@ -25,7 +27,7 @@ export type TrackDef = {
 export type RaceSettings = {
   trackId: TrackId;
   lapCount: number;
-  rollingStart: boolean;
+  warmupStart: boolean;
   ghostMode: boolean;
   rain: boolean;
   stabilityAssist: boolean;
@@ -45,6 +47,7 @@ export type Player = {
   name: string;
   color: string;
   carSetupId: CarSetupId;
+  cockpitStyle: CockpitStyle;
   isReady: boolean;
   isVIP: boolean;
   connected: boolean;
@@ -76,6 +79,8 @@ export type CarState = {
   distanceThisLap: number;
   nextCheckpoint: number;
   lastValidProgress: number;
+  timedLapStarted: boolean;
+  timedRaceStartedAt: number;
   currentLapStartedAt: number;
   lastLapTime?: number;
   bestLapTime?: number;
@@ -128,6 +133,7 @@ export type ClientMessage =
   | { type: "join_display"; roomCode: string; displayGroupId?: string }
   | { type: "set_profile"; roomCode: string; displayGroupId: string; token?: string; name: string; color: string }
   | { type: "set_car_setup"; carSetupId: CarSetupId }
+  | { type: "set_cockpit_style"; cockpitStyle: CockpitStyle }
   | { type: "set_ready"; ready: boolean }
   | { type: "input_frame"; input: InputFrame }
   | { type: "request_reset" }

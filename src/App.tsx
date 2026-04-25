@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
@@ -26,10 +26,11 @@ function DisplayApp() {
     return (
       <main className="landing">
         <section className="hero">
-          <div>
-            <p className="eyebrow">Multiplayer phone-controller racing</p>
+          <div className="hero-copy-wrap">
+            <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
             <h1>Drive Sim</h1>
-            <p className="hero-copy">Create a room on this screen, scan with a phone, and race from a cockpit view where setup choices, tilt steering, downforce-style grip, engine audio, tire slip, curb rumble, rain, and optional vibration make the car feel alive.</p>
+            <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
+            <p className="hero-copy">Tilt your phone to steer, work the pedals, and really feel your car: engine sound, tire slip, curb rumble, and rain grip through sound and haptics.</p>
             <div className="hero-actions">
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
@@ -46,25 +47,14 @@ function DisplayApp() {
               </form>
             </div>
             <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
-          </div>
-          <div className="hero-panel">
-            <div className="stat">
-              <Smartphone />
-              <div><strong>Phone Controller</strong><span>Tilt steering, touch pedals, calibration, and fallback buttons.</span></div>
-            </div>
-            <div className="stat">
-              <Users />
-              <div><strong>Room Multiplayer</strong><span>Scan a QR code, join fast, race solo or with up to 8 drivers.</span></div>
-            </div>
-            <div className="stat">
-              <Gauge />
-              <div><strong>Sim-Lite Feel</strong><span>Lateral slip, aero drag, speed-built grip, rain handling, curbs, grass, and gentle assist.</span></div>
-            </div>
-            <div className="stat">
-              <Gamepad2 />
-              <div><strong>Race Tools</strong><span>Car setups, minimap, live leaderboard, best laps, audio, and supported vibration.</span></div>
+            <div className="hero-pills" aria-label="Game features">
+              <span><Smartphone size={16} /> Phone steering</span>
+              <span><Gauge size={16} /> Sim-lite grip</span>
+              <span><Gamepad2 size={16} /> Sound + haptics</span>
+              <span><Users size={16} /> 1-8 drivers</span>
             </div>
           </div>
+          <HeroShowcase />
         </section>
       </main>
     );
@@ -81,81 +71,139 @@ function DisplayApp() {
   return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
 }
 
+function HeroShowcase() {
+  return (
+    <div className="hero-showcase" aria-hidden>
+      <div className="mock-race">
+        <div className="mock-sky" />
+        <div className="mock-track">
+          <span className="mock-line" />
+          <i className="mock-curb left" />
+          <i className="mock-curb right" />
+        </div>
+        <div className="mock-cockpit">
+          <span />
+          <strong>128</strong>
+          <em>km/h</em>
+        </div>
+        <div className="mock-leaderboard">
+          <span>1 YOU</span>
+          <span>2 LOSER</span>
+          <span>3 OTHER LOSER</span>
+        </div>
+        <div className="mock-minimap" />
+      </div>
+      <div className="mock-phone">
+        <div className="mock-phone-top">
+          <span>Lap 1/3</span>
+          <strong>Motion steering</strong>
+        </div>
+        <div className="mock-tilt"><span /></div>
+        <div className="mock-pedals">
+          <span>Brake</span>
+          <span>Throttle</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LobbyDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
+  const readyCount = room.players.filter((player) => player.isReady || player.isVIP).length;
 
   return (
     <main className="lobby">
       <section className="join-card">
+        <div className="join-label">Join this race</div>
         <div className="qr-wrap">
           <QRCodeSVG value={controllerUrl} size={260} bgColor="#f5f1e8" fgColor="#101214" />
         </div>
         <div className="room-code">{room.roomCode}</div>
-        <p>Scan with your phone or open the controller page and enter this code.</p>
+        <p>Scan with your phone. Tilt to steer, then try not to bin it.</p>
+        <div className="join-card-stats">
+          <span>{room.players.length}/8 drivers</span>
+          <span>{readyCount} ready</span>
+        </div>
       </section>
 
       <section className="lobby-main">
         <div className="topline">
-          <h2>Lobby</h2>
+          <div>
+            <p className="eyebrow lobby-eyebrow">Race room</p>
+            <h2>{track.name}</h2>
+          </div>
           <div className="topline-actions">
-            <span>{room.players.length}/8 racers</span>
             <button className="secondary danger" onClick={() => send({ type: "close_room" })}>Exit Room</button>
           </div>
         </div>
+
+        <div className="lobby-layout">
+          <div className="track-preview">
+            <MiniTrack track={track} />
+            <div>
+              <h3>{track.name}</h3>
+              <p>{track.description}</p>
+              <small>Target lap: {track.targetLap}. Rain lowers grip and top speed. Reset off means crashes kick drivers out.</small>
+            </div>
+          </div>
+
+          <div className="display-options">
+            <div>
+              <span>Driver style</span>
+              <strong>Personal cockpit</strong>
+            </div>
+            <div className="cockpit-style-preview">
+              <span>None</span>
+              <span>Hands</span>
+              <span>Paws</span>
+            </div>
+            <small>Each driver picks this on their phone. It only changes their cockpit view.</small>
+          </div>
+        </div>
+
+        <div className="settings-strip" aria-label="Race settings">
+          <SettingChip label="Laps" value={String(room.settings.lapCount)} />
+          <SettingChip label="Rain" value={room.settings.rain ? "Wet grip" : "Off"} />
+          <SettingChip label="Start" value={room.settings.warmupStart ? "Warm-up / Flying" : "Grid"} />
+          <SettingChip label="Cars" value={room.settings.ghostMode ? "Ghost" : "Collide"} />
+          <SettingChip label="Assist" value={room.settings.stabilityAssist ? "Gentle" : "Off"} />
+          <SettingChip label="Reset" value={room.settings.resetEnabled ? "On" : "Crash-out"} />
+        </div>
+
+        <div className="grid-header">
+          <div>
+            <span>Driver lineup</span>
+            <strong>{room.players.length ? `${room.players.length} driver${room.players.length === 1 ? "" : "s"}` : "Waiting for phones"}</strong>
+          </div>
+          <small>Each driver picks their own car setup on their phone.</small>
+        </div>
         <PlayerGrid room={room} />
-        <div className="settings-strip">
-          <div>
-            <span>Track</span>
-            <strong>{track.name}</strong>
-          </div>
-          <div>
-            <span>Laps</span>
-            <strong>{room.settings.lapCount}</strong>
-          </div>
-          <div>
-            <span>Rain</span>
-            <strong>{room.settings.rain ? "Wet grip" : "Off"}</strong>
-          </div>
-          <div>
-            <span>Rolling</span>
-            <strong>{room.settings.rollingStart ? "On" : "Off"}</strong>
-          </div>
-          <div>
-            <span>Collisions</span>
-            <strong>{room.settings.ghostMode ? "Ghost cars" : "On"}</strong>
-          </div>
-          <div>
-            <span>Assist</span>
-            <strong>{room.settings.stabilityAssist ? "Gentle" : "Off"}</strong>
-          </div>
-          <div>
-            <span>Reset</span>
-            <strong>{room.settings.resetEnabled ? "On" : "Crash-out"}</strong>
-          </div>
-        </div>
-        <div className="track-preview">
-          <MiniTrack track={track} />
-          <div>
-            <h3>{track.name}</h3>
-            <p>{track.description}</p>
-            <small>Target lap: {track.targetLap}. Rain lowers grip and top speed. Reset off means crashes kick drivers out.</small>
-          </div>
-        </div>
       </section>
     </main>
+  );
+}
+
+function SettingChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
 function PlayerGrid({ room }: { room: RoomState }) {
   return (
     <div className="players">
-      {room.players.map((player) => (
+      {room.players.map((player, index) => (
         <div className="player" key={player.id}>
+          <span className="grid-position">{index + 1}</span>
           <span className="swatch" style={{ background: player.color }} />
           <div>
             <strong>{player.name}</strong>
-            <small>{player.isVIP ? "VIP" : player.isReady ? "Ready" : "Setting up"} · {CAR_SETUPS[player.carSetupId ?? DEFAULT_CAR_SETUP_ID].shortName} · {player.connected ? "online" : "reconnecting"}</small>
+            <small>{player.isVIP ? "VIP" : player.isReady ? "Ready" : "Setting up"} · {CAR_SETUPS[player.carSetupId ?? DEFAULT_CAR_SETUP_ID].shortName} · {cockpitStyleLabel(player.cockpitStyle)} · {player.connected ? "online" : "reconnecting"}</small>
           </div>
         </div>
       ))}
@@ -182,8 +230,46 @@ function RaceDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId
           </div>
         ))}
       </div>
-      {room.phase === "countdown" && <div className="countdown">{countdown || "GO"}</div>}
+      {room.phase === "countdown" && <StartLights countdown={countdown} />}
+      <RaceFinishBanner room={room} />
     </main>
+  );
+}
+
+function StartLights({ countdown }: { countdown: number | string }) {
+  const lit = typeof countdown === "number" ? clamp(4 - countdown, 0, 3) : 3;
+  const isGo = countdown === 0 || countdown === "GO";
+  return (
+    <div className="start-lights" aria-label="Race countdown">
+      <div>
+        {[0, 1, 2].map((index) => <span key={index} className={index < lit ? `lit${isGo ? " go" : ""}` : undefined} />)}
+      </div>
+      <strong>{countdown || "GO"}</strong>
+    </div>
+  );
+}
+
+function RaceFinishBanner({ room }: { room: RoomState }) {
+  const winner = room.cars
+    .filter((car) => car.finished && car.finishTime !== undefined)
+    .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity))[0];
+  const player = winner ? room.players.find((item) => item.id === winner.playerId) : undefined;
+  const [visibleFor, setVisibleFor] = useState<string>();
+
+  useEffect(() => {
+    if (!player) return;
+    setVisibleFor(player.id);
+    const timeout = window.setTimeout(() => setVisibleFor(undefined), 4200);
+    return () => window.clearTimeout(timeout);
+  }, [player?.id]);
+
+  if (!player || visibleFor !== player.id || room.phase !== "racing") return null;
+
+  return (
+    <div className="finish-banner">
+      <span className="swatch" style={{ background: player.color }} />
+      <strong>{player.name} came first</strong>
+    </div>
   );
 }
 
@@ -191,10 +277,11 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
   const player = room.players.find((item) => item.id === focusPlayerId);
   const car = room.cars.find((item) => item.playerId === focusPlayerId);
   const speed = car ? Math.round(speedToKmh(car.speed)) : 0;
+  const lapText = car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`;
   return (
     <div className="race-hud">
       <div><span className="swatch" style={{ background: player?.color }} />{player?.name}</div>
-      <div>Lap {car?.lap ?? 1}/{room.settings.lapCount}</div>
+      <div>{lapText}</div>
       <div>{speed} km/h</div>
     </div>
   );
@@ -203,7 +290,9 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
 function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
   const track = TRACKS[room.settings.trackId];
   const bounds = getTrackBounds(track);
-  const points = track.points.map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`).join(" ");
+  const points = sampleTrackVisuals(track, 4)
+    .map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`)
+    .join(" ");
   return (
     <svg className="race-minimap" viewBox="0 0 210 150" aria-label="Race minimap">
       <polyline points={points} fill="none" stroke="rgba(255,250,240,0.28)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
@@ -232,7 +321,7 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
   const rows = room.players
     .map((player) => {
       const car = room.cars.find((item) => item.playerId === player.id);
-      const distance = car ? (Math.min(car.lap, room.settings.lapCount + 1) - 1) * totalLength + car.progress : 0;
+      const distance = car ? (car.timedLapStarted ? (Math.min(car.lap, room.settings.lapCount + 1) - 1) * totalLength + car.progress : car.progress - totalLength) : 0;
       return { player, car, distance };
     })
     .sort((a, b) => {
@@ -256,10 +345,23 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
 
 function ResultsDisplay({ room, send }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"] }) {
   const vip = room.players.find((player) => player.isVIP);
+  const podium = room.results.slice(0, 3);
   return (
     <main className="results">
       <section>
         <h2><Trophy /> Results</h2>
+        {podium.length > 0 && (
+          <div className="podium">
+            {podium.map((result, index) => (
+              <div key={result.playerId} className={`podium-place place-${index + 1}`}>
+                <span>{index + 1}</span>
+                <i style={{ background: result.color }} />
+                <strong>{result.name}</strong>
+                <small>{result.totalTime ? `${result.totalTime.toFixed(2)}s` : result.status.toUpperCase()}</small>
+              </div>
+            ))}
+          </div>
+        )}
         <ol className="leaderboard">
           {room.results.map((result) => (
             <li key={result.playerId}>
@@ -383,6 +485,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const [brakeStart, setBrakeStart] = useStoredNumber("drive-sim-brake-start", 0);
   const [throttleStart, setThrottleStart] = useStoredNumber("drive-sim-throttle-start", 0);
   const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
+  const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
   const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const settings = room?.settings;
 
@@ -441,6 +544,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
           }
           playCue(unlockControllerAudio(), "start");
           setAudioStatus("Audio on");
+          setFeelTest((current) => ({ id: current.id + 1, label: "Audio pulse" }));
         }}
       >
         <Activity size={18} /> Test Audio
@@ -460,20 +564,24 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
         onClick={() => {
           const result = pulseHaptic([35, 30, 55]);
           setHapticStatus(hapticResultMessage(result));
+          setFeelTest((current) => ({ id: current.id + 1, label: "Haptic pulse" }));
         }}
       >
         <Activity size={18} /> Test Haptics
       </button>
       <small className="phone-note">{hapticStatus}</small>
+      <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
       <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
       {player && <CarSetupSelector value={player.carSetupId} send={send} />}
+      {player && <CockpitStyleSelector value={player.cockpitStyle} send={send} />}
       {player?.isVIP && settings && (
         <div className="vip-controls">
           <TrackPicker settings={settings} send={send} />
           <Stepper label="Laps" value={settings.lapCount} min={1} max={9} onChange={(lapCount) => send({ type: "vip_set_settings", settings: { lapCount } })} />
-          <Toggle label="Rolling start" value={settings.rollingStart} onChange={(rollingStart) => send({ type: "vip_set_settings", settings: { rollingStart } })} />
+          <Toggle label="Warm-up / flying start" value={settings.warmupStart} onChange={(warmupStart) => send({ type: "vip_set_settings", settings: { warmupStart } })} />
+          <small className="phone-note">First pass is untimed. Your race starts when you cross the line at speed.</small>
           <Toggle label="Ghost cars" value={settings.ghostMode} onChange={(ghostMode) => send({ type: "vip_set_settings", settings: { ghostMode } })} />
           <small className="phone-note">Ghost cars disables car-to-car collisions. Walls and off-track still matter.</small>
           <Toggle label="Rain" value={settings.rain} onChange={(rain) => send({ type: "vip_set_settings", settings: { rain } })} />
@@ -496,19 +604,58 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       )}
       {!player?.isVIP && (
         <button
-          className="primary"
+          className="primary ready-button"
           onClick={() => {
             if (audioEnabled) unlockControllerAudio();
             void requestLandscape();
             send({ type: "set_ready", ready: !player?.isReady });
           }}
         >
-          {player?.isReady ? "Unready" : "Ready"}
+          {player?.isReady ? "I'm not ready" : "I'm ready"}
         </button>
       )}
       <small className="phone-note">Use earphones for clearer engine, tire, curb, and impact feedback. Full directional audio is not implemented yet.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
     </main>
+  );
+}
+
+function CockpitStyleSelector({ value, send }: { value: CockpitStyle; send: ReturnType<typeof useGameSocket>["send"] }) {
+  return (
+    <section className="cockpit-selector" aria-label="Cockpit style">
+      <div className="car-selector-head">
+        <div>
+          <span>Cockpit style</span>
+          <strong>{cockpitStyleLabel(value)}</strong>
+        </div>
+        <small>Personal</small>
+      </div>
+      <small className="phone-note">Changes only what you see in your cockpit. It does not affect speed or grip.</small>
+      <div className="segmented phone-segmented">
+        {(["none", "hands", "paws"] as CockpitStyle[]).map((style) => (
+          <button key={style} className={value === style ? "active" : undefined} onClick={() => send({ type: "set_cockpit_style", cockpitStyle: style })}>
+            {cockpitStyleLabel(style)}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function cockpitStyleLabel(style: CockpitStyle | undefined) {
+  if (style === "none") return "None";
+  if (style === "paws") return "Paws";
+  return "Hands";
+}
+
+function FeelPreview({ test }: { test: { id: number; label: string } }) {
+  return (
+    <div className={`feel-preview ${test.id ? "active" : ""}`} key={test.id}>
+      <span />
+      <span />
+      <span />
+      <strong>{test.label}</strong>
+    </div>
   );
 }
 
@@ -730,7 +877,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <button className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">
         <span>{Math.round(speedToKmh(car?.speed ?? 0))} km/h</span>
-        <span>Lap {car?.lap ?? 1}/{room.settings.lapCount}</span>
+        <span>{car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
         <span>{motionStatus}</span>
         <button
           onClick={() => {
@@ -749,9 +896,9 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
-        <button onPointerDown={() => setTouchSteer(1)} onPointerUp={() => setTouchSteer(0)}><ArrowLeft /></button>
+        <button onPointerDown={() => setTouchSteer(-1)} onPointerUp={() => setTouchSteer(0)}><ArrowLeft /></button>
         <div className="tilt-meter"><span style={{ transform: `translateX(${(steerUi || touchSteer) * 42}px)` }} /></div>
-        <button onPointerDown={() => setTouchSteer(-1)} onPointerUp={() => setTouchSteer(0)}><ArrowRight /></button>
+        <button onPointerDown={() => setTouchSteer(1)} onPointerUp={() => setTouchSteer(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -849,13 +996,19 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
           </group>
         );
       })}
-      {focus && <Cockpit car={focus} color={room.players.find((item) => item.id === focusPlayerId)?.color ?? "#ff3b5c"} />}
+      {focus && (
+        <Cockpit
+          car={focus}
+          color={room.players.find((item) => item.id === focusPlayerId)?.color ?? "#ff3b5c"}
+          cockpitStyle={room.players.find((item) => item.id === focusPlayerId)?.cockpitStyle ?? "hands"}
+        />
+      )}
     </>
   );
 }
 
 function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const samples = useMemo(() => sampleTrackVisuals(track, 6), [track]);
+  const curbStripes = useMemo(() => createCurbStripeGeometries(track, 4.6), [track]);
   const roadGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width, 0, 0.035, 2.7), [track]);
   const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
   const leftCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, -track.width / 2 - track.curbWidth / 2, 0.055, 2.7), [track]);
@@ -890,20 +1043,12 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
       <mesh geometry={rightLineGeometry}>
         <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
       </mesh>
-      {samples.map((sample, index) => {
-        const curbColor = index % 2 === 0 ? "#e8e1d1" : "#b02b35";
-        const alternateCurbColor = index % 2 === 0 ? "#b02b35" : "#e8e1d1";
+      {curbStripes.map((stripe, index) => {
+        const color = stripe.color === "white" ? "#e8e1d1" : "#b02b35";
         return (
-          <group key={`${sample.x}-${sample.z}-${index}`} position={[sample.x, 0, sample.z]} rotation={[0, sample.heading, 0]}>
-            <mesh position={[-track.width / 2 - track.curbWidth / 2, 0.083, 0]}>
-              <boxGeometry args={[track.curbWidth * 0.82, 0.026, sample.length * 0.82]} />
-              <meshStandardMaterial color={curbColor} roughness={0.58} />
-            </mesh>
-            <mesh position={[track.width / 2 + track.curbWidth / 2, 0.083, 0]}>
-              <boxGeometry args={[track.curbWidth * 0.82, 0.026, sample.length * 0.82]} />
-              <meshStandardMaterial color={alternateCurbColor} roughness={0.58} />
-            </mesh>
-          </group>
+          <mesh key={index} geometry={stripe.geometry}>
+            <meshStandardMaterial color={color} roughness={0.58} side={THREE.DoubleSide} />
+          </mesh>
         );
       })}
     </group>
@@ -1265,7 +1410,7 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
   );
 }
 
-function Cockpit({ car, color }: { car: CarState; color: string }) {
+function Cockpit({ car, color, cockpitStyle }: { car: CarState; color: string; cockpitStyle: CockpitStyle }) {
   const group = useRef<THREE.Group>(null);
   const initial = useRef({ x: car.x, z: car.z, heading: car.heading });
   const wheelSpin = car.wheelDistance * 3.1;
@@ -1361,10 +1506,7 @@ function Cockpit({ car, color }: { car: CarState; color: string }) {
         <boxGeometry args={[0.42, 0.04, 0.1]} />
         <meshStandardMaterial color="#101214" roughness={0.42} />
       </mesh>
-      <mesh position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.42, 0.035, 8, 28]} />
-        <meshStandardMaterial color="#0b0e12" />
-      </mesh>
+      <CockpitWheel steer={car.steer} style={cockpitStyle} />
       <mesh position={[0, 0.08, 1.0]}>
         <boxGeometry args={[0.82, 0.18, 0.42]} />
         <meshStandardMaterial color="#101214" roughness={0.52} />
@@ -1377,9 +1519,66 @@ function Cockpit({ car, color }: { car: CarState; color: string }) {
   );
 }
 
+function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
+  const turn = clamp(steer, -1, 1) * 0.8;
+  return (
+    <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, turn]}>
+      <mesh>
+        <torusGeometry args={[0.42, 0.035, 8, 30]} />
+        <meshStandardMaterial color="#0b0e12" roughness={0.46} />
+      </mesh>
+      {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle) => (
+        <mesh key={angle} position={[Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0]} rotation={[0, 0, angle]}>
+          <boxGeometry args={[0.44, 0.035, 0.035]} />
+          <meshStandardMaterial color="#151922" roughness={0.5} />
+        </mesh>
+      ))}
+      {style !== "none" && (
+        <>
+          <CockpitHand side={-1} style={style} />
+          <CockpitHand side={1} style={style} />
+        </>
+      )}
+    </group>
+  );
+}
+
+function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
+  const x = side * 0.3;
+  const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
+  const pad = style === "paws" ? "#5c2b35" : "#1b1d23";
+  return (
+    <group position={[x, -0.1, -0.03]} rotation={[0, 0, side * -0.38]}>
+      <mesh>
+        <sphereGeometry args={[0.13, 16, 12]} />
+        <meshStandardMaterial color={skin} roughness={0.76} />
+      </mesh>
+      {style === "paws" ? (
+        <>
+          {[-0.07, 0, 0.07].map((offset) => (
+            <mesh key={offset} position={[offset, 0.11, 0.035]}>
+              <sphereGeometry args={[0.035, 10, 8]} />
+              <meshStandardMaterial color={pad} roughness={0.82} />
+            </mesh>
+          ))}
+          <mesh position={[0, -0.02, 0.045]}>
+            <sphereGeometry args={[0.055, 10, 8]} />
+            <meshStandardMaterial color={pad} roughness={0.82} />
+          </mesh>
+        </>
+      ) : (
+        <mesh position={[side * 0.055, 0.0, 0.05]} rotation={[0, 0, side * 0.7]}>
+          <boxGeometry args={[0.08, 0.22, 0.055]} />
+          <meshStandardMaterial color="#20242d" roughness={0.62} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 function MiniTrack({ track }: { track: TrackDef }) {
   const { minX, maxX, minZ, maxZ } = getTrackBounds(track);
-  const points = track.points
+  const points = sampleTrackVisuals(track, 3.8)
     .map((point) => `${((point.x - minX) / (maxX - minX || 1)) * 180 + 10},${((point.z - minZ) / (maxZ - minZ || 1)) * 110 + 10}`)
     .join(" ");
   return (
@@ -1398,8 +1597,9 @@ type TrackBounds = {
 };
 
 function getTrackBounds(track: TrackDef): TrackBounds {
-  const xs = track.points.map((point) => point.x);
-  const zs = track.points.map((point) => point.z);
+  const samples = sampleTrackVisuals(track, 4);
+  const xs = samples.map((point) => point.x);
+  const zs = samples.map((point) => point.z);
   return {
     minX: Math.min(...xs),
     maxX: Math.max(...xs),
@@ -1421,29 +1621,19 @@ function raceStatusText(car: CarState | undefined, lapCount: number) {
   if (car.finished) return "finish";
   if (car.crashed) return "crash";
   if (car.dnf) return "dnf";
+  if (!car.timedLapStarted) return "warm-up";
   return `L${Math.min(car.lap, lapCount)}/${lapCount}`;
 }
 
 function sampleTrackVisuals(track: TrackDef, spacing: number) {
   const samples: Array<{ x: number; z: number; heading: number; length: number }> = [];
-  for (let i = 0; i < track.points.length; i += 1) {
-    const a = track.points[i];
-    const b = track.points[(i + 1) % track.points.length];
-    const dx = b.x - a.x;
-    const dz = b.z - a.z;
-    const segmentLength = Math.hypot(dx, dz);
-    const count = Math.max(1, Math.ceil(segmentLength / spacing));
-    const heading = Math.atan2(dx, dz);
-    for (let step = 0; step < count; step += 1) {
-      const t0 = step / count;
-      const t1 = (step + 1) / count;
-      samples.push({
-        x: a.x + dx * ((t0 + t1) / 2),
-        z: a.z + dz * ((t0 + t1) / 2),
-        heading,
-        length: segmentLength / count
-      });
-    }
+  const metrics = trackMetrics(track);
+  const count = Math.max(1, Math.ceil(metrics.totalLength / spacing));
+  for (let step = 0; step < count; step += 1) {
+    const start = (metrics.totalLength * step) / count;
+    const end = (metrics.totalLength * (step + 1)) / count;
+    const sample = sampleTrack(track, (start + end) / 2);
+    samples.push({ ...sample, length: end - start });
   }
   return samples;
 }
@@ -1480,6 +1670,65 @@ function createTrackRibbonGeometry(track: TrackDef, width: number, lateralOffset
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createCurbStripeGeometries(track: TrackDef, stripeLength: number) {
+  const metrics = trackMetrics(track);
+  const stripeCount = Math.max(1, Math.ceil(metrics.totalLength / stripeLength));
+  const leftOffset = -track.width / 2 - track.curbWidth / 2;
+  const rightOffset = track.width / 2 + track.curbWidth / 2;
+  const stripeWidth = track.curbWidth * 0.82;
+  const stripes: Array<{ geometry: THREE.BufferGeometry; color: "red" | "white" }> = [];
+
+  for (let index = 0; index < stripeCount; index += 1) {
+    const start = (metrics.totalLength * index) / stripeCount;
+    const end = (metrics.totalLength * (index + 1)) / stripeCount;
+    const color = index % 2 === 0 ? "white" : "red";
+    const alternateColor = index % 2 === 0 ? "red" : "white";
+    stripes.push({
+      geometry: createTrackRibbonSectionGeometry(track, stripeWidth, leftOffset, 0.083, start, end, 0.9),
+      color
+    });
+    stripes.push({
+      geometry: createTrackRibbonSectionGeometry(track, stripeWidth, rightOffset, 0.083, start, end, 0.9),
+      color: alternateColor
+    });
+  }
+
+  return stripes;
+}
+
+function createTrackRibbonSectionGeometry(track: TrackDef, width: number, lateralOffset: number, y: number, startProgress: number, endProgress: number, spacing: number) {
+  const length = Math.max(0.001, endProgress - startProgress);
+  const count = Math.max(2, Math.ceil(length / spacing));
+  const halfWidth = width / 2;
+  const positions: number[] = [];
+  const indices: number[] = [];
+
+  for (let index = 0; index <= count; index += 1) {
+    const progress = startProgress + (length * index) / count;
+    const sample = sampleTrack(track, progress);
+    const rightX = Math.sin(sample.heading + Math.PI / 2);
+    const rightZ = Math.cos(sample.heading + Math.PI / 2);
+    const centerX = sample.x + rightX * lateralOffset;
+    const centerZ = sample.z + rightZ * lateralOffset;
+    positions.push(centerX - rightX * halfWidth, y, centerZ - rightZ * halfWidth);
+    positions.push(centerX + rightX * halfWidth, y, centerZ + rightZ * halfWidth);
+  }
+
+  for (let index = 0; index < count; index += 1) {
+    const left = index * 2;
+    const right = left + 1;
+    const nextLeft = left + 2;
+    const nextRight = left + 3;
+    indices.push(left, nextLeft, right, right, nextLeft, nextRight);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -1971,7 +2220,7 @@ function driveHaptics(car: CarState | undefined, pedals: { throttle: number; bra
   if (!enabled || !car || !hapticsSupported()) return;
 
   const now = performance.now();
-  const speedKmh = car.speed * 3.6;
+  const speedKmh = speedToKmh(car.speed);
   if (car.impact > 0.2 && now - lastHapticAtRef.current > 240) {
     if (pulseHaptic(Math.round(45 + car.impact * 95))) lastHapticAtRef.current = now;
     return;

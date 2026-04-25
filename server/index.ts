@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -15,6 +15,7 @@ const COUNTDOWN_MS = 3200;
 const DISCONNECT_GRACE_MS = 12_000;
 const NO_DISPLAY_GRACE_MS = 20_000;
 const RACE_DNF_GRACE_MS = DISCONNECT_GRACE_MS;
+const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
 
 type ClientRole = "unknown" | "display" | "controller";
 
@@ -183,6 +184,14 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_cockpit_style") {
+    const player = getClientPlayer(client, room);
+    if (!player || room.phase !== "lobby" || !COCKPIT_STYLES.has(message.cockpitStyle)) return;
+    player.cockpitStyle = message.cockpitStyle;
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "input_frame") {
     const player = getClientPlayer(client, room);
     if (!player) return;
@@ -202,7 +211,7 @@ function handleMessage(client: Client, message: ClientMessage) {
       ...message.settings,
       lapCount: clamp(Math.round(message.settings.lapCount ?? room.settings.lapCount), 1, 9),
       trackId: message.settings.trackId && TRACKS[message.settings.trackId] ? message.settings.trackId : room.settings.trackId,
-      rollingStart: typeof message.settings.rollingStart === "boolean" ? message.settings.rollingStart : room.settings.rollingStart,
+      warmupStart: typeof message.settings.warmupStart === "boolean" ? message.settings.warmupStart : room.settings.warmupStart,
       ghostMode: typeof message.settings.ghostMode === "boolean" ? message.settings.ghostMode : room.settings.ghostMode,
       rain: typeof message.settings.rain === "boolean" ? message.settings.rain : room.settings.rain,
       stabilityAssist: typeof message.settings.stabilityAssist === "boolean" ? message.settings.stabilityAssist : room.settings.stabilityAssist,
@@ -277,7 +286,7 @@ function createRoom(): Room {
     settings: {
       trackId: "sakura",
       lapCount: 1,
-      rollingStart: false,
+      warmupStart: true,
       ghostMode: false,
       rain: false,
       stabilityAssist: true,
@@ -310,6 +319,7 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     name: `Driver ${room.players.size + 1}`,
     color: defaultColors[room.players.size % defaultColors.length],
     carSetupId: DEFAULT_CAR_SETUP_ID,
+    cockpitStyle: "hands",
     isReady: false,
     isVIP: false,
     connected: true,
@@ -373,7 +383,7 @@ function startCountdown(room: Room) {
   room.cars.clear();
   room.inputs.clear();
   players.forEach((player, index) => {
-    room.cars.set(player.id, createCar(player, track, index));
+    room.cars.set(player.id, createCar(player, track, index, room.settings.warmupStart));
   });
 }
 
