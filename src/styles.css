@@ -89,6 +89,7 @@ h2 {
 .join-form,
 .stat,
 .topline,
+.topline-actions,
 .settings-strip,
 .player,
 .leaderboard li,
@@ -237,6 +238,18 @@ input {
 
 .topline {
   justify-content: space-between;
+  gap: 12px;
+}
+
+.topline-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.danger {
+  background: #741f2b;
+  color: #fffaf0;
 }
 
 .players {
@@ -258,6 +271,10 @@ input {
 .phone-note {
   display: block;
   color: rgba(16, 18, 20, 0.58);
+}
+
+.phone .phone-note {
+  color: rgba(255, 250, 240, 0.66);
 }
 
 .swatch {
@@ -544,6 +561,91 @@ input {
   font-weight: 800;
 }
 
+.car-selector {
+  display: grid;
+  gap: 10px;
+}
+
+.car-selector-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
+}
+
+.car-selector-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.car-selector-head span {
+  color: rgba(255, 250, 240, 0.68);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.car-selector-head strong {
+  font-size: 20px;
+}
+
+.setup-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-card {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  padding: 12px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #24272d;
+  color: #fffaf0;
+  text-align: left;
+}
+
+.setup-card.active {
+  border-color: #e84f5f;
+  background: #2f3035;
+}
+
+.setup-card small {
+  line-height: 1.3;
+}
+
+.setup-stats {
+  display: grid;
+  gap: 5px;
+}
+
+.stat-meter {
+  display: grid;
+  grid-template-columns: 44px 1fr 70px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stat-meter div {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 250, 240, 0.14);
+}
+
+.stat-meter div span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ffd166;
+}
+
+.stat-meter strong {
+  text-align: right;
+}
+
 .range-control input {
   min-height: auto;
   width: 100%;
@@ -573,6 +675,7 @@ input {
 
 .calibrate,
 .telemetry,
+.reset-to-track,
 .steer-touch,
 .rotate-warning {
   position: fixed;
@@ -611,6 +714,21 @@ input {
   background: rgba(255, 250, 240, 0.92);
   color: #101214;
   font-weight: 900;
+}
+
+.reset-to-track {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-height: 62px;
+  padding: 0 24px;
+  border-radius: 8px;
+  background: #ffd166;
+  color: #101214;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.32);
+  font-size: 19px;
+  font-weight: 950;
+  text-transform: uppercase;
 }
 
 .rotate-warning {
@@ -653,6 +771,10 @@ input {
   display: flex;
   align-items: end;
   padding: 4px;
+}
+
+.pedal-track.brake {
+  align-items: start;
 }
 
 .pedal-track span {

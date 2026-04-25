@@ -64,3 +64,27 @@ make the ghost car without car collisions a togglable mode in the settings where
 Visual style is not hyper realistic but not Minecraft blocks either
 
 Also, rain should be togglable in the settings as well and this should give all cars rain tyres and it should realistically affect the drive “feel” and game physics since this is a simulation
+
+Changes 25/04/26
+
+Original above is preserved
+
+Current game name is Drive Sim
+
+For now tracks are original tracks, not fan favourite copies
+
+Everyone still uses one f1 style car, but players can choose setup: balanced, high grip, high speed
+
+VIP settings now also include ghost cars, rain, gentle assist, and reset mode
+
+Default crash mode is still crash-out
+
+Reset mode can respawn crashed cars and lets off-track players reset after 5 seconds
+
+Phone controller has audio, haptics, motion test, calibration, and sensitivity
+
+Race screen now has minimap and live leaderboard
+
+Phone controllers can reconnect after refresh
+
+Visuals are procedural for now, not authored assets

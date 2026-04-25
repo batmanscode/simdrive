@@ -3,12 +3,15 @@ import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Play, RotateCcw
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarState, InputFrame, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
+import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
+import { speedToKmh } from "./shared/physics";
+import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
+import type { CarSetupId, CarState, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
+const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
 
 export function App() {
   const isController = location.pathname.startsWith("/controller");
@@ -26,7 +29,7 @@ function DisplayApp() {
           <div>
             <p className="eyebrow">Multiplayer phone-controller racing</p>
             <h1>Drive Sim</h1>
-            <p className="hero-copy">Create a room on this screen, scan with a phone, and race from a cockpit view where tilt steering, engine audio, tire slip, curb rumble, rain, and optional vibration make the car feel alive.</p>
+            <p className="hero-copy">Create a room on this screen, scan with a phone, and race from a cockpit view where setup choices, tilt steering, downforce-style grip, engine audio, tire slip, curb rumble, rain, and optional vibration make the car feel alive.</p>
             <div className="hero-actions">
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
@@ -55,11 +58,11 @@ function DisplayApp() {
             </div>
             <div className="stat">
               <Gauge />
-              <div><strong>Sim-Lite Feel</strong><span>Lateral slip, tuned braking, rain grip, curbs, grass, and gentle assist.</span></div>
+              <div><strong>Sim-Lite Feel</strong><span>Lateral slip, aero drag, speed-built grip, rain handling, curbs, grass, and gentle assist.</span></div>
             </div>
             <div className="stat">
               <Gamepad2 />
-              <div><strong>Driver Feedback</strong><span>Engine, tires, brake tone, impacts, countdown, and supported vibration.</span></div>
+              <div><strong>Race Tools</strong><span>Car setups, minimap, live leaderboard, best laps, audio, and supported vibration.</span></div>
             </div>
           </div>
         </section>
@@ -75,10 +78,10 @@ function DisplayApp() {
     return <ResultsDisplay room={game.room} send={game.send} />;
   }
 
-  return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} />;
+  return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
 }
 
-function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId?: string }) {
+function LobbyDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
 
@@ -95,7 +98,10 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
       <section className="lobby-main">
         <div className="topline">
           <h2>Lobby</h2>
-          <span>{room.players.length}/8 racers</span>
+          <div className="topline-actions">
+            <span>{room.players.length}/8 racers</span>
+            <button className="secondary danger" onClick={() => send({ type: "close_room" })}>Exit Room</button>
+          </div>
         </div>
         <PlayerGrid room={room} />
         <div className="settings-strip">
@@ -109,7 +115,7 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
           </div>
           <div>
             <span>Rain</span>
-            <strong>{room.settings.rain ? "On" : "Off"}</strong>
+            <strong>{room.settings.rain ? "Wet grip" : "Off"}</strong>
           </div>
           <div>
             <span>Rolling</span>
@@ -117,11 +123,15 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
           </div>
           <div>
             <span>Collisions</span>
-            <strong>{room.settings.ghostMode ? "Ghost" : "On"}</strong>
+            <strong>{room.settings.ghostMode ? "Ghost cars" : "On"}</strong>
           </div>
           <div>
             <span>Assist</span>
             <strong>{room.settings.stabilityAssist ? "Gentle" : "Off"}</strong>
+          </div>
+          <div>
+            <span>Reset</span>
+            <strong>{room.settings.resetEnabled ? "On" : "Crash-out"}</strong>
           </div>
         </div>
         <div className="track-preview">
@@ -129,7 +139,7 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
           <div>
             <h3>{track.name}</h3>
             <p>{track.description}</p>
-            <small>Target lap: {track.targetLap}. Gentle assist nudges cars toward the track direction to make steering more forgiving.</small>
+            <small>Target lap: {track.targetLap}. Rain lowers grip and top speed. Reset off means crashes kick drivers out.</small>
           </div>
         </div>
       </section>
@@ -145,7 +155,7 @@ function PlayerGrid({ room }: { room: RoomState }) {
           <span className="swatch" style={{ background: player.color }} />
           <div>
             <strong>{player.name}</strong>
-            <small>{player.isVIP ? "VIP" : player.isReady ? "Ready" : "Setting up"} · {player.connected ? "online" : "reconnecting"}</small>
+            <small>{player.isVIP ? "VIP" : player.isReady ? "Ready" : "Setting up"} · {CAR_SETUPS[player.carSetupId ?? DEFAULT_CAR_SETUP_ID].shortName} · {player.connected ? "online" : "reconnecting"}</small>
           </div>
         </div>
       ))}
@@ -180,7 +190,7 @@ function RaceDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId
 function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
   const player = room.players.find((item) => item.id === focusPlayerId);
   const car = room.cars.find((item) => item.playerId === focusPlayerId);
-  const speed = car ? Math.round(car.speed * 3.6) : 0;
+  const speed = car ? Math.round(speedToKmh(car.speed)) : 0;
   return (
     <div className="race-hud">
       <div><span className="swatch" style={{ background: player?.color }} />{player?.name}</div>
@@ -274,34 +284,70 @@ function ResultsDisplay({ room, send }: { room: RoomState; send: ReturnType<type
 function ControllerApp() {
   const params = new URLSearchParams(location.search);
   const game = useGameSocket();
-  const [roomCode, setRoomCode] = useState(params.get("room")?.toUpperCase() ?? "");
-  const [displayGroupId] = useState(params.get("group") ?? "");
+  const savedSession = useMemo(() => readControllerSession(), []);
+  const initialRoomCode = params.get("room")?.toUpperCase() ?? savedSession?.roomCode ?? "";
+  const [roomCode, setRoomCode] = useState(initialRoomCode);
+  const [displayGroupId, setDisplayGroupId] = useState(params.get("group") ?? (initialRoomCode === savedSession?.roomCode ? savedSession.displayGroupId : ""));
   const [name, setName] = useState(localStorage.getItem("drive-sim-name") ?? `Guest ${Math.floor(Math.random() * 90 + 10)}`);
   const [color, setColor] = useState(localStorage.getItem("drive-sim-color") ?? COLORS[Math.floor(Math.random() * COLORS.length)]);
-  const token = localStorage.getItem(`drive-sim-token-${roomCode}`);
+  const [joinStatus, setJoinStatus] = useState("");
+  const autoResumeAttemptedRef = useRef(false);
+  const token = localStorage.getItem(controllerTokenKey(roomCode)) ?? (savedSession?.roomCode === roomCode ? savedSession.token : null);
   const player = game.room?.players.find((item) => item.id === game.playerId);
 
   useEffect(() => {
     if (game.joinedToken && roomCode) {
-      localStorage.setItem(`drive-sim-token-${roomCode}`, game.joinedToken);
+      writeControllerSession({ roomCode, displayGroupId: game.displayGroupId ?? displayGroupId, token: game.joinedToken });
+      setJoinStatus(autoResumeAttemptedRef.current ? "Reconnected as your saved driver." : "Controller joined.");
     }
-  }, [game.joinedToken, roomCode]);
+  }, [displayGroupId, game.displayGroupId, game.joinedToken, roomCode]);
+
+  useEffect(() => {
+    autoResumeAttemptedRef.current = false;
+  }, [roomCode]);
+
+  useEffect(() => {
+    if (!roomCode || !token || game.playerId || autoResumeAttemptedRef.current) return;
+    autoResumeAttemptedRef.current = true;
+    setJoinStatus("Reconnecting to your saved driver...");
+    game.send({ type: "set_profile", roomCode, displayGroupId, token, name, color });
+  }, [color, displayGroupId, game.playerId, game.send, name, roomCode, token]);
+
+  useEffect(() => {
+    if (!game.notice) return;
+    setJoinStatus(game.notice.message);
+    if (game.notice.message === "Room not found." || game.notice.message.includes("Room closed")) {
+      clearControllerSession(roomCode);
+      autoResumeAttemptedRef.current = false;
+    }
+  }, [game.notice, roomCode]);
 
   if (!game.playerId) {
     return (
       <main className="phone setup">
         <h1>Drive Sim</h1>
+        {joinStatus && <small className="phone-note">{joinStatus}</small>}
         <form
           onSubmit={(event) => {
             event.preventDefault();
             localStorage.setItem("drive-sim-name", name);
             localStorage.setItem("drive-sim-color", color);
+            setJoinStatus(token ? "Reconnecting to your saved driver..." : "Joining controller...");
             game.send({ type: "set_profile", roomCode, displayGroupId, token: token ?? undefined, name, color });
           }}
         >
           <label>
             Room
-            <input value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} maxLength={4} placeholder="CODE" />
+            <input
+              value={roomCode}
+              onChange={(event) => {
+                setRoomCode(event.target.value.toUpperCase());
+                setDisplayGroupId("");
+                setJoinStatus("");
+              }}
+              maxLength={4}
+              placeholder="CODE"
+            />
           </label>
           <label>
             Name
@@ -312,7 +358,8 @@ function ControllerApp() {
               <button key={item} type="button" className={item === color ? "color active" : "color"} style={{ background: item }} onClick={() => setColor(item)} />
             ))}
           </div>
-          <button className="primary" type="submit"><Smartphone size={18} /> Join Controller</button>
+          {token && <small className="phone-note">Saved driver found for this room. Refreshes and QR rescans reconnect automatically.</small>}
+          <button className="primary" type="submit"><Smartphone size={18} /> {token ? "Reconnect Controller" : "Join Controller"}</button>
         </form>
       </main>
     );
@@ -322,10 +369,10 @@ function ControllerApp() {
     return <RaceController send={game.send} feedback={game.feedback} room={game.room} playerId={game.playerId} />;
   }
 
-  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} />;
+  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} />;
 }
 
-function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; player?: { isVIP: boolean; isReady: boolean }; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState }) {
+function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(sensorSupported() ? "Motion ready" : "Motion unavailable");
   const [motionLevel, setMotionLevel] = useState(0);
@@ -355,6 +402,7 @@ function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; p
   return (
     <main className="phone controller-lobby">
       <h1>{player?.isVIP ? "VIP Settings" : "Ready Room"}</h1>
+      {joinStatus && <small className="phone-note">{joinStatus}</small>}
       <button
         className="secondary"
         onClick={() => {
@@ -420,15 +468,20 @@ function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; p
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
       <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
+      {player && <CarSetupSelector value={player.carSetupId} send={send} />}
       {player?.isVIP && settings && (
         <div className="vip-controls">
           <TrackPicker settings={settings} send={send} />
           <Stepper label="Laps" value={settings.lapCount} min={1} max={9} onChange={(lapCount) => send({ type: "vip_set_settings", settings: { lapCount } })} />
           <Toggle label="Rolling start" value={settings.rollingStart} onChange={(rollingStart) => send({ type: "vip_set_settings", settings: { rollingStart } })} />
           <Toggle label="Ghost cars" value={settings.ghostMode} onChange={(ghostMode) => send({ type: "vip_set_settings", settings: { ghostMode } })} />
+          <small className="phone-note">Ghost cars disables car-to-car collisions. Walls and off-track still matter.</small>
           <Toggle label="Rain" value={settings.rain} onChange={(rain) => send({ type: "vip_set_settings", settings: { rain } })} />
+          <small className="phone-note">Rain lowers grip and top speed, so braking and steering need more care.</small>
           <Toggle label="Gentle assist" value={settings.stabilityAssist} onChange={(stabilityAssist) => send({ type: "vip_set_settings", settings: { stabilityAssist } })} />
           <small className="phone-note">Gentle assist softly aligns the car toward the road direction so steering is more forgiving.</small>
+          <Toggle label="Reset mode" value={settings.resetEnabled} onChange={(resetEnabled) => send({ type: "vip_set_settings", settings: { resetEnabled } })} />
+          <small className="phone-note">Reset mode respawns crashes and enables off-track resets. Default crash-out kicks crashed players; it's more fun to kick players who crash ;)</small>
           <button
             className="primary"
             onClick={() => {
@@ -453,9 +506,59 @@ function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; p
           {player?.isReady ? "Unready" : "Ready"}
         </button>
       )}
-      <small className="phone-note">Use earphones for clearer engine, tire, and curb feedback. Motion is optional; touch steering appears in-race if needed.</small>
-      {feedback && <small>{Math.round(feedback.speed * 3.6)} km/h</small>}
+      <small className="phone-note">Use earphones for clearer engine, tire, curb, and impact feedback. Full directional audio is not implemented yet.</small>
+      {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
     </main>
+  );
+}
+
+function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType<typeof useGameSocket>["send"] }) {
+  const selected = CAR_SETUPS[value ?? DEFAULT_CAR_SETUP_ID];
+  return (
+    <section className="car-selector" aria-label="Car setup">
+      <div className="car-selector-head">
+        <div>
+          <span>Car setup</span>
+          <strong>{selected.name}</strong>
+        </div>
+        <small>{selected.stats.topSpeedKmh} km/h dry top</small>
+      </div>
+      <small className="phone-note">Grip builds with speed on road and curbs. Rain still lowers grip and top speed.</small>
+      <div className="setup-grid">
+        {Object.values(CAR_SETUPS).map((setup) => (
+          <button
+            key={setup.id}
+            className={setup.id === value ? "setup-card active" : "setup-card"}
+            onClick={() => send({ type: "set_car_setup", carSetupId: setup.id })}
+          >
+            <strong>{setup.name}</strong>
+            <small>{setup.description}</small>
+            <SetupStats setup={setup} />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SetupStats({ setup }: { setup: CarSetup }) {
+  return (
+    <div className="setup-stats">
+      <StatMeter label="Top" value={setup.stats.topSpeedKmh} max={432} suffix="km/h" />
+      <StatMeter label="Accel" value={setup.stats.acceleration} max={10} />
+      <StatMeter label="Grip" value={setup.stats.grip} max={10} />
+      <StatMeter label="Brake" value={setup.stats.braking} max={10} />
+    </div>
+  );
+}
+
+function StatMeter({ label, value, max, suffix }: { label: string; value: number; max: number; suffix?: string }) {
+  return (
+    <div className="stat-meter">
+      <span>{label}</span>
+      <div><span style={{ width: `${clamp(value / max, 0, 1) * 100}%` }} /></div>
+      <strong>{suffix ? `${value} ${suffix}` : value}</strong>
+    </div>
   );
 }
 
@@ -536,6 +639,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
   const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
   const car = room.cars.find((item) => item.playerId === playerId);
+  const resetAvailable = room.settings.resetEnabled && Boolean(car?.resetAvailable);
 
   useEffect(() => {
     void requestLandscape();
@@ -625,7 +729,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       </div>
       <button className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">
-        <span>{Math.round((car?.speed ?? 0) * 3.6)} km/h</span>
+        <span>{Math.round(speedToKmh(car?.speed ?? 0))} km/h</span>
         <span>Lap {car?.lap ?? 1}/{room.settings.lapCount}</span>
         <span>{motionStatus}</span>
         <button
@@ -637,6 +741,11 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
           {hapticStatus}
         </button>
       </div>
+      {resetAvailable && (
+        <button className="reset-to-track" onClick={() => send({ type: "request_reset" })}>
+          Reset to track
+        </button>
+      )}
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
@@ -662,13 +771,14 @@ function PedalZone({ side, value, firstTap, onChange }: { side: "brake" | "throt
       }}
       onPointerMove={(event) => {
         if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-        onChange(clamp(startValue.current + (startY.current - event.clientY) / 180, 0, 1));
+        const delta = side === "brake" ? event.clientY - startY.current : startY.current - event.clientY;
+        onChange(clamp(startValue.current + delta / 180, 0, 1));
       }}
       onPointerUp={() => onChange(0)}
       onPointerCancel={() => onChange(0)}
     >
       <strong>{side === "brake" ? "Brake" : "Throttle"}</strong>
-      <div className="pedal-track"><span style={{ height: `${value * 100}%` }} /></div>
+      <div className={`pedal-track ${side}`}><span style={{ height: `${value * 100}%` }} /></div>
       <em>{Math.round(value * 100)}%</em>
     </div>
   );
@@ -731,7 +841,13 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
       {room.settings.rain && focus && <RainEffect focus={focus} />}
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
-        return <CarModel key={car.playerId} car={car} color={player?.color ?? "#ff3b5c"} dimmed={car.playerId === focusPlayerId} />;
+        const color = player?.color ?? "#ff3b5c";
+        return (
+          <group key={car.playerId}>
+            <CarEffects car={car} rain={room.settings.rain} color={color} />
+            <CarModel car={car} color={color} dimmed={car.playerId === focusPlayerId} />
+          </group>
+        );
       })}
       {focus && <Cockpit car={focus} color={room.players.find((item) => item.id === focusPlayerId)?.color ?? "#ff3b5c"} />}
     </>
@@ -739,43 +855,53 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
 }
 
 function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const samples = useMemo(() => sampleTrackVisuals(track, 7), [track]);
+  const samples = useMemo(() => sampleTrackVisuals(track, 6), [track]);
+  const roadGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width, 0, 0.035, 2.7), [track]);
+  const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
+  const leftCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, -track.width / 2 - track.curbWidth / 2, 0.055, 2.7), [track]);
+  const rightCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, track.width / 2 + track.curbWidth / 2, 0.055, 2.7), [track]);
+  const leftLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, -track.width / 2 + 0.18, 0.075, 2.7), [track]);
+  const rightLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, track.width / 2 - 0.18, 0.075, 2.7), [track]);
+  const racingLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 1.35, 0, 0.078, 2.7), [track]);
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[35, -0.05, 45]} receiveShadow>
         <planeGeometry args={[260, 240]} />
         <meshStandardMaterial color={rain ? "#516056" : "#5a7e48"} roughness={0.95} />
       </mesh>
+      <mesh geometry={runoffGeometry} receiveShadow>
+        <meshStandardMaterial color={rain ? "#59625d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={roadGeometry} receiveShadow>
+        <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={racingLineGeometry}>
+        <meshBasicMaterial color={rain ? "#11191c" : "#17181a"} transparent opacity={rain ? 0.28 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={leftCurbGeometry}>
+        <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={rightCurbGeometry}>
+        <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={leftLineGeometry}>
+        <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={rightLineGeometry}>
+        <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
+      </mesh>
       {samples.map((sample, index) => {
+        const curbColor = index % 2 === 0 ? "#e8e1d1" : "#b02b35";
+        const alternateCurbColor = index % 2 === 0 ? "#b02b35" : "#e8e1d1";
         return (
           <group key={`${sample.x}-${sample.z}-${index}`} position={[sample.x, 0, sample.z]} rotation={[0, sample.heading, 0]}>
-            <mesh position={[-track.width / 2 - track.curbWidth - track.wallMargin / 2, -0.005, 0]} receiveShadow>
-              <boxGeometry args={[track.wallMargin, 0.045, sample.length + 0.35]} />
-              <meshStandardMaterial color={rain ? "#59625d" : "#6f8c58"} roughness={0.92} />
+            <mesh position={[-track.width / 2 - track.curbWidth / 2, 0.083, 0]}>
+              <boxGeometry args={[track.curbWidth * 0.82, 0.026, sample.length * 0.82]} />
+              <meshStandardMaterial color={curbColor} roughness={0.58} />
             </mesh>
-            <mesh position={[track.width / 2 + track.curbWidth + track.wallMargin / 2, -0.005, 0]} receiveShadow>
-              <boxGeometry args={[track.wallMargin, 0.045, sample.length + 0.35]} />
-              <meshStandardMaterial color={rain ? "#59625d" : "#6f8c58"} roughness={0.92} />
-            </mesh>
-            <mesh receiveShadow>
-              <boxGeometry args={[track.width, 0.08, sample.length + 0.35]} />
-              <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.36 : 0.78} metalness={rain ? 0.12 : 0.04} />
-            </mesh>
-            <mesh position={[-track.width / 2 + 0.12, 0.055, 0]}>
-              <boxGeometry args={[0.12, 0.024, sample.length + 0.1]} />
-              <meshStandardMaterial color={rain ? "#d7dad8" : "#f5f1dc"} roughness={0.7} />
-            </mesh>
-            <mesh position={[track.width / 2 - 0.12, 0.055, 0]}>
-              <boxGeometry args={[0.12, 0.024, sample.length + 0.1]} />
-              <meshStandardMaterial color={rain ? "#d7dad8" : "#f5f1dc"} roughness={0.7} />
-            </mesh>
-            <mesh position={[-track.width / 2 - track.curbWidth / 2, 0.045, 0]}>
-              <boxGeometry args={[track.curbWidth, 0.07, sample.length + 0.15]} />
-              <meshStandardMaterial color={index % 2 === 0 ? "#e8e1d1" : "#b02b35"} roughness={0.65} />
-            </mesh>
-            <mesh position={[track.width / 2 + track.curbWidth / 2, 0.045, 0]}>
-              <boxGeometry args={[track.curbWidth, 0.07, sample.length + 0.15]} />
-              <meshStandardMaterial color={index % 2 === 0 ? "#b02b35" : "#e8e1d1"} roughness={0.65} />
+            <mesh position={[track.width / 2 + track.curbWidth / 2, 0.083, 0]}>
+              <boxGeometry args={[track.curbWidth * 0.82, 0.026, sample.length * 0.82]} />
+              <meshStandardMaterial color={alternateCurbColor} roughness={0.58} />
             </mesh>
           </group>
         );
@@ -789,6 +915,7 @@ function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 28 : 21), [track]);
   const boards = propSamples.filter((_, index) => index % 3 === 0);
   const barriers = propSamples.filter((_, index) => index % 2 === 1);
+  const brakingBoards = propSamples.filter((_, index) => index % 4 === 1);
   return (
     <group>
       <group position={[start.x, 0.16, start.z]} rotation={[0, start.heading, 0]}>
@@ -832,6 +959,29 @@ function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
             <mesh position={[0, -0.72, 0]}>
               <boxGeometry args={[0.12, 1.1, 0.12]} />
               <meshStandardMaterial color="#22262c" roughness={0.5} />
+            </mesh>
+          </group>
+        );
+      })}
+      {brakingBoards.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
+        const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
+        return (
+          <group key={`${sample.x}-${sample.z}-brake`} position={[x, 0.72, z]} rotation={[0, sample.heading + (side < 0 ? 0.42 : -0.42), 0]}>
+            <mesh castShadow>
+              <boxGeometry args={[1.0, 1.0, 0.1]} />
+              <meshStandardMaterial color="#fffaf0" roughness={0.62} />
+            </mesh>
+            {[0, 1, 2].map((stripe) => (
+              <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
+                <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
+                <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
+              </mesh>
+            ))}
+            <mesh position={[0, -0.76, 0]}>
+              <boxGeometry args={[0.1, 1.1, 0.1]} />
+              <meshStandardMaterial color="#22262c" roughness={0.52} />
             </mesh>
           </group>
         );
@@ -925,10 +1075,53 @@ function RainEffect({ focus }: { focus: CarState }) {
   );
 }
 
+function CarEffects({ car, rain, color }: { car: CarState; rain: boolean; color: string }) {
+  const speedAmount = clamp(car.speed / 32, 0, 1);
+  const dustOpacity = car.surface === "grass" ? speedAmount * 0.26 : 0;
+  const sprayOpacity = rain && car.surface !== "grass" ? speedAmount * 0.22 : 0;
+  const impactOpacity = car.impact > 0.35 ? clamp(car.impact, 0, 1) * 0.36 : 0;
+  if (dustOpacity <= 0 && sprayOpacity <= 0 && impactOpacity <= 0) return null;
+  return (
+    <group position={[car.x, 0.12, car.z]} rotation={[0, car.heading, 0]}>
+      {dustOpacity > 0 && (
+        <>
+          <mesh position={[-0.55, 0.02, -2.1]} rotation={[-Math.PI / 2, 0, 0.18]}>
+            <planeGeometry args={[1.25, 2.1]} />
+            <meshBasicMaterial color="#bca57b" transparent opacity={dustOpacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0.55, 0.02, -2.1]} rotation={[-Math.PI / 2, 0, -0.18]}>
+            <planeGeometry args={[1.25, 2.1]} />
+            <meshBasicMaterial color="#bca57b" transparent opacity={dustOpacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      )}
+      {sprayOpacity > 0 && (
+        <>
+          <mesh position={[-0.62, 0.08, -1.9]} rotation={[-Math.PI / 2, 0, 0.28]}>
+            <planeGeometry args={[0.9, 2.5]} />
+            <meshBasicMaterial color="#dbecef" transparent opacity={sprayOpacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0.62, 0.08, -1.9]} rotation={[-Math.PI / 2, 0, -0.28]}>
+            <planeGeometry args={[0.9, 2.5]} />
+            <meshBasicMaterial color="#dbecef" transparent opacity={sprayOpacity} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      )}
+      {impactOpacity > 0 && (
+        <mesh position={[0, 0.25, 0.2]}>
+          <sphereGeometry args={[1.15, 12, 8]} />
+          <meshBasicMaterial color={color} transparent opacity={impactOpacity} depthWrite={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const initial = useRef({ x: car.x, z: car.z, heading: car.heading });
   const visible = !dimmed;
+  const ghosted = visible && Boolean(car.resetInvulnerableUntil);
   const wheelSpin = car.wheelDistance * 3.1;
   const frontSteer = visualWheelSteer(car.steer, 0.48);
   useFrame((_, delta) => {
@@ -940,6 +1133,12 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
   });
   return (
     <group ref={group} position={[initial.current.x, 0.3, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
+      {ghosted && (
+        <mesh position={[0, 0.25, 0.15]}>
+          <boxGeometry args={[2.6, 0.9, 4.25]} />
+          <meshBasicMaterial color="#d9f6ff" transparent opacity={0.18} depthWrite={false} />
+        </mesh>
+      )}
       <mesh castShadow visible={visible} position={[0, 0.06, 0.1]}>
         <boxGeometry args={[0.86, 0.22, 2.85]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.26} />
@@ -979,6 +1178,14 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
       <mesh castShadow position={[0, 0.42, -0.38]} visible={visible}>
         <torusGeometry args={[0.38, 0.035, 8, 24]} />
         <meshStandardMaterial color="#07090c" roughness={0.5} />
+      </mesh>
+      <mesh castShadow position={[0, 0.67, -0.44]} rotation={[Math.PI / 2, 0, 0]} visible={visible}>
+        <torusGeometry args={[0.54, 0.028, 8, 28, Math.PI]} />
+        <meshStandardMaterial color="#0b0e12" roughness={0.42} metalness={0.08} />
+      </mesh>
+      <mesh castShadow position={[0, 0.36, -0.84]} visible={visible}>
+        <boxGeometry args={[0.95, 0.05, 0.16]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.45} metalness={0.08} />
       </mesh>
       <mesh castShadow position={[0, 0.22, 2.05]} visible={visible}>
         <boxGeometry args={[2.25, 0.08, 0.34]} />
@@ -1033,14 +1240,24 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
         const side = x < 0 ? -1 : 1;
         return (
         <group key={`${x}-${z}`} position={[x, -0.05, z]} rotation={[0, isFront ? frontSteer : 0, 0]} visible={visible}>
-          <mesh castShadow rotation={[Math.PI / 2, 0, wheelSpin * side]}>
-            <cylinderGeometry args={[0.32, 0.32, 0.28, 24]} />
-            <meshStandardMaterial color="#050608" roughness={0.72} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, wheelSpin * side]}>
-            <cylinderGeometry args={[0.17, 0.17, 0.3, 18]} />
-            <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.45} />
-          </mesh>
+          <group rotation={[wheelSpin * side, 0, 0]}>
+            <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.32, 0.32, 0.28, 24]} />
+              <meshStandardMaterial color="#050608" roughness={0.72} />
+            </mesh>
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.17, 0.17, 0.3, 18]} />
+              <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.45} />
+            </mesh>
+            <mesh rotation={[0, Math.PI / 2, 0]}>
+              <torusGeometry args={[0.325, 0.018, 8, 24]} />
+              <meshStandardMaterial color="#161a20" roughness={0.5} />
+            </mesh>
+            <mesh position={[0, 0.21, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <boxGeometry args={[0.28, 0.035, 0.035]} />
+              <meshStandardMaterial color="#f1eadc" roughness={0.55} />
+            </mesh>
+          </group>
         </group>
         );
       })}
@@ -1108,14 +1325,24 @@ function Cockpit({ car, color }: { car: CarState; color: string }) {
       </mesh>
       {[[-0.92, 1.5], [0.92, 1.5]].map(([x, z]) => (
         <group key={x} position={[x, -0.1, z]} rotation={[0, frontSteer, 0]}>
-          <mesh rotation={[Math.PI / 2, 0, wheelSpin * (x < 0 ? -1 : 1)]}>
-            <cylinderGeometry args={[0.34, 0.34, 0.22, 22]} />
-            <meshStandardMaterial color="#050608" roughness={0.75} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, wheelSpin * (x < 0 ? -1 : 1)]}>
-            <cylinderGeometry args={[0.16, 0.16, 0.24, 16]} />
-            <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.4} />
-          </mesh>
+          <group rotation={[wheelSpin * (x < 0 ? -1 : 1), 0, 0]}>
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.34, 0.34, 0.22, 22]} />
+              <meshStandardMaterial color="#050608" roughness={0.75} />
+            </mesh>
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.16, 0.16, 0.24, 16]} />
+              <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.4} />
+            </mesh>
+            <mesh rotation={[0, Math.PI / 2, 0]}>
+              <torusGeometry args={[0.345, 0.018, 8, 24]} />
+              <meshStandardMaterial color="#161a20" roughness={0.5} />
+            </mesh>
+            <mesh position={[0, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <boxGeometry args={[0.3, 0.035, 0.035]} />
+              <meshStandardMaterial color="#f1eadc" roughness={0.55} />
+            </mesh>
+          </group>
         </group>
       ))}
       <mesh position={[-0.58, -0.08, 1.88]} rotation={[0, 0, 0.28]}>
@@ -1221,6 +1448,43 @@ function sampleTrackVisuals(track: TrackDef, spacing: number) {
   return samples;
 }
 
+function createTrackRibbonGeometry(track: TrackDef, width: number, lateralOffset: number, y: number, spacing: number) {
+  const metrics = trackMetrics(track);
+  const count = Math.max(24, Math.ceil(metrics.totalLength / spacing));
+  const halfWidth = width / 2;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const progress = (metrics.totalLength * index) / count;
+    const sample = sampleTrack(track, progress);
+    const rightX = Math.sin(sample.heading + Math.PI / 2);
+    const rightZ = Math.cos(sample.heading + Math.PI / 2);
+    const centerX = sample.x + rightX * lateralOffset;
+    const centerZ = sample.z + rightZ * lateralOffset;
+    positions.push(centerX - rightX * halfWidth, y, centerZ - rightZ * halfWidth);
+    positions.push(centerX + rightX * halfWidth, y, centerZ + rightZ * halfWidth);
+    uvs.push(0, progress / metrics.totalLength, 1, progress / metrics.totalLength);
+  }
+
+  for (let index = 0; index < count; index += 1) {
+    const next = (index + 1) % count;
+    const left = index * 2;
+    const right = left + 1;
+    const nextLeft = next * 2;
+    const nextRight = nextLeft + 1;
+    indices.push(left, nextLeft, right, right, nextLeft, nextRight);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const queuedMessagesRef = useRef<object[]>([]);
@@ -1230,6 +1494,7 @@ function useGameSocket() {
   const [playerId, setPlayerId] = useState<string>();
   const [joinedToken, setJoinedToken] = useState<string>();
   const [feedback, setFeedback] = useState<CarState>();
+  const [notice, setNotice] = useState<{ id: number; message: string }>();
 
   useEffect(() => {
     const ws = new WebSocket(wsUrl());
@@ -1255,6 +1520,7 @@ function useGameSocket() {
         setPlayerId(message.playerId);
         setDisplayGroupId(message.displayGroupId);
         setJoinedToken(message.token);
+        setNotice(undefined);
       }
       if (message.type === "room_state") setRoom(message.state);
       if (message.type === "race_snapshot") {
@@ -1278,12 +1544,14 @@ function useGameSocket() {
         setPlayerId(undefined);
         setJoinedToken(undefined);
         setFeedback(undefined);
+        setNotice({ id: Date.now(), message: message.message });
       }
       if (message.type === "error_notice") {
         console.warn(message.message);
         if (message.message === "Room not found.") {
           sessionStorage.removeItem("drive-sim-display-session");
         }
+        setNotice({ id: Date.now(), message: message.message });
       }
     };
     return () => ws.close();
@@ -1299,7 +1567,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, send };
 }
 
 function useStoredNumber(key: string, fallback: number) {
@@ -1352,6 +1620,46 @@ function makeControllerUrl(roomCode: string, displayGroupId?: string) {
   url.searchParams.set("room", roomCode);
   if (displayGroupId) url.searchParams.set("group", displayGroupId);
   return url.toString();
+}
+
+type ControllerSession = {
+  roomCode: string;
+  displayGroupId: string;
+  token: string;
+};
+
+function controllerTokenKey(roomCode: string) {
+  return `drive-sim-token-${roomCode}`;
+}
+
+function readControllerSession(): ControllerSession | undefined {
+  try {
+    const value = localStorage.getItem(CONTROLLER_SESSION_KEY);
+    if (!value) return undefined;
+    const parsed = JSON.parse(value) as Partial<ControllerSession>;
+    if (!parsed.roomCode || !parsed.token) return undefined;
+    return {
+      roomCode: parsed.roomCode.toUpperCase(),
+      displayGroupId: parsed.displayGroupId ?? "",
+      token: parsed.token
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function writeControllerSession(session: ControllerSession) {
+  const roomCode = session.roomCode.toUpperCase();
+  localStorage.setItem(controllerTokenKey(roomCode), session.token);
+  localStorage.setItem(CONTROLLER_SESSION_KEY, JSON.stringify({ ...session, roomCode }));
+}
+
+function clearControllerSession(roomCode?: string) {
+  const session = readControllerSession();
+  if (!roomCode || session?.roomCode === roomCode.toUpperCase()) {
+    localStorage.removeItem(CONTROLLER_SESSION_KEY);
+  }
+  if (roomCode) localStorage.removeItem(controllerTokenKey(roomCode.toUpperCase()));
 }
 
 function readDisplaySession() {
@@ -1690,12 +1998,12 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function steeringSensitivityFromLevel(level: number) {
-  return 0.65 + clamp(level, 1, 10) * 0.09;
+  return 0.6 + clamp(level, 1, 10) * 0.16;
 }
 
 function visualWheelSteer(steer: number, amount: number) {
   if (Math.abs(steer) < 0.06) return 0;
-  return steer < 0 ? amount : -amount;
+  return steer < 0 ? -amount : amount;
 }
 
 function smoothingAmount(delta: number, response: number) {

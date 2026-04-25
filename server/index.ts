@@ -2,7 +2,8 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { createCar, resolveCarContacts, stepCar } from "../src/shared/physics.js";
+import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID } from "../src/shared/cars.js";
+import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
 import type { CarState, ClientMessage, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
 
@@ -174,6 +175,14 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_car_setup") {
+    const player = getClientPlayer(client, room);
+    if (!player || room.phase !== "lobby" || !CAR_SETUPS[message.carSetupId]) return;
+    player.carSetupId = message.carSetupId;
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "input_frame") {
     const player = getClientPlayer(client, room);
     if (!player) return;
@@ -196,9 +205,20 @@ function handleMessage(client: Client, message: ClientMessage) {
       rollingStart: typeof message.settings.rollingStart === "boolean" ? message.settings.rollingStart : room.settings.rollingStart,
       ghostMode: typeof message.settings.ghostMode === "boolean" ? message.settings.ghostMode : room.settings.ghostMode,
       rain: typeof message.settings.rain === "boolean" ? message.settings.rain : room.settings.rain,
-      stabilityAssist: typeof message.settings.stabilityAssist === "boolean" ? message.settings.stabilityAssist : room.settings.stabilityAssist
+      stabilityAssist: typeof message.settings.stabilityAssist === "boolean" ? message.settings.stabilityAssist : room.settings.stabilityAssist,
+      resetEnabled: typeof message.settings.resetEnabled === "boolean" ? message.settings.resetEnabled : room.settings.resetEnabled
     };
     broadcastRoom(room);
+    return;
+  }
+
+  if (message.type === "request_reset") {
+    const player = getClientPlayer(client, room);
+    const car = player ? room.cars.get(player.id) : undefined;
+    if (!player || !car || !room.raceStartedAt || room.phase !== "racing" || !room.settings.resetEnabled) return;
+    if (!car.resetAvailable || car.finished || car.crashed || car.dnf) return;
+    resetCarToTrack(car, TRACKS[room.settings.trackId], (Date.now() - room.raceStartedAt) / 1000);
+    broadcastRealtime(room);
     return;
   }
 
@@ -220,14 +240,23 @@ function handleMessage(client: Client, message: ClientMessage) {
     if (client.role !== "display") return;
     returnToLobby(room);
     broadcastRoom(room);
+    return;
+  }
+
+  if (message.type === "close_room") {
+    if (client.role !== "display" && !isVip(client, room)) return;
+    closeRoom(room, "Room closed.");
   }
 }
 
 function returnToLobby(room: Room) {
-    room.phase = "lobby";
-    room.results = [];
-    room.cars.clear();
-    for (const player of room.players.values()) player.isReady = false;
+  room.phase = "lobby";
+  room.results = [];
+  room.cars.clear();
+  room.inputs.clear();
+  room.countdownEndsAt = undefined;
+  room.raceStartedAt = undefined;
+  for (const player of room.players.values()) player.isReady = false;
 }
 
 function createRoom(): Room {
@@ -251,7 +280,8 @@ function createRoom(): Room {
       rollingStart: false,
       ghostMode: false,
       rain: false,
-      stabilityAssist: true
+      stabilityAssist: true,
+      resetEnabled: false
     },
     results: []
   };
@@ -279,6 +309,7 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     displayGroupId,
     name: `Driver ${room.players.size + 1}`,
     color: defaultColors[room.players.size % defaultColors.length],
+    carSetupId: DEFAULT_CAR_SETUP_ID,
     isReady: false,
     isVIP: false,
     connected: true,
@@ -300,6 +331,13 @@ function tickRoom(room: Room, dt: number) {
   const raceTimeLimit = raceLimitSeconds(track, room.settings.lapCount);
   for (const car of room.cars.values()) {
     const player = room.players.get(car.playerId);
+    if (room.settings.resetEnabled && car.crashed && !car.dnf && !car.finished) {
+      car.crashedAt ??= raceTime;
+      car.resetAvailable = false;
+      if (raceTime - car.crashedAt >= 2.5) {
+        resetCarToTrack(car, track, raceTime);
+      }
+    }
     if (player && !player.connected && player.disconnectedAt && Date.now() - player.disconnectedAt > RACE_DNF_GRACE_MS) {
       car.dnf = true;
     }
@@ -313,8 +351,14 @@ function tickRoom(room: Room, dt: number) {
       ? room.inputs.get(car.playerId) ?? emptyInput
       : { ...emptyInput, brake: 0.35 };
     stepCar(car, input, track, room.settings, dt, raceTime);
+    updateResetAvailability(car, room.settings, raceTime);
   }
   resolveCarContacts([...room.cars.values()], room.settings);
+  if (room.settings.resetEnabled) {
+    for (const car of room.cars.values()) {
+      if (car.crashed && !car.crashedAt) car.crashedAt = raceTime;
+    }
+  }
   collectResults(room);
 }
 
@@ -350,7 +394,7 @@ function collectResults(room: Room) {
         bestLapTime: car.bestLapTime,
         status: "finished"
       });
-    } else if (car.crashed) {
+    } else if (car.crashed && !room.settings.resetEnabled) {
       room.results.push({
         playerId: player.id,
         name: player.name,
@@ -369,6 +413,21 @@ function collectResults(room: Room) {
   if (cars.length > 0 && room.results.length === cars.length) {
     room.phase = "results";
   }
+}
+
+function updateResetAvailability(car: CarState, settings: RaceSettings, raceTime: number) {
+  if (!settings.resetEnabled || car.finished || car.crashed || car.dnf) {
+    car.resetAvailable = false;
+    car.offTrackSince = undefined;
+    return;
+  }
+  if (car.surface !== "grass") {
+    car.resetAvailable = false;
+    car.offTrackSince = undefined;
+    return;
+  }
+  car.offTrackSince ??= raceTime;
+  car.resetAvailable = raceTime - car.offTrackSince >= 5;
 }
 
 function raceLimitSeconds(track: (typeof TRACKS)[keyof typeof TRACKS], lapCount: number) {

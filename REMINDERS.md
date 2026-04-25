@@ -1,11 +1,12 @@
-# Reminders
+Asset generation later
 
-## Crash Reset Race Option
-
-- Keep the current crash-out mode because it makes collisions meaningful and creates tension.
-- Later, consider a VIP race toggle such as `Crash reset` or `Reset after crash`.
-- If enabled, a crashed car should pause for about 2-3 seconds, then respawn near the last valid track point with low speed.
-- After respawn, the car should be ghosted/invulnerable briefly so it does not instantly re-crash.
-- A more general reset may also be useful: if a car is off-road or stuck for 5+ seconds, allow or auto-trigger reset.
-- Make reset behavior a race setting, not a per-player setting, so everyone uses the same rules.
-- Wait until after the next real-phone playtest before implementing, because the current physics/off-track recovery may already be acceptable or may clarify what reset behavior should solve.
+- Use generated or authored GLB assets, but do not drop raw AI output straight into the game.
+- Clean assets in Blender first: decimate, scale, set origin, fix materials, then import with a GLTF loader.
+- Good first assets: one F1-style car GLB and a small prop pack.
+- Good prop candidates: barriers, braking boards, trees, signs, trackside objects.
+- Do not generate the whole track as one asset yet. Procedural track is better for physics alignment.
+- Options to look at:
+  - Replicate 3D models collection: https://replicate.com/collections/3d-models
+  - Replicate Hunyuan 3D 3.1: https://replicate.com/tencent/hunyuan-3d-3.1
+  - Meshy Text-to-3D API with GLB output: https://docs.meshy.ai/api/text-to-3d
+  - Tripo-style GLB/PBR API: https://www.3daistudio.com/Platform/API/Documentation/3d-generation/tripo

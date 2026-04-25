@@ -4,6 +4,8 @@ export type TrackId = "sakura" | "alpine";
 
 export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
+export type CarSetupId = "balanced" | "highGrip" | "highSpeed";
+
 export type Vec2 = {
   x: number;
   z: number;
@@ -27,6 +29,7 @@ export type RaceSettings = {
   ghostMode: boolean;
   rain: boolean;
   stabilityAssist: boolean;
+  resetEnabled: boolean;
 };
 
 export type DisplayGroup = {
@@ -41,6 +44,7 @@ export type Player = {
   displayGroupId: string;
   name: string;
   color: string;
+  carSetupId: CarSetupId;
   isReady: boolean;
   isVIP: boolean;
   connected: boolean;
@@ -57,6 +61,7 @@ export type InputFrame = {
 
 export type CarState = {
   playerId: string;
+  carSetupId: CarSetupId;
   x: number;
   z: number;
   velocityX: number;
@@ -70,6 +75,7 @@ export type CarState = {
   progress: number;
   distanceThisLap: number;
   nextCheckpoint: number;
+  lastValidProgress: number;
   currentLapStartedAt: number;
   lastLapTime?: number;
   bestLapTime?: number;
@@ -77,8 +83,12 @@ export type CarState = {
   surface: SurfaceType;
   finished: boolean;
   crashed: boolean;
+  crashedAt?: number;
   dnf: boolean;
   finishTime?: number;
+  resetAvailable: boolean;
+  offTrackSince?: number;
+  resetInvulnerableUntil?: number;
   impact: number;
   slip: number;
 };
@@ -117,12 +127,15 @@ export type ClientMessage =
   | { type: "create_room" }
   | { type: "join_display"; roomCode: string; displayGroupId?: string }
   | { type: "set_profile"; roomCode: string; displayGroupId: string; token?: string; name: string; color: string }
+  | { type: "set_car_setup"; carSetupId: CarSetupId }
   | { type: "set_ready"; ready: boolean }
   | { type: "input_frame"; input: InputFrame }
+  | { type: "request_reset" }
   | { type: "vip_set_settings"; settings: Partial<RaceSettings> }
   | { type: "vip_start_race" }
   | { type: "vip_return_lobby" }
   | { type: "display_return_lobby" }
+  | { type: "close_room" }
   | { type: "ping"; at: number };
 
 export type ServerMessage =
