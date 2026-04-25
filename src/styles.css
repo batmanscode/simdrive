@@ -486,13 +486,6 @@ input {
   color: rgba(16, 18, 20, 0.52);
 }
 
-.lobby-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 1fr) 280px;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
 .players {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -523,7 +516,6 @@ input {
 .player small,
 .track-preview small,
 .phone-note,
-.display-options small,
 .grid-header small {
   display: block;
   color: rgba(16, 18, 20, 0.58);
@@ -573,34 +565,19 @@ input {
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 20px;
   align-items: center;
+  margin-bottom: 16px;
   padding: 16px;
   border-radius: 8px;
   background: #f1eadc;
 }
 
-.display-options {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 8px;
-  background: #101214;
-  color: #fffaf0;
-}
-
-.display-options span,
 .grid-header span {
   display: block;
   font-size: 12px;
   color: rgba(255, 250, 240, 0.7);
 }
 
-.display-options small {
-  color: rgba(255, 250, 240, 0.62);
-}
-
-.segmented,
-.cockpit-style-preview {
+.segmented {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
@@ -609,19 +586,12 @@ input {
   background: rgba(255, 250, 240, 0.12);
 }
 
-.segmented button,
-.cockpit-style-preview span {
+.segmented button {
   min-height: 36px;
   border-radius: 6px;
   background: transparent;
   color: rgba(255, 250, 240, 0.72);
   font-weight: 900;
-}
-
-.cockpit-style-preview span {
-  display: grid;
-  place-items: center;
-  font-size: 13px;
 }
 
 .segmented button.active {
@@ -1298,8 +1268,7 @@ input {
 @media (max-width: 800px) {
   .hero,
   .lobby,
-  .track-preview,
-  .lobby-layout {
+  .track-preview {
     grid-template-columns: 1fr;
   }
 

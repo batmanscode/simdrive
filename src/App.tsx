@@ -139,27 +139,12 @@ function LobbyDisplay({ room, displayGroupId, send }: { room: RoomState; display
           </div>
         </div>
 
-        <div className="lobby-layout">
-          <div className="track-preview">
-            <MiniTrack track={track} />
-            <div>
-              <h3>{track.name}</h3>
-              <p>{track.description}</p>
-              <small>Target lap: {track.targetLap}. Rain lowers grip and top speed. Reset off means crashes kick drivers out.</small>
-            </div>
-          </div>
-
-          <div className="display-options">
-            <div>
-              <span>Driver style</span>
-              <strong>Personal cockpit</strong>
-            </div>
-            <div className="cockpit-style-preview">
-              <span>None</span>
-              <span>Hands</span>
-              <span>Paws</span>
-            </div>
-            <small>Each driver picks this on their phone. It only changes their cockpit view.</small>
+        <div className="track-preview">
+          <MiniTrack track={track} />
+          <div>
+            <h3>{track.name}</h3>
+            <p>{track.description}</p>
+            <small>Target lap: {track.targetLap}. Rain lowers grip and top speed. Reset off means crashes kick drivers out.</small>
           </div>
         </div>
 
