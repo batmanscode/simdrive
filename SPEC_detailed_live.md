@@ -7,6 +7,7 @@ This file tracks the current build. `SPEC_rough.md` is unchanged and remains the
 - Vite + React + TypeScript browser app.
 - Node + Express + WebSocket room server.
 - Display flow: landing, create room, join room as another display, QR lobby with exit room action, race view, results.
+- Display landing, lobby, and results support System, Light, and Dark theme modes. System is the default and follows the display device color-scheme preference.
 - Display lobby shows current track, lap count, rain, warm-up/flying start, collision/ghost mode, gentle stability assist, reset mode, connected players in the current driver lineup, each player's car setup, and each player's cockpit style so non-VIP users can see race settings.
 - Display refresh resumes the same display group. If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are notified so abandoned games do not keep running.
 - Display results can return the room to lobby without requiring the VIP controller.

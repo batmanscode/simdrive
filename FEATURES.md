@@ -7,6 +7,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Phone-controlled browser racing with no app install.
 - One display creates a room and shows a QR code for controllers.
 - Lobby display can close/reset the room, return everyone to the start, show race settings, and show drivers in the current lineup.
+- Display pages support System, Light, and Dark themes; System follows the device color-scheme setting.
 - Phone controllers auto-resume the last saved driver after refreshes or QR rescans when the room is still available.
 - One-player practice works for solo testing.
 - Up to 8 racers per room.
@@ -32,6 +33,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Main multiplayer pitch: create a room on one display, scan with phones, race solo or with up to 8 drivers.
 - Main controller pitch: phones become steering wheels and pedals with calibration, touch fallback, and landscape race mode.
 - Main race-info pitch: cockpit racing with minimap, live leaderboard, best laps, and results.
+- Display UI pitch: the shared screen can follow the room/device theme with light and dark display modes.
 
 ## Planned Or Experimental
 

@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
@@ -12,6 +12,9 @@ const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d"
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
 const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
+const DISPLAY_THEME_KEY = "drive-sim-display-theme";
+
+type DisplayThemeMode = "system" | "light" | "dark";
 
 export function App() {
   const isController = location.pathname.startsWith("/controller");
@@ -21,10 +24,15 @@ export function App() {
 function DisplayApp() {
   const game = useGameSocket();
   const [joinCode, setJoinCode] = useState("");
+  const [themeMode, setThemeMode] = useStoredDisplayTheme();
+  const resolvedTheme = useResolvedDisplayTheme(themeMode);
+  const themeClass = `display-theme theme-${resolvedTheme}`;
+  const themeToggle = <ThemeToggle mode={themeMode} onChange={setThemeMode} />;
 
   if (!game.room) {
     return (
-      <main className="landing">
+      <main className={`landing ${themeClass}`}>
+        {themeToggle}
         <section className="hero">
           <div className="hero-copy-wrap">
             <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
@@ -65,10 +73,22 @@ function DisplayApp() {
   }
 
   if (game.room.phase === "results") {
-    return <ResultsDisplay room={game.room} send={game.send} />;
+    return <ResultsDisplay room={game.room} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
   }
 
-  return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
+  return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
+}
+
+function ThemeToggle({ mode, onChange }: { mode: DisplayThemeMode; onChange: (mode: DisplayThemeMode) => void }) {
+  return (
+    <div className="theme-toggle" aria-label="Display theme">
+      {(["system", "light", "dark"] as DisplayThemeMode[]).map((item) => (
+        <button key={item} type="button" className={mode === item ? "active" : undefined} aria-pressed={mode === item} onClick={() => onChange(item)}>
+          {item === "system" ? "System" : item === "light" ? "Light" : "Dark"}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function HeroShowcase() {
@@ -108,13 +128,26 @@ function HeroShowcase() {
   );
 }
 
-function LobbyDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
+function LobbyDisplay({
+  room,
+  displayGroupId,
+  send,
+  themeClass,
+  themeToggle
+}: {
+  room: RoomState;
+  displayGroupId?: string;
+  send: ReturnType<typeof useGameSocket>["send"];
+  themeClass: string;
+  themeToggle: ReactNode;
+}) {
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
   const readyCount = room.players.filter((player) => player.isReady || player.isVIP).length;
 
   return (
-    <main className="lobby">
+    <main className={`lobby ${themeClass}`}>
+      {themeToggle}
       <section className="join-card">
         <div className="join-label">Join this race</div>
         <div className="qr-wrap">
@@ -328,11 +361,12 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
   );
 }
 
-function ResultsDisplay({ room, send }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"] }) {
+function ResultsDisplay({ room, send, themeClass, themeToggle }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string; themeToggle: ReactNode }) {
   const vip = room.players.find((player) => player.isVIP);
   const podium = room.results.slice(0, 3);
   return (
-    <main className="results">
+    <main className={`results ${themeClass}`}>
+      {themeToggle}
       <section>
         <h2><Trophy /> Results</h2>
         {podium.length > 0 && (
@@ -1802,6 +1836,39 @@ function useGameSocket() {
   }, []);
 
   return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, send };
+}
+
+function useStoredDisplayTheme() {
+  const [mode, setMode] = useState<DisplayThemeMode>(() => readDisplayTheme());
+  const setStored = useCallback((next: DisplayThemeMode) => {
+    setMode(next);
+    localStorage.setItem(DISPLAY_THEME_KEY, next);
+  }, []);
+  return [mode, setStored] as const;
+}
+
+function useResolvedDisplayTheme(mode: DisplayThemeMode) {
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() => getSystemTheme());
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    const onChange = () => setSystemTheme(query.matches ? "dark" : "light");
+    onChange();
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+
+  return mode === "system" ? systemTheme : mode;
+}
+
+function readDisplayTheme(): DisplayThemeMode {
+  const value = localStorage.getItem(DISPLAY_THEME_KEY);
+  return value === "light" || value === "dark" || value === "system" ? value : "system";
+}
+
+function getSystemTheme(): "light" | "dark" {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function useStoredNumber(key: string, fallback: number) {

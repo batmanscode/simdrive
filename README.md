@@ -23,6 +23,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Each driver can choose a car setup: Balanced, High Grip, or High Speed.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws.
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's setup, and each driver's cockpit style.
+- Display landing/lobby/results screens support System, Light, and Dark themes.
 - One-player practice works.
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, curbs, formula-style cars, countdown lights, and a short first-place banner.
 - Race view includes a minimap and live global leaderboard.
