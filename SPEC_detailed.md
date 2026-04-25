@@ -4,7 +4,7 @@
 
 Build `Drive Sim`, a browser-based party racing game at `drivesim.xyz` where computers/TVs act as race displays and phones act as motion/touch controllers. The game should feel close enough to a lightweight racing sim to be satisfying, while staying accessible, fast to join, and closer to Jackbox-style party flow than a hardcore simulator.
 
-Working references: `Phonesim`, `Simvibes`, Jackbox-style room joining, Couch Games / couch multiplayer energy, remote couch multiplayer, and lightweight browser racing sims. Public branding can say Drive Sim is inspired by Jackbox-style party joining and couch games, but should not imply official affiliation.
+Working references: `Phonesim`, `Simvibes`, Jackbox-style room joining, gamingcouch.com / couch multiplayer energy, remote couch multiplayer, and lightweight browser racing sims. Public branding can say Drive Sim is inspired by Jackbox-style party joining and couch games, but should not imply official affiliation.
 
 This document is intended to be given to an AI coding agent or engineering team as a build spec. Treat explicit requirements as source of truth. Treat open questions as unresolved product decisions that should not block the first vertical slice unless they directly affect implementation.
 
