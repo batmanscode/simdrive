@@ -1,18 +1,19 @@
 import express from "express";
 import http from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import { createCar, resolveCarContacts, stepCar } from "../src/shared/physics.js";
-import { TRACKS } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, ServerMessage } from "../src/shared/types.js";
+import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
+import type { CarState, ClientMessage, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
 const SNAPSHOT_HZ = 20;
+const ACTIVE_FULL_STATE_HZ = 2;
 const COUNTDOWN_MS = 3200;
 const DISCONNECT_GRACE_MS = 12_000;
 const NO_DISPLAY_GRACE_MS = 20_000;
+const RACE_DNF_GRACE_MS = DISCONNECT_GRACE_MS;
 
 type ClientRole = "unknown" | "display" | "controller";
 
@@ -34,6 +35,7 @@ type Room = {
   cars: Map<string, CarState>;
   inputs: Map<string, InputFrame>;
   settings: RaceSettings;
+  lastFullStateBroadcastAt: number;
   countdownEndsAt?: number;
   raceStartedAt?: number;
   noDisplaySince?: number;
@@ -47,8 +49,7 @@ const clients = new Map<string, Client>();
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
-const dirname = path.dirname(fileURLToPath(import.meta.url));
-const distPath = path.resolve(dirname, "../dist");
+const distPath = path.resolve(process.cwd(), "dist");
 
 app.use(express.static(distPath));
 app.get(/.*/, (_req, res) => {
@@ -84,7 +85,7 @@ setInterval(() => {
 
 setInterval(() => {
   for (const room of rooms.values()) {
-    broadcastRoom(room);
+    broadcastRealtime(room);
     sendControllerFeedback(room);
   }
 }, 1000 / SNAPSHOT_HZ);
@@ -146,6 +147,7 @@ function handleMessage(client: Client, message: ClientMessage) {
     player.name = cleanName(message.name);
     player.color = cleanColor(message.color);
     player.connected = true;
+    player.disconnectedAt = undefined;
     player.isVIP = room.players.size === 1 || player.id === getVipId(room);
     if (!getVipId(room)) player.isVIP = true;
     client.role = "controller";
@@ -190,7 +192,11 @@ function handleMessage(client: Client, message: ClientMessage) {
       ...room.settings,
       ...message.settings,
       lapCount: clamp(Math.round(message.settings.lapCount ?? room.settings.lapCount), 1, 9),
-      trackId: message.settings.trackId && TRACKS[message.settings.trackId] ? message.settings.trackId : room.settings.trackId
+      trackId: message.settings.trackId && TRACKS[message.settings.trackId] ? message.settings.trackId : room.settings.trackId,
+      rollingStart: typeof message.settings.rollingStart === "boolean" ? message.settings.rollingStart : room.settings.rollingStart,
+      ghostMode: typeof message.settings.ghostMode === "boolean" ? message.settings.ghostMode : room.settings.ghostMode,
+      rain: typeof message.settings.rain === "boolean" ? message.settings.rain : room.settings.rain,
+      stabilityAssist: typeof message.settings.stabilityAssist === "boolean" ? message.settings.stabilityAssist : room.settings.stabilityAssist
     };
     broadcastRoom(room);
     return;
@@ -238,12 +244,14 @@ function createRoom(): Room {
     players: new Map(),
     cars: new Map(),
     inputs: new Map(),
+    lastFullStateBroadcastAt: 0,
     settings: {
       trackId: "sakura",
       lapCount: 1,
       rollingStart: false,
       ghostMode: false,
-      rain: false
+      rain: false,
+      stabilityAssist: true
     },
     results: []
   };
@@ -289,8 +297,18 @@ function tickRoom(room: Room, dt: number) {
 
   const track = TRACKS[room.settings.trackId];
   const raceTime = (Date.now() - room.raceStartedAt) / 1000;
+  const raceTimeLimit = raceLimitSeconds(track, room.settings.lapCount);
   for (const car of room.cars.values()) {
     const player = room.players.get(car.playerId);
+    if (player && !player.connected && player.disconnectedAt && Date.now() - player.disconnectedAt > RACE_DNF_GRACE_MS) {
+      car.dnf = true;
+    }
+    if (!car.finished && !car.crashed && !car.dnf && raceTime > raceTimeLimit) {
+      car.dnf = true;
+      car.velocityX *= 0.35;
+      car.velocityZ *= 0.35;
+      car.speed = Math.hypot(car.velocityX, car.velocityZ);
+    }
     const input = player?.connected
       ? room.inputs.get(car.playerId) ?? emptyInput
       : { ...emptyInput, brake: 0.35 };
@@ -329,6 +347,7 @@ function collectResults(room: Room) {
         name: player.name,
         color: player.color,
         totalTime: car.finishTime,
+        bestLapTime: car.bestLapTime,
         status: "finished"
       });
     } else if (car.crashed) {
@@ -338,11 +357,23 @@ function collectResults(room: Room) {
         color: player.color,
         status: "crashed"
       });
+    } else if (car.dnf) {
+      room.results.push({
+        playerId: player.id,
+        name: player.name,
+        color: player.color,
+        status: "dnf"
+      });
     }
   }
   if (cars.length > 0 && room.results.length === cars.length) {
     room.phase = "results";
   }
+}
+
+function raceLimitSeconds(track: (typeof TRACKS)[keyof typeof TRACKS], lapCount: number) {
+  const measuredLap = trackMetrics(track).totalLength / 4.2;
+  return Math.max(240, measuredLap * lapCount * 2 + 60);
 }
 
 function roomState(room: Room): RoomState {
@@ -357,6 +388,39 @@ function roomState(room: Room): RoomState {
     cars: [...room.cars.values()],
     results: room.results
   };
+}
+
+function raceSnapshot(room: Room): RaceSnapshot {
+  return {
+    roomCode: room.code,
+    phase: room.phase,
+    countdownEndsAt: room.countdownEndsAt,
+    raceStartedAt: room.raceStartedAt,
+    cars: [...room.cars.values()],
+    results: room.phase === "results" ? room.results : undefined
+  };
+}
+
+function broadcastRealtime(room: Room) {
+  if (room.phase === "countdown" || room.phase === "racing") {
+    broadcastRaceSnapshot(room);
+    const now = Date.now();
+    if (now - room.lastFullStateBroadcastAt >= 1000 / ACTIVE_FULL_STATE_HZ) {
+      room.lastFullStateBroadcastAt = now;
+      broadcastRoom(room);
+    }
+    return;
+  }
+  broadcastRoom(room);
+}
+
+function broadcastRaceSnapshot(room: Room) {
+  const snapshot = raceSnapshot(room);
+  for (const client of clients.values()) {
+    if (client.roomCode === room.code) {
+      send(client, { type: "race_snapshot", snapshot });
+    }
+  }
 }
 
 function broadcastRoom(room: Room) {
@@ -394,7 +458,10 @@ function markDisconnected(client: Client) {
   }
   if (client.role === "controller" && client.playerId) {
     const player = room.players.get(client.playerId);
-    if (player) player.connected = false;
+    if (player) {
+      player.connected = false;
+      player.disconnectedAt = Date.now();
+    }
     setTimeout(() => {
       const stillDisconnected = player && !player.connected;
       if (stillDisconnected && room.phase === "lobby") {

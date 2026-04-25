@@ -79,6 +79,12 @@ h2 {
   color: rgba(255, 250, 240, 0.86);
 }
 
+.hero-note {
+  display: block;
+  margin-top: 12px;
+  color: rgba(255, 250, 240, 0.72);
+}
+
 .hero-actions,
 .join-form,
 .stat,
@@ -153,16 +159,37 @@ input {
 }
 
 .stat {
-  min-height: 58px;
+  min-height: 76px;
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(255, 250, 240, 0.24);
   background: rgba(16, 18, 20, 0.36);
   backdrop-filter: blur(8px);
   border-radius: 8px;
-  text-transform: uppercase;
+  align-items: flex-start;
+}
+
+.stat svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.stat strong,
+.stat span {
+  display: block;
+}
+
+.stat strong {
+  margin-bottom: 4px;
+  color: #fffaf0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.stat span {
+  color: rgba(255, 250, 240, 0.72);
   font-size: 13px;
-  font-weight: 800;
+  line-height: 1.35;
 }
 
 .lobby {
@@ -331,6 +358,71 @@ input {
   font-weight: 850;
 }
 
+.race-minimap {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: min(22vw, 210px);
+  min-width: 132px;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(16, 18, 20, 0.64);
+  backdrop-filter: blur(6px);
+}
+
+.race-leaderboard {
+  position: absolute;
+  right: 12px;
+  top: 70px;
+  width: min(24vw, 260px);
+  min-width: 172px;
+  max-height: calc(100% - 92px);
+  margin: 0;
+  padding: 8px;
+  display: grid;
+  gap: 5px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.64);
+  backdrop-filter: blur(6px);
+}
+
+.race-leaderboard li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 20px 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  list-style: none;
+  color: rgba(255, 250, 240, 0.82);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.race-leaderboard li.focus {
+  color: #101214;
+  background: #fffaf0;
+}
+
+.race-leaderboard i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.race-leaderboard strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-leaderboard em {
+  font-style: normal;
+  opacity: 0.72;
+}
+
 .race-hud div {
   display: flex;
   align-items: center;
@@ -427,7 +519,8 @@ input {
 .picker,
 .stepper,
 .toggle,
-.range-control {
+.range-control,
+.motion-test {
   justify-content: space-between;
   gap: 12px;
   border-radius: 8px;
@@ -440,6 +533,13 @@ input {
 .range-control {
   display: grid;
   grid-template-columns: 1fr minmax(120px, 1.4fr) 48px;
+  align-items: center;
+  font-weight: 800;
+}
+
+.motion-test {
+  display: grid;
+  grid-template-columns: 1fr 116px;
   align-items: center;
   font-weight: 800;
 }

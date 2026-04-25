@@ -3,10 +3,12 @@ import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Play, RotateCcw
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { TRACKS } from "./shared/tracks";
+import { TRACKS, trackMetrics } from "./shared/tracks";
 import type { CarState, InputFrame, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
+const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
+const STEERING_SENSITIVITY_DEFAULT = 6;
 
 export function App() {
   const isController = location.pathname.startsWith("/controller");
@@ -22,9 +24,9 @@ function DisplayApp() {
       <main className="landing">
         <section className="hero">
           <div>
-            <p className="eyebrow">Phone-controlled browser racing</p>
+            <p className="eyebrow">Multiplayer phone-controller racing</p>
             <h1>Drive Sim</h1>
-            <p className="hero-copy">Create a room on this screen, scan with a phone, and race from a cockpit view with tilt steering and touch pedals.</p>
+            <p className="hero-copy">Create a room on this screen, scan with a phone, and race from a cockpit view where tilt steering, engine audio, tire slip, curb rumble, rain, and optional vibration make the car feel alive.</p>
             <div className="hero-actions">
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
@@ -40,11 +42,25 @@ function DisplayApp() {
                 <button type="submit">Join Screen</button>
               </form>
             </div>
+            <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
           </div>
           <div className="hero-panel">
-            <div className="stat"><Smartphone /> phones steer</div>
-            <div className="stat"><Users /> 1-8 racers</div>
-            <div className="stat"><Gauge /> rain, curbs, bumps</div>
+            <div className="stat">
+              <Smartphone />
+              <div><strong>Phone Controller</strong><span>Tilt steering, touch pedals, calibration, and fallback buttons.</span></div>
+            </div>
+            <div className="stat">
+              <Users />
+              <div><strong>Room Multiplayer</strong><span>Scan a QR code, join fast, race solo or with up to 8 drivers.</span></div>
+            </div>
+            <div className="stat">
+              <Gauge />
+              <div><strong>Sim-Lite Feel</strong><span>Lateral slip, tuned braking, rain grip, curbs, grass, and gentle assist.</span></div>
+            </div>
+            <div className="stat">
+              <Gamepad2 />
+              <div><strong>Driver Feedback</strong><span>Engine, tires, brake tone, impacts, countdown, and supported vibration.</span></div>
+            </div>
           </div>
         </section>
       </main>
@@ -96,8 +112,16 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
             <strong>{room.settings.rain ? "On" : "Off"}</strong>
           </div>
           <div>
+            <span>Rolling</span>
+            <strong>{room.settings.rollingStart ? "On" : "Off"}</strong>
+          </div>
+          <div>
             <span>Collisions</span>
             <strong>{room.settings.ghostMode ? "Ghost" : "On"}</strong>
+          </div>
+          <div>
+            <span>Assist</span>
+            <strong>{room.settings.stabilityAssist ? "Gentle" : "Off"}</strong>
           </div>
         </div>
         <div className="track-preview">
@@ -105,7 +129,7 @@ function LobbyDisplay({ room, displayGroupId }: { room: RoomState; displayGroupI
           <div>
             <h3>{track.name}</h3>
             <p>{track.description}</p>
-            <small>Target lap: {track.targetLap}. The first phone to join is VIP and starts the race.</small>
+            <small>Target lap: {track.targetLap}. Gentle assist nudges cars toward the track direction to make steering more forgiving.</small>
           </div>
         </div>
       </section>
@@ -143,6 +167,8 @@ function RaceDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId
           <div className="race-pane" key={player.id}>
             <RaceCanvas room={room} focusPlayerId={player.id} />
             <RaceHud room={room} focusPlayerId={player.id} />
+            <RaceMiniMap room={room} focusPlayerId={player.id} />
+            <RaceLeaderboard room={room} focusPlayerId={player.id} />
           </div>
         ))}
       </div>
@@ -164,6 +190,60 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
   );
 }
 
+function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+  const track = TRACKS[room.settings.trackId];
+  const bounds = getTrackBounds(track);
+  const points = track.points.map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`).join(" ");
+  return (
+    <svg className="race-minimap" viewBox="0 0 210 150" aria-label="Race minimap">
+      <polyline points={points} fill="none" stroke="rgba(255,250,240,0.28)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={points} fill="none" stroke="#f1eadc" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      {room.cars.map((car) => {
+        const player = room.players.find((item) => item.id === car.playerId);
+        return (
+          <circle
+            key={car.playerId}
+            cx={projectMiniX(car.x, bounds)}
+            cy={projectMiniY(car.z, bounds)}
+            r={car.playerId === focusPlayerId ? 5.5 : 4}
+            fill={player?.color ?? "#ff3b5c"}
+            stroke={car.playerId === focusPlayerId ? "#fffaf0" : "rgba(16,18,20,0.8)"}
+            strokeWidth={car.playerId === focusPlayerId ? 2.5 : 1.5}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+  const track = TRACKS[room.settings.trackId];
+  const totalLength = trackMetrics(track).totalLength;
+  const rows = room.players
+    .map((player) => {
+      const car = room.cars.find((item) => item.playerId === player.id);
+      const distance = car ? (Math.min(car.lap, room.settings.lapCount + 1) - 1) * totalLength + car.progress : 0;
+      return { player, car, distance };
+    })
+    .sort((a, b) => {
+      const statusScore = (item: typeof a) => item.car?.finished ? 3 : item.car?.crashed ? 1 : item.car?.dnf ? 0 : 2;
+      return statusScore(b) - statusScore(a) || b.distance - a.distance;
+    });
+
+  return (
+    <ol className="race-leaderboard" aria-label="Race leaderboard">
+      {rows.map(({ player, car }, index) => (
+        <li key={player.id} className={player.id === focusPlayerId ? "focus" : undefined}>
+          <span>{index + 1}</span>
+          <i style={{ background: player.color }} />
+          <strong>{player.name}</strong>
+          <em>{raceStatusText(car, room.settings.lapCount)}</em>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function ResultsDisplay({ room, send }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"] }) {
   const vip = room.players.find((player) => player.isVIP);
   return (
@@ -175,7 +255,10 @@ function ResultsDisplay({ room, send }: { room: RoomState; send: ReturnType<type
             <li key={result.playerId}>
               <span className="swatch" style={{ background: result.color }} />
               <strong>{result.name}</strong>
-              <span>{result.totalTime ? `${result.totalTime.toFixed(2)}s` : result.status.toUpperCase()}</span>
+              <span>
+                {result.totalTime ? `${result.totalTime.toFixed(2)}s total` : result.status.toUpperCase()}
+                {result.bestLapTime ? ` · ${result.bestLapTime.toFixed(2)}s best` : ""}
+              </span>
             </li>
           ))}
         </ol>
@@ -244,20 +327,50 @@ function ControllerApp() {
 
 function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; player?: { isVIP: boolean; isReady: boolean }; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
+  const [motionStatus, setMotionStatus] = useState(sensorSupported() ? "Motion ready" : "Motion unavailable");
+  const [motionLevel, setMotionLevel] = useState(0);
   const [audioEnabled, setAudioEnabled] = useStoredBoolean("drive-sim-audio-enabled", true);
   const [audioStatus, setAudioStatus] = useState(audioEnabled ? "Audio on" : "Audio off");
-  const [hapticStatus, setHapticStatus] = useState(hapticsSupported() ? "Haptics ready" : "Haptics unavailable");
+  const [hapticStatus, setHapticStatus] = useState(hapticSupportMessage());
   const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("drive-sim-haptics-enabled", true);
   const [brakeStart, setBrakeStart] = useStoredNumber("drive-sim-brake-start", 0);
   const [throttleStart, setThrottleStart] = useStoredNumber("drive-sim-throttle-start", 0);
+  const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
+  const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const settings = room?.settings;
+
+  useEffect(() => {
+    const neutral = { current: undefined as number | undefined };
+    const onOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null && event.gamma === null) return;
+      const raw = readSteeringTilt(event, getScreenAngle());
+      neutral.current ??= raw;
+      setMotionLevel(clamp(((raw - neutral.current) / 28) * steeringSensitivity, -1, 1));
+      setMotionStatus("Motion live");
+    };
+    window.addEventListener("deviceorientation", onOrientation);
+    return () => window.removeEventListener("deviceorientation", onOrientation);
+  }, [steeringSensitivity]);
 
   return (
     <main className="phone controller-lobby">
       <h1>{player?.isVIP ? "VIP Settings" : "Ready Room"}</h1>
-      <button className="secondary" onClick={() => enableControllerDevice().then(setMotionEnabled)}>
+      <button
+        className="secondary"
+        onClick={() => {
+          enableControllerDevice().then((result) => {
+            setMotionEnabled(result.enabled);
+            setMotionStatus(result.message);
+          });
+        }}
+      >
         <Activity size={18} /> {motionEnabled ? "Motion Enabled" : "Enable Motion"}
       </button>
+      <small className="phone-note">{motionStatus}</small>
+      <div className="motion-test">
+        <span>Motion test</span>
+        <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
+      </div>
       <Toggle
         label="Audio"
         value={audioEnabled}
@@ -285,17 +398,26 @@ function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; p
         <Activity size={18} /> Test Audio
       </button>
       <small className="phone-note">{audioStatus}</small>
-      <Toggle label="Haptics" value={hapticsEnabled && hapticsSupported()} onChange={(value) => setHapticsEnabled(value)} />
+      <Toggle
+        label="Haptics"
+        value={hapticsEnabled && hapticsSupported()}
+        onChange={(value) => {
+          setHapticsEnabled(value);
+          if (!value) stopHaptics();
+          setHapticStatus(value ? hapticSupportMessage() : "Haptics off");
+        }}
+      />
       <button
         className="secondary"
         onClick={() => {
-          const ok = pulseHaptic([35, 30, 55]);
-          setHapticStatus(ok ? "Test pulse sent" : "Haptics unavailable");
+          const result = pulseHaptic([35, 30, 55]);
+          setHapticStatus(hapticResultMessage(result));
         }}
       >
         <Activity size={18} /> Test Haptics
       </button>
       <small className="phone-note">{hapticStatus}</small>
+      <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
       <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
       {player?.isVIP && settings && (
@@ -305,6 +427,8 @@ function ControllerLobby({ room, player, send, feedback }: { room?: RoomState; p
           <Toggle label="Rolling start" value={settings.rollingStart} onChange={(rollingStart) => send({ type: "vip_set_settings", settings: { rollingStart } })} />
           <Toggle label="Ghost cars" value={settings.ghostMode} onChange={(ghostMode) => send({ type: "vip_set_settings", settings: { ghostMode } })} />
           <Toggle label="Rain" value={settings.rain} onChange={(rain) => send({ type: "vip_set_settings", settings: { rain } })} />
+          <Toggle label="Gentle assist" value={settings.stabilityAssist} onChange={(stabilityAssist) => send({ type: "vip_set_settings", settings: { stabilityAssist } })} />
+          <small className="phone-note">Gentle assist softly aligns the car toward the road direction so steering is more forgiving.</small>
           <button
             className="primary"
             onClick={() => {
@@ -341,6 +465,16 @@ function StartPreference({ label, value, onChange }: { label: string; value: num
       <span>{label}</span>
       <input type="range" min="0" max="100" value={Math.round(value * 100)} onChange={(event) => onChange(Number(event.target.value) / 100)} />
       <strong>{Math.round(value * 100)}%</strong>
+    </label>
+  );
+}
+
+function SteeringSensitivityPreference({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="range-control">
+      <span>Motion sensitivity</span>
+      <input type="range" min="1" max="10" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <strong>{value}/10</strong>
     </label>
   );
 }
@@ -382,8 +516,10 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const [touchSteer, setTouchSteer] = useState(0);
   const [steerUi, setSteerUi] = useState(0);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
-  const [hapticStatus, setHapticStatus] = useState(hapticsSupported() ? "Haptics on" : "No haptics");
+  const [motionStatus, setMotionStatus] = useState(sensorSupported() ? "Motion waiting" : "Touch steering");
+  const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
   const steerRef = useRef(0);
+  const hasMotionRef = useRef(false);
   const lastRawSteerRef = useRef(0);
   const lastOrientationAngleRef = useRef(getScreenAngle());
   const seqRef = useRef(0);
@@ -398,11 +534,15 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const throttleStart = readStoredNumber("drive-sim-throttle-start", 0);
   const audioEnabled = readStoredBoolean("drive-sim-audio-enabled", true);
   const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
+  const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
   const car = room.cars.find((item) => item.playerId === playerId);
 
   useEffect(() => {
     void requestLandscape();
     const onOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null && event.gamma === null) return;
+      hasMotionRef.current = true;
+      setMotionStatus("Motion steering");
       const angle = getScreenAngle();
       const raw = readSteeringTilt(event, angle);
       if (angle !== lastOrientationAngleRef.current) {
@@ -411,10 +551,17 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       }
       lastRawSteerRef.current = raw;
       if (neutralRef.current === undefined) neutralRef.current = raw;
-      steerRef.current = clamp((raw - neutralRef.current) / 28, -1, 1);
+      steerRef.current = clamp(((raw - neutralRef.current) / 28) * steeringSensitivity, -1, 1);
     };
     window.addEventListener("deviceorientation", onOrientation);
     return () => window.removeEventListener("deviceorientation", onOrientation);
+  }, [steeringSensitivity]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!hasMotionRef.current) setMotionStatus("Touch steering");
+    }, 1800);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -442,7 +589,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
     const timer = window.setInterval(() => {
       const activeFeedback = feedbackRef.current;
       const activePedals = pedalsRef.current;
-      const steer = Math.abs(steerRef.current) > 0.03 ? steerRef.current : touchSteerRef.current;
+      const steer = hasMotionRef.current && Math.abs(steerRef.current) > 0.03 ? steerRef.current : touchSteerRef.current;
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
@@ -480,10 +627,11 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <div className="telemetry">
         <span>{Math.round((car?.speed ?? 0) * 3.6)} km/h</span>
         <span>Lap {car?.lap ?? 1}/{room.settings.lapCount}</span>
+        <span>{motionStatus}</span>
         <button
           onClick={() => {
-            const ok = pulseHaptic([35, 30, 55]);
-            setHapticStatus(ok ? "Pulse sent" : "No haptics");
+            const result = pulseHaptic([35, 30, 55]);
+            setHapticStatus(hapticResultMessage(result));
           }}
         >
           {hapticStatus}
@@ -492,9 +640,9 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
-        <button onPointerDown={() => setTouchSteer(-1)} onPointerUp={() => setTouchSteer(0)}><ArrowLeft /></button>
+        <button onPointerDown={() => setTouchSteer(1)} onPointerUp={() => setTouchSteer(0)}><ArrowLeft /></button>
         <div className="tilt-meter"><span style={{ transform: `translateX(${(steerUi || touchSteer) * 42}px)` }} /></div>
-        <button onPointerDown={() => setTouchSteer(1)} onPointerUp={() => setTouchSteer(0)}><ArrowRight /></button>
+        <button onPointerDown={() => setTouchSteer(-1)} onPointerUp={() => setTouchSteer(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -543,16 +691,37 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
   const { camera } = useThree();
   const track = TRACKS[room.settings.trackId];
   const focus = room.cars.find((car) => car.playerId === focusPlayerId);
+  const smoothFocus = useRef<{ playerId: string; x: number; z: number; heading: number; surface: CarState["surface"]; impact: number; slip: number } | undefined>(undefined);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!focus) return;
-    const shake = (focus.surface === "curb" ? 0.05 : 0) + focus.impact * 0.12 + focus.slip * 0.025;
+    if (!smoothFocus.current || smoothFocus.current.playerId !== focus.playerId) {
+      smoothFocus.current = {
+        playerId: focus.playerId,
+        x: focus.x,
+        z: focus.z,
+        heading: focus.heading,
+        surface: focus.surface,
+        impact: focus.impact,
+        slip: focus.slip
+      };
+    }
+    const amount = smoothingAmount(delta, 16);
+    smoothFocus.current.x = THREE.MathUtils.lerp(smoothFocus.current.x, focus.x, amount);
+    smoothFocus.current.z = THREE.MathUtils.lerp(smoothFocus.current.z, focus.z, amount);
+    smoothFocus.current.heading = lerpAngle(smoothFocus.current.heading, focus.heading, amount);
+    smoothFocus.current.surface = focus.surface;
+    smoothFocus.current.impact = THREE.MathUtils.lerp(smoothFocus.current.impact, focus.impact, amount);
+    smoothFocus.current.slip = THREE.MathUtils.lerp(smoothFocus.current.slip, focus.slip, amount);
+
+    const renderFocus = smoothFocus.current;
+    const shake = (renderFocus.surface === "curb" ? 0.05 : 0) + renderFocus.impact * 0.12 + renderFocus.slip * 0.025;
     camera.position.set(
-      focus.x - Math.sin(focus.heading) * 0.2 + Math.sin(focus.heading + Math.PI / 2) * 0.12,
+      renderFocus.x - Math.sin(renderFocus.heading) * 0.2 + Math.sin(renderFocus.heading + Math.PI / 2) * 0.12,
       1.55 + Math.sin(performance.now() / 35) * shake,
-      focus.z - Math.cos(focus.heading) * 0.2
+      renderFocus.z - Math.cos(renderFocus.heading) * 0.2
     );
-    camera.lookAt(focus.x + Math.sin(focus.heading) * 18, 1.1, focus.z + Math.cos(focus.heading) * 18);
+    camera.lookAt(renderFocus.x + Math.sin(renderFocus.heading) * 18, 1.1, renderFocus.z + Math.cos(renderFocus.heading) * 18);
   });
 
   return (
@@ -617,7 +786,9 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
 
 function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const start = sampleTrackVisuals(track, 7)[0];
-  const boards = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 34 : 25).filter((_, index) => index % 2 === 0), [track]);
+  const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 28 : 21), [track]);
+  const boards = propSamples.filter((_, index) => index % 3 === 0);
+  const barriers = propSamples.filter((_, index) => index % 2 === 1);
   return (
     <group>
       <group position={[start.x, 0.16, start.z]} rotation={[0, start.heading, 0]}>
@@ -665,72 +836,311 @@ function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
           </group>
         );
       })}
+      {barriers.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
+        const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
+        return (
+          <group key={`${sample.x}-${sample.z}-barrier`} position={[x, 0.34, z]} rotation={[0, sample.heading, 0]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[2.4, 0.68, 0.22]} />
+              <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
+            </mesh>
+            <mesh position={[0, 0.18, 0.13]}>
+              <boxGeometry args={[2.1, 0.08, 0.04]} />
+              <meshStandardMaterial color={index % 2 === 0 ? "#e04a54" : "#24282f"} roughness={0.5} />
+            </mesh>
+          </group>
+        );
+      })}
+      {track.id === "sakura" && (
+        <>
+          <mesh position={[35, 1.4, 66]} castShadow>
+            <cylinderGeometry args={[0.18, 0.18, 2.8, 8]} />
+            <meshStandardMaterial color="#5d4037" roughness={0.7} />
+          </mesh>
+          <mesh position={[35, 3.0, 66]} castShadow>
+            <sphereGeometry args={[1.05, 12, 8]} />
+            <meshStandardMaterial color="#f2a8bd" roughness={0.8} />
+          </mesh>
+        </>
+      )}
+      {track.id === "alpine" && (
+        <>
+          <mesh position={[88, 4.5, 116]} rotation={[0, -0.5, 0]}>
+            <coneGeometry args={[12, 14, 4]} />
+            <meshStandardMaterial color={rain ? "#8f9692" : "#8b907d"} roughness={0.95} />
+          </mesh>
+          <mesh position={[88, 11.8, 116]} rotation={[0, -0.5, 0]}>
+            <coneGeometry args={[6.5, 4.2, 4]} />
+            <meshStandardMaterial color="#eef1f2" roughness={0.82} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 }
 
 function RainEffect({ focus }: { focus: CarState }) {
   const group = useRef<THREE.Group>(null);
-  const drops = useMemo(() => Array.from({ length: 130 }, (_, index) => ({
-    x: ((index * 37) % 100) - 50,
-    y: 3 + ((index * 19) % 28),
-    z: ((index * 53) % 100) - 50,
-    speed: 0.18 + ((index * 11) % 18) / 100
+  const drops = useMemo(() => Array.from({ length: 240 }, (_, index) => ({
+    x: ((index * 37) % 58) - 29,
+    y: 2 + ((index * 19) % 30),
+    z: ((index * 53) % 72) - 18,
+    speed: 0.24 + ((index * 11) % 24) / 100
   })), []);
 
   useFrame(() => {
     if (!group.current) return;
-    group.current.position.set(focus.x, 0, focus.z);
+    group.current.position.set(
+      focus.x + Math.sin(focus.heading) * 18,
+      0,
+      focus.z + Math.cos(focus.heading) * 18
+    );
+    group.current.rotation.y = focus.heading;
     for (const child of group.current.children) {
-      child.position.y -= (child.userData.speed as number) * 2.4;
-      child.position.z += (child.userData.speed as number) * 0.7;
-      if (child.position.y < 0.2) child.position.y = 30;
+      if (child.userData.kind === "mist") continue;
+      child.position.y -= (child.userData.speed as number) * 3.8;
+      child.position.z += (child.userData.speed as number) * 1.1;
+      if (child.position.y < 0.1) {
+        child.position.y = 31;
+        child.position.z = ((child.userData.seed as number) * 53 % 72) - 18;
+      }
     }
   });
 
   return (
     <group ref={group}>
       {drops.map((drop, index) => (
-        <mesh key={index} position={[drop.x, drop.y, drop.z]} rotation={[0.35, 0, 0]} userData={{ speed: drop.speed }}>
-          <boxGeometry args={[0.025, 1.15, 0.025]} />
-          <meshBasicMaterial color="#d8edf5" transparent opacity={0.42} />
+        <mesh key={index} position={[drop.x, drop.y, drop.z]} rotation={[0.55, 0, 0]} userData={{ speed: drop.speed, seed: index }}>
+          <boxGeometry args={[index % 3 === 0 ? 0.045 : 0.03, index % 3 === 0 ? 2.2 : 1.55, 0.035]} />
+          <meshBasicMaterial color={index % 4 === 0 ? "#ffffff" : "#b9d9e8"} transparent opacity={index % 3 === 0 ? 0.72 : 0.5} depthWrite={false} />
         </mesh>
       ))}
-      <mesh position={[0, 0.04, 9]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[18, 28]} />
-        <meshBasicMaterial color="#cfe2e6" transparent opacity={0.08} depthWrite={false} />
+      <mesh position={[0, 0.055, 5]} rotation={[-Math.PI / 2, 0, 0]} userData={{ kind: "mist" }}>
+        <planeGeometry args={[22, 34]} />
+        <meshBasicMaterial color="#dbecef" transparent opacity={0.14} depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
 function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
+  const group = useRef<THREE.Group>(null);
+  const initial = useRef({ x: car.x, z: car.z, heading: car.heading });
+  const visible = !dimmed;
+  const wheelSpin = car.wheelDistance * 3.1;
+  const frontSteer = visualWheelSteer(car.steer, 0.48);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const amount = smoothingAmount(delta, 18);
+    group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, car.x, amount);
+    group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
+    group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+  });
   return (
-    <group position={[car.x, 0.3, car.z]} rotation={[0, car.heading, 0]}>
-      <mesh castShadow visible={!dimmed}>
-        <boxGeometry args={[1.35, 0.35, 3.4]} />
-        <meshStandardMaterial color={color} roughness={0.45} metalness={0.15} />
+    <group ref={group} position={[initial.current.x, 0.3, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
+      <mesh castShadow visible={visible} position={[0, 0.06, 0.1]}>
+        <boxGeometry args={[0.86, 0.22, 2.85]} />
+        <meshStandardMaterial color={color} roughness={0.34} metalness={0.26} />
       </mesh>
-      <mesh castShadow position={[0, 0.22, -0.65]} visible={!dimmed}>
-        <boxGeometry args={[0.72, 0.34, 0.76]} />
-        <meshStandardMaterial color="#17191d" />
+      <mesh castShadow visible={visible} position={[0, 0.08, 1.35]}>
+        <boxGeometry args={[0.44, 0.16, 1.35]} />
+        <meshStandardMaterial color={color} roughness={0.35} metalness={0.22} />
       </mesh>
-      {[[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]].map(([x, z]) => (
-        <mesh key={`${x}-${z}`} castShadow position={[x, -0.05, z]} rotation={[Math.PI / 2, 0, 0]} visible={!dimmed}>
-          <cylinderGeometry args={[0.28, 0.28, 0.24, 16]} />
-          <meshStandardMaterial color="#08090a" roughness={0.8} />
-        </mesh>
-      ))}
+      <mesh castShadow visible={visible} position={[0, 0.055, 2.06]}>
+        <boxGeometry args={[0.26, 0.12, 0.72]} />
+        <meshStandardMaterial color={color} roughness={0.35} metalness={0.2} />
+      </mesh>
+      <mesh castShadow visible={visible} position={[0, 0.035, 2.48]}>
+        <boxGeometry args={[0.14, 0.09, 0.48]} />
+        <meshStandardMaterial color={color} roughness={0.35} metalness={0.18} />
+      </mesh>
+      <mesh castShadow visible={visible} position={[0, 0.18, 1.45]}>
+        <boxGeometry args={[0.12, 0.045, 1.85]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.42} metalness={0.08} />
+      </mesh>
+      <mesh castShadow visible={visible} position={[-0.56, 0.03, -0.12]}>
+        <boxGeometry args={[0.46, 0.24, 1.02]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      <mesh castShadow visible={visible} position={[0.56, 0.03, -0.12]}>
+        <boxGeometry args={[0.46, 0.24, 1.02]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      <mesh castShadow visible={visible} position={[0, 0.36, -0.78]}>
+        <boxGeometry args={[0.12, 0.62, 0.9]} />
+        <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
+      </mesh>
+      <mesh castShadow position={[0, 0.24, -0.48]} visible={visible}>
+        <boxGeometry args={[0.72, 0.34, 0.72]} />
+        <meshStandardMaterial color="#15181d" roughness={0.38} metalness={0.12} />
+      </mesh>
+      <mesh castShadow position={[0, 0.42, -0.38]} visible={visible}>
+        <torusGeometry args={[0.38, 0.035, 8, 24]} />
+        <meshStandardMaterial color="#07090c" roughness={0.5} />
+      </mesh>
+      <mesh castShadow position={[0, 0.22, 2.05]} visible={visible}>
+        <boxGeometry args={[2.25, 0.08, 0.34]} />
+        <meshStandardMaterial color={color} roughness={0.32} metalness={0.2} />
+      </mesh>
+      <mesh castShadow position={[0, 0.1, 2.38]} visible={visible}>
+        <boxGeometry args={[2.45, 0.06, 0.18]} />
+        <meshStandardMaterial color="#111318" roughness={0.5} />
+      </mesh>
+      <mesh castShadow position={[-1.18, 0.15, 2.18]} visible={visible}>
+        <boxGeometry args={[0.1, 0.42, 0.46]} />
+        <meshStandardMaterial color="#111318" roughness={0.48} />
+      </mesh>
+      <mesh castShadow position={[1.18, 0.15, 2.18]} visible={visible}>
+        <boxGeometry args={[0.1, 0.42, 0.46]} />
+        <meshStandardMaterial color="#111318" roughness={0.48} />
+      </mesh>
+      <mesh castShadow position={[0, 0.58, -1.62]} visible={visible}>
+        <boxGeometry args={[2.05, 0.16, 0.36]} />
+        <meshStandardMaterial color={color} roughness={0.32} metalness={0.2} />
+      </mesh>
+      <mesh castShadow position={[0, 0.78, -1.76]} visible={visible}>
+        <boxGeometry args={[1.88, 0.08, 0.24]} />
+        <meshStandardMaterial color="#111318" roughness={0.46} />
+      </mesh>
+      <mesh castShadow position={[0, 0.34, -1.62]} visible={visible}>
+        <boxGeometry args={[0.14, 0.6, 0.12]} />
+        <meshStandardMaterial color="#15181d" roughness={0.45} />
+      </mesh>
+      <mesh castShadow position={[0, 0.34, -1.86]} visible={visible}>
+        <boxGeometry args={[0.14, 0.6, 0.12]} />
+        <meshStandardMaterial color="#15181d" roughness={0.45} />
+      </mesh>
+      <mesh castShadow position={[-0.55, 0.1, -0.95]} rotation={[0, 0, -0.28]} visible={visible}>
+        <boxGeometry args={[0.16, 0.12, 1.22]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      <mesh castShadow position={[0.55, 0.1, -0.95]} rotation={[0, 0, 0.28]} visible={visible}>
+        <boxGeometry args={[0.16, 0.12, 1.22]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      <mesh castShadow position={[-0.68, 0.07, 0.82]} rotation={[0, 0, 0.22]} visible={visible}>
+        <boxGeometry args={[0.14, 0.1, 1.18]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      <mesh castShadow position={[0.68, 0.07, 0.82]} rotation={[0, 0, -0.22]} visible={visible}>
+        <boxGeometry args={[0.14, 0.1, 1.18]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
+      </mesh>
+      {[[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]].map(([x, z]) => {
+        const isFront = z > 0;
+        const side = x < 0 ? -1 : 1;
+        return (
+        <group key={`${x}-${z}`} position={[x, -0.05, z]} rotation={[0, isFront ? frontSteer : 0, 0]} visible={visible}>
+          <mesh castShadow rotation={[Math.PI / 2, 0, wheelSpin * side]}>
+            <cylinderGeometry args={[0.32, 0.32, 0.28, 24]} />
+            <meshStandardMaterial color="#050608" roughness={0.72} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, wheelSpin * side]}>
+            <cylinderGeometry args={[0.17, 0.17, 0.3, 18]} />
+            <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.45} />
+          </mesh>
+        </group>
+        );
+      })}
     </group>
   );
 }
 
 function Cockpit({ car, color }: { car: CarState; color: string }) {
+  const group = useRef<THREE.Group>(null);
+  const initial = useRef({ x: car.x, z: car.z, heading: car.heading });
+  const wheelSpin = car.wheelDistance * 3.1;
+  const frontSteer = visualWheelSteer(car.steer, 0.52);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const amount = smoothingAmount(delta, 18);
+    group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, car.x, amount);
+    group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
+    group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+  });
   return (
-    <group position={[car.x, 0.65, car.z]} rotation={[0, car.heading, 0]}>
-      <mesh position={[0, -0.16, 1.8]}>
-        <boxGeometry args={[0.55, 0.28, 2.6]} />
-        <meshStandardMaterial color={color} roughness={0.42} />
+    <group ref={group} position={[initial.current.x, 0.65, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
+      <mesh position={[0, -0.22, 1.88]}>
+        <boxGeometry args={[0.62, 0.28, 3.3]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, -0.13, 2.28]}>
+        <boxGeometry args={[0.34, 0.14, 1.22]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, -0.15, 3.0]}>
+        <boxGeometry args={[0.19, 0.1, 0.62]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, -0.17, 3.42]}>
+        <boxGeometry args={[0.1, 0.07, 0.28]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, -0.01, 2.3]}>
+        <boxGeometry args={[0.1, 0.055, 2.5]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.45} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, 0.0, 2.45]}>
+        <boxGeometry args={[1.72, 0.08, 0.42]} />
+        <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
+      </mesh>
+      <mesh position={[0, -0.12, 2.78]}>
+        <boxGeometry args={[2.02, 0.055, 0.18]} />
+        <meshStandardMaterial color="#111318" roughness={0.5} />
+      </mesh>
+      <mesh position={[-0.92, -0.02, 2.45]}>
+        <boxGeometry args={[0.08, 0.26, 0.46]} />
+        <meshStandardMaterial color="#101214" roughness={0.48} />
+      </mesh>
+      <mesh position={[0.92, -0.02, 2.45]}>
+        <boxGeometry args={[0.08, 0.26, 0.46]} />
+        <meshStandardMaterial color="#101214" roughness={0.48} />
+      </mesh>
+      <mesh position={[-1.06, -0.05, 2.68]}>
+        <boxGeometry args={[0.08, 0.38, 0.32]} />
+        <meshStandardMaterial color="#101214" roughness={0.48} />
+      </mesh>
+      <mesh position={[1.06, -0.05, 2.68]}>
+        <boxGeometry args={[0.08, 0.38, 0.32]} />
+        <meshStandardMaterial color="#101214" roughness={0.48} />
+      </mesh>
+      {[[-0.92, 1.5], [0.92, 1.5]].map(([x, z]) => (
+        <group key={x} position={[x, -0.1, z]} rotation={[0, frontSteer, 0]}>
+          <mesh rotation={[Math.PI / 2, 0, wheelSpin * (x < 0 ? -1 : 1)]}>
+            <cylinderGeometry args={[0.34, 0.34, 0.22, 22]} />
+            <meshStandardMaterial color="#050608" roughness={0.75} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, wheelSpin * (x < 0 ? -1 : 1)]}>
+            <cylinderGeometry args={[0.16, 0.16, 0.24, 16]} />
+            <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.4} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[-0.58, -0.08, 1.88]} rotation={[0, 0, 0.28]}>
+        <boxGeometry args={[0.1, 0.08, 1.52]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.16} />
+      </mesh>
+      <mesh position={[0.58, -0.08, 1.88]} rotation={[0, 0, -0.28]}>
+        <boxGeometry args={[0.1, 0.08, 1.52]} />
+        <meshStandardMaterial color={color} roughness={0.36} metalness={0.16} />
+      </mesh>
+      <mesh position={[-0.46, 0.02, 0.78]} rotation={[0, 0.24, 0]}>
+        <boxGeometry args={[0.42, 0.04, 0.1]} />
+        <meshStandardMaterial color="#101214" roughness={0.42} />
+      </mesh>
+      <mesh position={[0.46, 0.02, 0.78]} rotation={[0, -0.24, 0]}>
+        <boxGeometry args={[0.42, 0.04, 0.1]} />
+        <meshStandardMaterial color="#101214" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.42, 0.035, 8, 28]} />
+        <meshStandardMaterial color="#0b0e12" />
+      </mesh>
+      <mesh position={[0, 0.08, 1.0]}>
+        <boxGeometry args={[0.82, 0.18, 0.42]} />
+        <meshStandardMaterial color="#101214" roughness={0.52} />
       </mesh>
       <mesh position={[0, 0.2, 0.8]}>
         <torusGeometry args={[0.55, 0.035, 8, 28, Math.PI]} />
@@ -741,9 +1151,7 @@ function Cockpit({ car, color }: { car: CarState; color: string }) {
 }
 
 function MiniTrack({ track }: { track: TrackDef }) {
-  const xs = track.points.map((point) => point.x);
-  const zs = track.points.map((point) => point.z);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const { minX, maxX, minZ, maxZ } = getTrackBounds(track);
   const points = track.points
     .map((point) => `${((point.x - minX) / (maxX - minX || 1)) * 180 + 10},${((point.z - minZ) / (maxZ - minZ || 1)) * 110 + 10}`)
     .join(" ");
@@ -753,6 +1161,40 @@ function MiniTrack({ track }: { track: TrackDef }) {
       <polyline points={points} fill="none" stroke="#e84f5f" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+type TrackBounds = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+function getTrackBounds(track: TrackDef): TrackBounds {
+  const xs = track.points.map((point) => point.x);
+  const zs = track.points.map((point) => point.z);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minZ: Math.min(...zs),
+    maxZ: Math.max(...zs)
+  };
+}
+
+function projectMiniX(x: number, bounds: TrackBounds) {
+  return ((x - bounds.minX) / (bounds.maxX - bounds.minX || 1)) * 180 + 15;
+}
+
+function projectMiniY(z: number, bounds: TrackBounds) {
+  return ((z - bounds.minZ) / (bounds.maxZ - bounds.minZ || 1)) * 120 + 15;
+}
+
+function raceStatusText(car: CarState | undefined, lapCount: number) {
+  if (!car) return "grid";
+  if (car.finished) return "finish";
+  if (car.crashed) return "crash";
+  if (car.dnf) return "dnf";
+  return `L${Math.min(car.lap, lapCount)}/${lapCount}`;
 }
 
 function sampleTrackVisuals(track: TrackDef, spacing: number) {
@@ -815,6 +1257,18 @@ function useGameSocket() {
         setJoinedToken(message.token);
       }
       if (message.type === "room_state") setRoom(message.state);
+      if (message.type === "race_snapshot") {
+        setRoom((current) => current && current.roomCode === message.snapshot.roomCode
+          ? {
+            ...current,
+            phase: message.snapshot.phase,
+            countdownEndsAt: message.snapshot.countdownEndsAt,
+            raceStartedAt: message.snapshot.raceStartedAt,
+            cars: message.snapshot.cars,
+            results: message.snapshot.results ?? current.results
+          }
+          : current);
+      }
       if (message.type === "controller_feedback") setFeedback(message.car);
       if (message.type === "room_closed") {
         console.warn(message.message);
@@ -857,6 +1311,16 @@ function useStoredNumber(key: string, fallback: number) {
   return [value, setStored] as const;
 }
 
+function useStoredRangeNumber(key: string, fallback: number, min: number, max: number) {
+  const [value, setValue] = useState(() => readStoredRangeNumber(key, fallback, min, max));
+  const setStored = useCallback((next: number) => {
+    const value = Math.round(clamp(next, min, max));
+    setValue(value);
+    localStorage.setItem(key, String(value));
+  }, [key, min, max]);
+  return [value, setStored] as const;
+}
+
 function useStoredBoolean(key: string, fallback: boolean) {
   const [value, setValue] = useState(() => readStoredBoolean(key, fallback));
   const setStored = useCallback((next: boolean) => {
@@ -869,6 +1333,11 @@ function useStoredBoolean(key: string, fallback: boolean) {
 function readStoredNumber(key: string, fallback: number) {
   const value = Number(localStorage.getItem(key));
   return Number.isFinite(value) ? clamp(value, 0, 1) : fallback;
+}
+
+function readStoredRangeNumber(key: string, fallback: number, min: number, max: number) {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) ? Math.round(clamp(value, min, max)) : fallback;
 }
 
 function readStoredBoolean(key: string, fallback: boolean) {
@@ -909,11 +1378,22 @@ async function enableControllerDevice() {
 }
 
 async function requestMotion() {
+  if (!sensorSupported()) {
+    return { enabled: false, message: "Motion unavailable in this browser" };
+  }
   const orientation = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<PermissionState> };
   if (typeof orientation.requestPermission === "function") {
-    return (await orientation.requestPermission()) === "granted";
+    const permission = await orientation.requestPermission();
+    return {
+      enabled: permission === "granted",
+      message: permission === "granted" ? "Motion ready" : "Motion permission denied"
+    };
   }
-  return true;
+  return { enabled: true, message: "Motion ready" };
+}
+
+function sensorSupported() {
+  return typeof window !== "undefined" && "DeviceOrientationEvent" in window;
 }
 
 async function requestLandscape() {
@@ -990,7 +1470,7 @@ function unlockControllerAudio() {
 function createControllerAudio(): ControllerAudio {
   const context = new AudioContext();
   const masterGain = context.createGain();
-  masterGain.gain.value = 0.72;
+  masterGain.gain.value = 0.92;
   masterGain.connect(context.destination);
 
   const engineOsc = context.createOscillator();
@@ -1066,20 +1546,20 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   const surface = raceCar?.surface ?? "road";
   const impact = raceCar?.impact ?? 0;
 
-  const rev = clamp(speed / 42 + throttle * 0.42, 0, 1.35);
-  audio.engineOsc.frequency.setTargetAtTime(58 + rev * 165, now, 0.055);
-  audio.engineGain.gain.setTargetAtTime(0.025 + rev * 0.05, now, 0.08);
+  const rev = clamp(speed / 42 + throttle * 0.46, 0, 1.35);
+  audio.engineOsc.frequency.setTargetAtTime(64 + rev * 215, now, 0.055);
+  audio.engineGain.gain.setTargetAtTime(0.035 + rev * 0.075, now, 0.08);
 
   const tireAmount = clamp(slip * 0.75 + (surface === "grass" ? 0.38 : 0) + (surface === "curb" ? 0.25 : 0), 0, 1);
-  audio.tireFilter.frequency.setTargetAtTime(650 + speed * 34, now, 0.05);
-  audio.tireGain.gain.setTargetAtTime(tireAmount * 0.065, now, 0.04);
+  audio.tireFilter.frequency.setTargetAtTime(780 + speed * 42, now, 0.05);
+  audio.tireGain.gain.setTargetAtTime(tireAmount * 0.085, now, 0.04);
 
   const brakeAmount = brake > 0.12 && speed > 4 ? brake * clamp(speed / 30, 0, 1) : 0;
   audio.brakeOsc.frequency.setTargetAtTime(160 + brake * 380 + speed * 4, now, 0.05);
-  audio.brakeGain.gain.setTargetAtTime(brakeAmount * 0.045, now, 0.04);
+  audio.brakeGain.gain.setTargetAtTime(brakeAmount * 0.06, now, 0.04);
 
   const curbAmount = surface === "curb" && speed > 4 ? clamp(speed / 35, 0.15, 1) : 0;
-  audio.curbGain.gain.setTargetAtTime(curbAmount * 0.035, now, 0.025);
+  audio.curbGain.gain.setTargetAtTime(curbAmount * 0.05, now, 0.025);
 
   if (impact > 0.18 && now - audio.lastImpactAt > 0.16) {
     audio.lastImpactAt = now;
@@ -1142,9 +1622,41 @@ function hapticsSupported() {
   return typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
 }
 
+function hapticSupportMessage() {
+  if (!hapticsSupported()) return "No Vibration API in this browser";
+  if (isFirefox()) return "Limited in Firefox; test on this phone";
+  if (isIOS()) return "iOS Safari does not support web vibration";
+  return "Haptics ready";
+}
+
+function hapticShortStatus() {
+  if (!hapticsSupported()) return "No haptics";
+  if (isFirefox()) return "Test haptics";
+  return "Haptics on";
+}
+
+function hapticResultMessage(result: boolean) {
+  if (!hapticsSupported()) return "No Vibration API";
+  if (!result) return "Vibration blocked";
+  if (isFirefox()) return "Pulse requested";
+  return "Pulse sent";
+}
+
 function pulseHaptic(pattern: number | number[]) {
   if (!hapticsSupported()) return false;
   return navigator.vibrate(pattern);
+}
+
+function stopHaptics() {
+  if (hapticsSupported()) navigator.vibrate(0);
+}
+
+function isFirefox() {
+  return typeof navigator !== "undefined" && /firefox|fennec|fxios/i.test(navigator.userAgent);
+}
+
+function isIOS() {
+  return typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
 function driveHaptics(car: CarState | undefined, pedals: { throttle: number; brake: number }, enabled: boolean, lastHapticAtRef: React.MutableRefObject<number>) {
@@ -1175,4 +1687,22 @@ function driveHaptics(car: CarState | undefined, pedals: { throttle: number; bra
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function steeringSensitivityFromLevel(level: number) {
+  return 0.65 + clamp(level, 1, 10) * 0.09;
+}
+
+function visualWheelSteer(steer: number, amount: number) {
+  if (Math.abs(steer) < 0.06) return 0;
+  return steer < 0 ? amount : -amount;
+}
+
+function smoothingAmount(delta: number, response: number) {
+  return 1 - Math.exp(-response * delta);
+}
+
+function lerpAngle(current: number, target: number, amount: number) {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + delta * amount;
 }

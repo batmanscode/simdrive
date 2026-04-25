@@ -26,6 +26,7 @@ export type RaceSettings = {
   rollingStart: boolean;
   ghostMode: boolean;
   rain: boolean;
+  stabilityAssist: boolean;
 };
 
 export type DisplayGroup = {
@@ -43,6 +44,7 @@ export type Player = {
   isReady: boolean;
   isVIP: boolean;
   connected: boolean;
+  disconnectedAt?: number;
   joinedAt: number;
 };
 
@@ -57,6 +59,8 @@ export type CarState = {
   playerId: string;
   x: number;
   z: number;
+  velocityX: number;
+  velocityZ: number;
   heading: number;
   speed: number;
   steer: number;
@@ -65,9 +69,15 @@ export type CarState = {
   lap: number;
   progress: number;
   distanceThisLap: number;
+  nextCheckpoint: number;
+  currentLapStartedAt: number;
+  lastLapTime?: number;
+  bestLapTime?: number;
+  wheelDistance: number;
   surface: SurfaceType;
   finished: boolean;
   crashed: boolean;
+  dnf: boolean;
   finishTime?: number;
   impact: number;
   slip: number;
@@ -78,6 +88,7 @@ export type RaceResult = {
   name: string;
   color: string;
   totalTime?: number;
+  bestLapTime?: number;
   status: "finished" | "crashed" | "dnf";
 };
 
@@ -91,6 +102,15 @@ export type RoomState = {
   raceStartedAt?: number;
   cars: CarState[];
   results: RaceResult[];
+};
+
+export type RaceSnapshot = {
+  roomCode: string;
+  phase: Phase;
+  countdownEndsAt?: number;
+  raceStartedAt?: number;
+  cars: CarState[];
+  results?: RaceResult[];
 };
 
 export type ClientMessage =
@@ -110,6 +130,7 @@ export type ServerMessage =
   | { type: "joined_display"; roomCode: string; displayGroupId: string }
   | { type: "joined_controller"; roomCode: string; playerId: string; token: string; displayGroupId: string }
   | { type: "room_state"; state: RoomState }
+  | { type: "race_snapshot"; snapshot: RaceSnapshot }
   | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number }
   | { type: "room_closed"; message: string }
   | { type: "error_notice"; message: string }

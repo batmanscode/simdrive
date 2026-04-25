@@ -1,5 +1,7 @@
 # Drive Sim - Product and Technical Spec
 
+Status note: this is the broader product/technical target spec. `SPEC_detailed_live.md` tracks the current implementation, including deliberate first-pass deviations such as the custom WebSocket server and lightweight kinematic physics.
+
 ## 1. Summary
 
 Build `Drive Sim`, a browser-based party racing game at `drivesim.xyz` where computers/TVs act as race displays and phones act as motion/touch controllers. The game should feel close enough to a lightweight racing sim to be satisfying, while staying accessible, fast to join, and closer to Jackbox-style party flow than a hardcore simulator.
