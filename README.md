@@ -25,7 +25,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's setup, and each driver's cockpit style.
 - Display landing/lobby/results screens support System, Light, and Dark themes.
 - One-player practice works.
-- Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, curbs, formula-style cars, countdown lights, and a short first-place banner.
+- Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, formula-style cars, countdown lights, and a short first-place banner.
 - Race view includes a minimap and live global leaderboard.
 - Results include podium-style placement, total time, and best lap.
 - Phone controller supports tilt steering, 1-10 motion sensitivity, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, basic audio, and vibration where supported.

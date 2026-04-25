@@ -242,6 +242,7 @@ function RaceDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId
         {panes.map((player) => (
           <div className="race-pane" key={player.id}>
             <RaceCanvas room={room} focusPlayerId={player.id} />
+            {room.settings.rain && <div className="rain-visor" aria-hidden />}
             <RaceHud room={room} focusPlayerId={player.id} />
             <RaceMiniMap room={room} focusPlayerId={player.id} />
             <RaceLeaderboard room={room} focusPlayerId={player.id} />
@@ -1004,6 +1005,7 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
     <>
       <TrackMesh track={track} rain={room.settings.rain} />
       <TrackProps track={track} rain={room.settings.rain} />
+      <DynamicSkidMarks cars={room.cars} rain={room.settings.rain} />
       {room.settings.rain && focus && <RainEffect focus={focus} />}
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
@@ -1032,9 +1034,15 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
   const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
   const leftCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, -track.width / 2 - track.curbWidth / 2, 0.055, 2.7), [track]);
   const rightCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, track.width / 2 + track.curbWidth / 2, 0.055, 2.7), [track]);
+  const leftCurbInnerEdge = useMemo(() => createTrackRibbonGeometry(track, 0.16, -track.width / 2 - 0.08, 0.102, 2.7), [track]);
+  const leftCurbOuterEdge = useMemo(() => createTrackRibbonGeometry(track, 0.16, -track.width / 2 - track.curbWidth + 0.08, 0.101, 2.7), [track]);
+  const rightCurbInnerEdge = useMemo(() => createTrackRibbonGeometry(track, 0.16, track.width / 2 + 0.08, 0.102, 2.7), [track]);
+  const rightCurbOuterEdge = useMemo(() => createTrackRibbonGeometry(track, 0.16, track.width / 2 + track.curbWidth - 0.08, 0.101, 2.7), [track]);
   const leftLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, -track.width / 2 + 0.18, 0.075, 2.7), [track]);
   const rightLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, track.width / 2 - 0.18, 0.075, 2.7), [track]);
   const racingLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 1.35, 0, 0.078, 2.7), [track]);
+  const rubberLeftGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.28, -0.48, 0.081, 2.7), [track]);
+  const rubberRightGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.28, 0.48, 0.081, 2.7), [track]);
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[35, -0.05, 45]} receiveShadow>
@@ -1050,12 +1058,24 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
       <mesh geometry={racingLineGeometry}>
         <meshBasicMaterial color={rain ? "#11191c" : "#17181a"} transparent opacity={rain ? 0.28 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
+      <mesh geometry={rubberLeftGeometry}>
+        <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={rubberRightGeometry}>
+        <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <AsphaltDetails track={track} rain={rain} />
       <mesh geometry={leftCurbGeometry}>
         <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={rightCurbGeometry}>
         <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
       </mesh>
+      {[leftCurbInnerEdge, leftCurbOuterEdge, rightCurbInnerEdge, rightCurbOuterEdge].map((geometry, index) => (
+        <mesh key={`curb-edge-${index}`} geometry={geometry}>
+          <meshStandardMaterial color={index % 2 === 0 ? "#f4eddf" : "#7d2028"} roughness={0.5} metalness={0.04} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
       <mesh geometry={leftLineGeometry}>
         <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
       </mesh>
@@ -1070,6 +1090,103 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
           </mesh>
         );
       })}
+    </group>
+  );
+}
+
+type AsphaltPatch = {
+  x: number;
+  z: number;
+  heading: number;
+  width: number;
+  length: number;
+  opacity: number;
+};
+
+function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const patches = useMemo<AsphaltPatch[]>(() => {
+    const surfacePatches: AsphaltPatch[] = [];
+    const samples = sampleTrackVisuals(track, 5.2);
+    samples.forEach((sample, index) => {
+      if (index % 2 !== 0) return;
+      const sideNoise = seededUnit(index * 11 + track.id.length) - 0.5;
+      const lateral = sideNoise * track.width * 0.72;
+      const rightX = Math.sin(sample.heading + Math.PI / 2);
+      const rightZ = Math.cos(sample.heading + Math.PI / 2);
+      surfacePatches.push({
+        x: sample.x + rightX * lateral,
+        z: sample.z + rightZ * lateral,
+        heading: sample.heading + (seededUnit(index * 7) - 0.5) * 0.28,
+        width: 0.18 + seededUnit(index * 5) * 0.42,
+        length: 0.9 + seededUnit(index * 13) * 1.8,
+        opacity: 0.025 + seededUnit(index * 17) * (rain ? 0.035 : 0.05)
+      });
+    });
+
+    const curveSamples = sampleTrackVisuals(track, 8.5);
+    curveSamples.forEach((sample, index) => {
+      const previous = curveSamples[(index - 1 + curveSamples.length) % curveSamples.length];
+      const next = curveSamples[(index + 1) % curveSamples.length];
+      const turn = angleDeltaLocal(previous.heading, next.heading);
+      if (Math.abs(turn) < 0.16 || index % 2 !== 0) return;
+      const rightX = Math.sin(sample.heading + Math.PI / 2);
+      const rightZ = Math.cos(sample.heading + Math.PI / 2);
+      const outside = turn > 0 ? -1 : 1;
+      const lateral = outside * (track.width * 0.18 + seededUnit(index * 23) * track.width * 0.12);
+      surfacePatches.push({
+        x: sample.x + rightX * lateral,
+        z: sample.z + rightZ * lateral,
+        heading: sample.heading + outside * 0.05,
+        width: 0.18,
+        length: 4.2 + seededUnit(index * 29) * 3.2,
+        opacity: rain ? 0.14 : 0.22
+      });
+    });
+
+    return surfacePatches;
+  }, [track, rain]);
+
+  return (
+    <group>
+      {patches.map((patch, index) => (
+        <mesh key={`asphalt-${index}`} position={[patch.x, 0.086, patch.z]} rotation={[-Math.PI / 2, 0, -patch.heading]}>
+          <planeGeometry args={[patch.width, patch.length]} />
+          <meshBasicMaterial color="#050608" transparent opacity={patch.opacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const texture = useMemo(() => createSponsorTexture(), []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const placement = useMemo(() => {
+    const progress = trackMetrics(track).totalLength * (track.id === "sakura" ? 0.6 : 0.36);
+    const sample = sampleTrack(track, progress);
+    const side = track.id === "sakura" ? 1 : -1;
+    const rightX = Math.sin(sample.heading + Math.PI / 2);
+    const rightZ = Math.cos(sample.heading + Math.PI / 2);
+    const offset = track.width / 2 + track.curbWidth + track.wallMargin + 1.2;
+    return {
+      x: sample.x + rightX * side * offset,
+      z: sample.z + rightZ * side * offset,
+      heading: sample.heading + (side > 0 ? -0.22 : 0.22)
+    };
+  }, [track]);
+
+  return (
+    <group position={[placement.x, 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
+      <mesh castShadow>
+        <planeGeometry args={[4.2, 1.35]} />
+        <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+      {[-1.65, 1.65].map((x) => (
+        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
+          <boxGeometry args={[0.12, 2.1, 0.12]} />
+          <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -1150,6 +1267,7 @@ function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
           </group>
         );
       })}
+      <SponsorBoard track={track} rain={rain} />
       {barriers.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
@@ -1281,6 +1399,62 @@ function CarEffects({ car, rain, color }: { car: CarState; rain: boolean; color:
   );
 }
 
+type LiveSkidMark = {
+  id: string;
+  x: number;
+  z: number;
+  heading: number;
+  opacity: number;
+};
+
+function DynamicSkidMarks({ cars, rain }: { cars: CarState[]; rain: boolean }) {
+  const [marks, setMarks] = useState<LiveSkidMark[]>([]);
+  const lastSpawnAt = useRef<Record<string, number>>({});
+
+  useFrame(() => {
+    const now = performance.now();
+    const additions: LiveSkidMark[] = [];
+    for (const car of cars) {
+      if (car.finished || car.crashed || car.dnf || car.surface === "grass" || car.speed < 7) continue;
+      const brakingMark = car.brake > 0.74 && car.speed > 11;
+      const slipMark = car.slip > 0.52 && car.speed > 9;
+      if (!brakingMark && !slipMark) continue;
+      if (now - (lastSpawnAt.current[car.playerId] ?? 0) < 115) continue;
+      lastSpawnAt.current[car.playerId] = now;
+
+      const forwardX = Math.sin(car.heading);
+      const forwardZ = Math.cos(car.heading);
+      const rightX = Math.sin(car.heading + Math.PI / 2);
+      const rightZ = Math.cos(car.heading + Math.PI / 2);
+      const opacity = clamp((car.slip * 0.3 + car.brake * 0.22) * (rain ? 0.55 : 1), 0.12, rain ? 0.24 : 0.42);
+      for (const side of [-1, 1]) {
+        additions.push({
+          id: `${car.playerId}-${side}-${Math.round(now)}`,
+          x: car.x - forwardX * 1.18 + rightX * side * 0.62,
+          z: car.z - forwardZ * 1.18 + rightZ * side * 0.62,
+          heading: car.heading,
+          opacity
+        });
+      }
+    }
+    if (additions.length) {
+      setMarks((current) => [...current, ...additions].slice(-140));
+    }
+  });
+
+  if (marks.length === 0) return null;
+  return (
+    <group>
+      {marks.map((mark) => (
+        <mesh key={mark.id} position={[mark.x, 0.09, mark.z]} rotation={[-Math.PI / 2, 0, -mark.heading]}>
+          <planeGeometry args={[0.18, 1.35]} />
+          <meshBasicMaterial color="#050608" transparent opacity={mark.opacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const initial = useRef({ x: car.x, z: car.z, heading: car.heading });
@@ -1359,12 +1533,24 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
         <boxGeometry args={[2.45, 0.06, 0.18]} />
         <meshStandardMaterial color="#111318" roughness={0.5} />
       </mesh>
+      <mesh castShadow position={[0, 0.02, 2.68]} visible={visible}>
+        <boxGeometry args={[2.15, 0.045, 0.14]} />
+        <meshStandardMaterial color="#20242a" roughness={0.48} />
+      </mesh>
       <mesh castShadow position={[-1.18, 0.15, 2.18]} visible={visible}>
         <boxGeometry args={[0.1, 0.42, 0.46]} />
         <meshStandardMaterial color="#111318" roughness={0.48} />
       </mesh>
       <mesh castShadow position={[1.18, 0.15, 2.18]} visible={visible}>
         <boxGeometry args={[0.1, 0.42, 0.46]} />
+        <meshStandardMaterial color="#111318" roughness={0.48} />
+      </mesh>
+      <mesh castShadow position={[-1.32, 0.08, 2.54]} visible={visible}>
+        <boxGeometry args={[0.08, 0.42, 0.34]} />
+        <meshStandardMaterial color="#111318" roughness={0.48} />
+      </mesh>
+      <mesh castShadow position={[1.32, 0.08, 2.54]} visible={visible}>
+        <boxGeometry args={[0.08, 0.42, 0.34]} />
         <meshStandardMaterial color="#111318" roughness={0.48} />
       </mesh>
       <mesh castShadow position={[0, 0.58, -1.62]} visible={visible}>
@@ -1383,6 +1569,10 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
         <boxGeometry args={[0.14, 0.6, 0.12]} />
         <meshStandardMaterial color="#15181d" roughness={0.45} />
       </mesh>
+      <mesh position={[0, 0.48, -2.02]} visible={visible}>
+        <sphereGeometry args={[0.07, 12, 8]} />
+        <meshStandardMaterial color="#ff2b38" emissive="#b80018" emissiveIntensity={car.surface === "grass" || car.brake > 0.2 ? 1.8 : 0.75} roughness={0.3} />
+      </mesh>
       <mesh castShadow position={[-0.55, 0.1, -0.95]} rotation={[0, 0, -0.28]} visible={visible}>
         <boxGeometry args={[0.16, 0.12, 1.22]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
@@ -1399,6 +1589,18 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
         <boxGeometry args={[0.14, 0.1, 1.18]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
+      {[-1, 1].map((side) => (
+        <group key={`suspension-${side}`} visible={visible}>
+          <mesh position={[side * 0.54, 0.03, 0.9]} rotation={[0, side * 0.22, side * 0.16]}>
+            <boxGeometry args={[0.045, 0.045, 1.15]} />
+            <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
+          </mesh>
+          <mesh position={[side * 0.54, 0.03, -0.9]} rotation={[0, side * -0.2, side * -0.14]}>
+            <boxGeometry args={[0.045, 0.045, 1.05]} />
+            <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
+          </mesh>
+        </group>
+      ))}
       {[[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]].map(([x, z]) => {
         const isFront = z > 0;
         const side = x < 0 ? -1 : 1;
@@ -1417,10 +1619,12 @@ function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed
               <torusGeometry args={[0.325, 0.018, 8, 24]} />
               <meshStandardMaterial color="#161a20" roughness={0.5} />
             </mesh>
-            <mesh position={[0, 0.21, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <boxGeometry args={[0.28, 0.035, 0.035]} />
-              <meshStandardMaterial color="#f1eadc" roughness={0.55} />
-            </mesh>
+            {[0, Math.PI / 3, (Math.PI * 2) / 3].map((angle) => (
+              <mesh key={angle} position={[0, 0.21, 0]} rotation={[0, 0, Math.PI / 2 + angle]}>
+                <boxGeometry args={[0.3, 0.032, 0.032]} />
+                <meshStandardMaterial color="#f1eadc" roughness={0.55} metalness={0.12} />
+              </mesh>
+            ))}
           </group>
         </group>
         );
@@ -1502,10 +1706,12 @@ function Cockpit({ car, color, cockpitStyle }: { car: CarState; color: string; c
               <torusGeometry args={[0.345, 0.018, 8, 24]} />
               <meshStandardMaterial color="#161a20" roughness={0.5} />
             </mesh>
-            <mesh position={[0, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <boxGeometry args={[0.3, 0.035, 0.035]} />
-              <meshStandardMaterial color="#f1eadc" roughness={0.55} />
-            </mesh>
+            {[0, Math.PI / 3, (Math.PI * 2) / 3].map((angle) => (
+              <mesh key={angle} position={[0, 0.22, 0]} rotation={[0, 0, Math.PI / 2 + angle]}>
+                <boxGeometry args={[0.31, 0.032, 0.032]} />
+                <meshStandardMaterial color="#f1eadc" roughness={0.55} metalness={0.12} />
+              </mesh>
+            ))}
           </group>
         </group>
       ))}
@@ -1526,6 +1732,7 @@ function Cockpit({ car, color, cockpitStyle }: { car: CarState; color: string; c
         <meshStandardMaterial color="#101214" roughness={0.42} />
       </mesh>
       <CockpitWheel steer={car.steer} style={cockpitStyle} />
+      <CockpitRevLights speed={car.speed} throttle={car.throttle} />
       <mesh position={[0, 0.08, 1.0]}>
         <boxGeometry args={[0.82, 0.18, 0.42]} />
         <meshStandardMaterial color="#101214" roughness={0.52} />
@@ -1534,6 +1741,25 @@ function Cockpit({ car, color, cockpitStyle }: { car: CarState; color: string; c
         <torusGeometry args={[0.55, 0.035, 8, 28, Math.PI]} />
         <meshStandardMaterial color="#111318" />
       </mesh>
+    </group>
+  );
+}
+
+function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number }) {
+  const level = clamp(speed / 42 + throttle * 0.22, 0, 1);
+  const lit = Math.round(level * 7);
+  return (
+    <group position={[0, 0.29, 0.61]} rotation={[-0.1, 0, 0]}>
+      {Array.from({ length: 7 }).map((_, index) => {
+        const active = index < lit;
+        const color = index < 3 ? "#24c06f" : index < 5 ? "#ffd166" : "#ff3b5c";
+        return (
+          <mesh key={index} position={[-0.24 + index * 0.08, 0, 0]}>
+            <sphereGeometry args={[0.025, 10, 8]} />
+            <meshStandardMaterial color={active ? color : "#24282f"} emissive={active ? color : "#000000"} emissiveIntensity={active ? 1.8 : 0} roughness={0.36} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }
@@ -2292,6 +2518,44 @@ function driveHaptics(car: CarState | undefined, pedals: { throttle: number; bra
   if (car.slip > 0.5 && speedKmh > 25 && now - lastHapticAtRef.current > 220) {
     if (pulseHaptic(16)) lastHapticAtRef.current = now;
   }
+}
+
+function createSponsorTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 192;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = "#101214";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#35a7ff";
+    context.fillRect(0, 0, canvas.width, 18);
+    context.fillRect(0, canvas.height - 18, canvas.width, 18);
+    context.strokeStyle = "#fffaf0";
+    context.lineWidth = 8;
+    context.strokeRect(18, 30, canvas.width - 36, canvas.height - 60);
+    context.fillStyle = "#fffaf0";
+    context.font = "900 74px Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("#vibejam", canvas.width / 2, canvas.height / 2 + 4);
+    context.fillStyle = "#e84f5f";
+    context.fillRect(42, 48, 42, 14);
+    context.fillRect(canvas.width - 84, canvas.height - 62, 42, 14);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function seededUnit(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function angleDeltaLocal(a: number, b: number) {
+  return Math.atan2(Math.sin(b - a), Math.cos(b - a));
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -748,6 +748,27 @@ input {
   overflow: hidden;
 }
 
+.rain-visor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(110deg, transparent 0 18%, rgba(222, 238, 244, 0.13) 18.4% 18.9%, transparent 19.4% 44%, rgba(222, 238, 244, 0.1) 44.4% 44.8%, transparent 45.2%),
+    radial-gradient(circle at 52% 42%, transparent 0 42%, rgba(219, 236, 239, 0.1) 78%, rgba(16, 18, 20, 0.14) 100%);
+  mix-blend-mode: screen;
+  opacity: 0.58;
+  z-index: 1;
+}
+
+.rain-visor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(104deg, transparent 0 42px, rgba(255, 255, 255, 0.08) 43px 45px, transparent 46px 92px);
+  opacity: 0.42;
+}
+
 .race-hud {
   position: absolute;
   top: 12px;
@@ -761,6 +782,7 @@ input {
   background: rgba(16, 18, 20, 0.62);
   backdrop-filter: blur(6px);
   font-weight: 850;
+  z-index: 2;
 }
 
 .race-minimap {
@@ -773,6 +795,7 @@ input {
   padding: 8px;
   background: rgba(16, 18, 20, 0.64);
   backdrop-filter: blur(6px);
+  z-index: 2;
 }
 
 .race-leaderboard {
@@ -790,6 +813,7 @@ input {
   border-radius: 8px;
   background: rgba(16, 18, 20, 0.64);
   backdrop-filter: blur(6px);
+  z-index: 2;
 }
 
 .race-leaderboard li {
