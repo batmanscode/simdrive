@@ -53,6 +53,7 @@ Speed note: physics uses internal speed units. The speedometer displays `1 inter
 | Grass gentle assist | `0.2` | Only if gentle assist is on. |
 | Collision radius | `2.1` | Car-to-car contact threshold. |
 | Crash impact threshold | `13.2` | Directional impact above this crashes both cars. |
+| Explosive wall-hit visual threshold | `24` / `192 km/h` speedometer | Hard wall hits at or above this emit a shared visual crash event, but do not add blast physics. |
 | Heavy contact threshold | `4.5` | Above this uses stronger velocity damping. |
 | Heavy contact damping | `0.8` | Velocity multiplier. |
 | Light contact damping | `0.92` | Velocity multiplier. |
@@ -70,6 +71,7 @@ Speed note: physics uses internal speed units. The speedometer displays `1 inter
 | External visual wheel steer | `0.48 rad` | Binary left/right/straight. |
 | Cockpit tyre steer | `0.52 rad` | Binary left/right/straight. |
 | Cockpit steering wheel steer | up to `0.8 rad` | Proportional to steering input; hands/paws rotate with the wheel. |
+| Shared crash explosion | `1.4 sec` visual event | Triggered by actual car-to-car crashes and very hard wall hits. Visual/audio/haptic only; it does not change physics. |
 
 ## Future Structure
 

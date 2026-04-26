@@ -10,6 +10,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test grass/off-track recovery: it should punish mistakes without feeling like the car is stuck forever.
 - Test braking into the Sakura hairpin and Alpine chicane: braking should feel strong but not instant.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.
+- Test hard wall hits and hard car-to-car crashes: all displays should see a short fireball/smoke crash effect, and the crashing phone should get the strongest boom/vibration cue without changing collision physics.
 - Test motion steering from a secure phone URL. Android Chrome/Chromium may not deliver device orientation over plain LAN `http://` URLs.
 - Test motion steering direction. If the browser/device reports landscape orientation with the opposite sign, the saved invert-motion-steering toggle should make the motion test meter and race steering match the physical tilt direction.
 - Test race countdown while the phone is still portrait: the phone should ask to turn sideways instead of saving a portrait steering center.

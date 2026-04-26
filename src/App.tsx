@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "sim-drive-steering-sensitivity-level";
@@ -21,6 +21,7 @@ const MOTION_NEUTRAL_MIN_SAMPLES = 5;
 const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
 const MOTION_STEERING_DEADZONE = 0.06;
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
+const CRASH_EXPLOSION_VISUAL_MS = 1400;
 
 type MotionCalibration = {
   frame: string;
@@ -535,7 +536,7 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} room={game.room} playerId={game.playerId} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} room={game.room} playerId={game.playerId} />;
   }
 
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} />;
@@ -925,7 +926,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; room: RoomState; playerId: string }) {
+function RaceController({ send, feedback, crashEvents, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; room: RoomState; playerId: string }) {
   const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
@@ -940,8 +941,10 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const neutralCaptureRef = useRef<{ startedAt: number; samples: number[] } | undefined>(undefined);
   const seqRef = useRef(0);
   const lastHapticAtRef = useRef(0);
+  const lastCrashHapticIdRef = useRef<string | undefined>(undefined);
   const pedalsRef = useRef(pedals);
   const feedbackRef = useRef(feedback);
+  const crashEventsRef = useRef(crashEvents);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
@@ -1029,6 +1032,10 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   }, [feedback]);
 
   useEffect(() => {
+    crashEventsRef.current = crashEvents;
+  }, [crashEvents]);
+
+  useEffect(() => {
     roomRef.current = room;
   }, [room]);
 
@@ -1045,8 +1052,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
-      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals);
-      driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef);
+      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current);
+      driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef, crashEventsRef.current, lastCrashHapticIdRef);
     }, 33);
     return () => {
       window.clearInterval(timer);
@@ -1238,6 +1245,7 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
           </group>
         );
       })}
+      <CrashExplosions events={room.crashEvents} />
       {focus && (
         <Cockpit
           car={focus}
@@ -1829,6 +1837,63 @@ function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }
       <mesh position={[0, 0.055, 5]} rotation={[-Math.PI / 2, 0, 0]} userData={{ kind: "mist" }}>
         <planeGeometry args={[22, 34]} />
         <meshBasicMaterial color="#dbecef" transparent opacity={0.14} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function CrashExplosions({ events }: { events: CrashEvent[] }) {
+  return (
+    <group>
+      {events.map((event) => <CrashExplosion key={event.id} event={event} />)}
+    </group>
+  );
+}
+
+function CrashExplosion({ event }: { event: CrashEvent }) {
+  const group = useRef<THREE.Group>(null);
+  const startedAtRef = useRef(performance.now());
+  const fire = useRef<THREE.MeshBasicMaterial>(null);
+  const cap = useRef<THREE.MeshBasicMaterial>(null);
+  const smoke = useRef<THREE.MeshBasicMaterial>(null);
+  const ring = useRef<THREE.MeshBasicMaterial>(null);
+  const baseScale = 1.15 + event.severity * 0.95;
+
+  useFrame(() => {
+    const age = clamp((performance.now() - startedAtRef.current) / CRASH_EXPLOSION_VISUAL_MS, 0, 1);
+    const pop = Math.sin(Math.min(1, age * 1.55) * Math.PI);
+    const rise = age * 1.4;
+    group.current?.scale.setScalar(baseScale * (0.45 + age * 0.9));
+    if (group.current) group.current.position.y = 0.18 + rise;
+    if (fire.current) fire.current.opacity = Math.max(0, 1 - age * 1.65);
+    if (cap.current) cap.current.opacity = Math.max(0, 0.72 - age * 0.48);
+    if (smoke.current) smoke.current.opacity = Math.max(0, 0.46 - age * 0.34);
+    if (ring.current) ring.current.opacity = Math.max(0, pop * 0.42);
+  });
+
+  return (
+    <group ref={group} position={[event.x, 0.18, event.z]}>
+      <mesh position={[0, 0.34, 0]}>
+        <sphereGeometry args={[0.9, 18, 12]} />
+        <meshBasicMaterial ref={fire} color={event.kind === "car" ? "#ff7a1a" : "#ffb13d"} transparent depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} scale={[1.35, 0.72, 1.35]}>
+        <sphereGeometry args={[0.92, 18, 10]} />
+        <meshBasicMaterial ref={cap} color="#2e3032" transparent opacity={0.72} depthWrite={false} />
+      </mesh>
+      {[
+        [-0.58, 0.82, 0.14],
+        [0.48, 0.7, -0.28],
+        [0.05, 1.42, 0.34]
+      ].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} scale={[0.85, 0.65, 0.85]}>
+          <sphereGeometry args={[0.62, 12, 8]} />
+          <meshBasicMaterial ref={index === 0 ? smoke : undefined} color="#5c6062" transparent opacity={0.42} depthWrite={false} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.15, 0.055, 8, 36]} />
+        <meshBasicMaterial ref={ring} color="#fff1a8" transparent opacity={0.36} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -2521,6 +2586,7 @@ function useGameSocket() {
   const [playerId, setPlayerId] = useState<string>();
   const [joinedToken, setJoinedToken] = useState<string>();
   const [feedback, setFeedback] = useState<CarState>();
+  const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
   const [notice, setNotice] = useState<{ id: number; message: string }>();
   const [isConnected, setIsConnected] = useState(false);
 
@@ -2565,11 +2631,15 @@ function useGameSocket() {
               countdownEndsAt: message.snapshot.countdownEndsAt,
               raceStartedAt: message.snapshot.raceStartedAt,
               cars: message.snapshot.cars,
+              crashEvents: message.snapshot.crashEvents,
               results: message.snapshot.results ?? current.results
             }
             : current);
         }
-        if (message.type === "controller_feedback") setFeedback(message.car);
+        if (message.type === "controller_feedback") {
+          setFeedback(message.car);
+          setControllerCrashEvents(message.crashEvents ?? []);
+        }
         if (message.type === "room_closed") {
           console.warn(message.message);
           sessionStorage.removeItem("sim-drive-display-session");
@@ -2578,6 +2648,7 @@ function useGameSocket() {
           setPlayerId(undefined);
           setJoinedToken(undefined);
           setFeedback(undefined);
+          setControllerCrashEvents([]);
           setNotice({ id: Date.now(), message: message.message });
         }
         if (message.type === "error_notice") {
@@ -2600,6 +2671,7 @@ function useGameSocket() {
         setPlayerId(undefined);
         setJoinedToken(undefined);
         setFeedback(undefined);
+        setControllerCrashEvents([]);
         setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
         const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
         reconnectAttemptRef.current += 1;
@@ -2629,7 +2701,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, controllerCrashEvents, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
@@ -2921,6 +2993,7 @@ type ControllerAudio = {
   masterGain: GainNode;
   lastCountdownMark?: number | "go";
   lastImpactAt: number;
+  lastCrashEventId?: string;
 };
 
 let sharedControllerAudio: ControllerAudio | null = null;
@@ -2994,7 +3067,7 @@ function createControllerAudio(): ControllerAudio {
   };
 }
 
-function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }) {
+function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[]) {
   if (!audio || audio.context.state !== "running") return;
   if (room.phase !== "countdown" && room.phase !== "racing") {
     silenceControllerAudio(audio);
@@ -3009,6 +3082,7 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   const slip = raceCar?.slip ?? 0;
   const surface = raceCar?.surface ?? "road";
   const impact = raceCar?.impact ?? 0;
+  const crashEvent = crashEvents[crashEvents.length - 1];
 
   const rev = clamp(speed / 42 + throttle * 0.46, 0, 1.35);
   audio.engineOsc.frequency.setTargetAtTime(64 + rev * 215, now, 0.055);
@@ -3028,6 +3102,11 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   if (impact > 0.18 && now - audio.lastImpactAt > 0.16) {
     audio.lastImpactAt = now;
     playCue(audio, "impact", impact);
+  }
+  if (crashEvent && audio.lastCrashEventId !== crashEvent.id) {
+    audio.lastCrashEventId = crashEvent.id;
+    audio.lastImpactAt = now;
+    playCue(audio, "explosion", crashEvent.severity);
   }
 
   updateCountdownAudio(audio, room);
@@ -3055,21 +3134,21 @@ function updateCountdownAudio(audio: ControllerAudio, room: RoomState) {
   playCue(audio, mark === "go" ? "go" : "countdown");
 }
 
-function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "start", intensity = 1) {
+function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1) {
   const context = audio.context;
   const osc = context.createOscillator();
   const gain = context.createGain();
   const now = context.currentTime;
 
-  osc.type = kind === "impact" ? "square" : "sine";
-  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "impact" ? 80 : 660;
+  osc.type = kind === "impact" || kind === "explosion" ? "square" : "sine";
+  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "impact" ? 0.16 : 0.18));
+  gain.gain.exponentialRampToValueAtTime(kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
   osc.connect(gain);
   gain.connect(audio.masterGain);
   osc.start(now);
-  osc.stop(now + 0.38);
+  osc.stop(now + (kind === "explosion" ? 0.52 : 0.38));
 }
 
 function createNoiseBuffer(context: AudioContext) {
@@ -3129,10 +3208,24 @@ function isIOS() {
   return typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
-function driveHaptics(car: CarState | undefined, pedals: { throttle: number; brake: number }, enabled: boolean, lastHapticAtRef: React.MutableRefObject<number>) {
-  if (!enabled || !car || !hapticsSupported()) return;
+function driveHaptics(
+  car: CarState | undefined,
+  pedals: { throttle: number; brake: number },
+  enabled: boolean,
+  lastHapticAtRef: React.MutableRefObject<number>,
+  crashEvents: CrashEvent[],
+  lastCrashEventIdRef: React.MutableRefObject<string | undefined>
+) {
+  if (!enabled || !hapticsSupported()) return;
 
   const now = performance.now();
+  const crashEvent = crashEvents[crashEvents.length - 1];
+  if (crashEvent && lastCrashEventIdRef.current !== crashEvent.id) {
+    lastCrashEventIdRef.current = crashEvent.id;
+    if (pulseHaptic([120, 45, 190, 55, 90])) lastHapticAtRef.current = now;
+    return;
+  }
+  if (!car) return;
   const speedKmh = speedToKmh(car.speed);
   if (car.impact > 0.2 && now - lastHapticAtRef.current > 240) {
     if (pulseHaptic(Math.round(45 + car.impact * 95))) lastHapticAtRef.current = now;
