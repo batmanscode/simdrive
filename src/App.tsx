@@ -6,15 +6,30 @@ import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
-const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
+const STEERING_SENSITIVITY_KEY = "sim-drive-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
-const INVERT_MOTION_STEERING_KEY = "drive-sim-invert-motion-steering";
+const INVERT_MOTION_STEERING_KEY = "sim-drive-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
-const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
-const DISPLAY_THEME_KEY = "drive-sim-display-theme";
+const CONTROLLER_SESSION_KEY = "sim-drive-controller-session";
+const DISPLAY_THEME_KEY = "sim-drive-display-theme";
+const MOTION_NEUTRAL_SAMPLE_MS = 320;
+const MOTION_NEUTRAL_MAX_SAMPLE_MS = 900;
+const MOTION_NEUTRAL_MIN_SAMPLES = 5;
+const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
+const MOTION_STEERING_DEADZONE = 0.06;
+const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
+const CRASH_EXPLOSION_VISUAL_MS = 1400;
+
+type MotionCalibration = {
+  frame: string;
+  neutral: number;
+  capturedAt: number;
+};
+
+let latestMotionCalibration: MotionCalibration | undefined;
 
 type DisplayThemeMode = "system" | "light" | "dark";
 
@@ -36,10 +51,14 @@ function DisplayApp() {
       <main className={`landing ${themeClass}`}>
         <section className="hero">
           <div className="hero-copy-wrap">
-            <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
-            <h1>Drive Sim</h1>
+            <p className="eyebrow">Real sim-racing energy, no rig required.</p>
+            <h1>Sim Drive</h1>
             <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
-            <p className="hero-copy">Tilt your phone to steer, work the pedals, and really feel your car: engine sound, tire slip, curb rumble, and rain grip through sound and haptics.</p>
+            <p className="hero-copy">
+              Tilt to steer. Touch to throttle &amp; brake.
+              <br />
+              Feel your car: engine roar, tire slip, curb rumble, and rain grip through sound + haptics.
+            </p>
             <div className="hero-actions">
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
@@ -52,13 +71,27 @@ function DisplayApp() {
                 }}
               >
                 <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
-                <button type="submit">Join Screen</button>
+                <button type="submit">Join Game</button>
               </form>
             </div>
             <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
+            <div className="hero-flow" aria-label="How Sim Drive works">
+              <div>
+                <strong>Host screen</strong>
+                <span>Host on TV, laptop, projector.</span>
+              </div>
+              <div>
+                <strong>Phone controllers</strong>
+                <span>Scan the QR. Each player gets tilt steering + touch pedals, and can even choose paw hands hehe.</span>
+              </div>
+              <div>
+                <strong>Race options</strong>
+                <span>Choose laps, track, rain, ghost cars, gentle assist, warm-up start, and reset rules.</span>
+              </div>
+            </div>
             <div className="hero-pills" aria-label="Game features">
               <span><Smartphone size={16} /> Phone steering</span>
-              <span><Gauge size={16} /> Sim-lite grip</span>
+              <span><Gauge size={16} /> Sim-like grip</span>
               <span><Gamepad2 size={16} /> Sound + haptics</span>
               <span><Users size={16} /> 1-8 drivers</span>
             </div>
@@ -109,8 +142,8 @@ function HeroShowcase() {
         </div>
         <div className="mock-leaderboard">
           <span>1 YOU</span>
-          <span>2 LOSER</span>
-          <span>3 OTHER LOSER</span>
+          <span>2 RIVAL</span>
+          <span>3 GUEST</span>
         </div>
         <div className="mock-minimap" />
       </div>
@@ -269,12 +302,12 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
 }
 
 function StartLights({ countdown }: { countdown: number | string }) {
-  const lit = typeof countdown === "number" ? clamp(4 - countdown, 0, 3) : 3;
   const isGo = countdown === 0 || countdown === "GO";
+  const lit = isGo ? 5 : typeof countdown === "number" ? clamp(6 - countdown, 0, 5) : 5;
   return (
     <div className="start-lights" aria-label="Race countdown">
       <div>
-        {[0, 1, 2].map((index) => <span key={index} className={index < lit ? `lit${isGo ? " go" : ""}` : undefined} />)}
+        {[0, 1, 2, 3, 4].map((index) => <span key={index} className={index < lit ? `lit${isGo ? " go" : ""}` : undefined} />)}
       </div>
       <strong>{countdown || "GO"}</strong>
     </div>
@@ -425,8 +458,8 @@ function ControllerApp() {
   const initialRoomCode = params.get("room")?.toUpperCase() ?? savedSession?.roomCode ?? "";
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [displayGroupId, setDisplayGroupId] = useState(params.get("group") ?? (initialRoomCode === savedSession?.roomCode ? savedSession.displayGroupId : ""));
-  const [name, setName] = useState(localStorage.getItem("drive-sim-name") ?? `Guest ${Math.floor(Math.random() * 90 + 10)}`);
-  const [color, setColor] = useState(localStorage.getItem("drive-sim-color") ?? COLORS[Math.floor(Math.random() * COLORS.length)]);
+  const [name, setName] = useState(localStorage.getItem("sim-drive-name") ?? `Guest ${Math.floor(Math.random() * 90 + 10)}`);
+  const [color, setColor] = useState(localStorage.getItem("sim-drive-color") ?? COLORS[Math.floor(Math.random() * COLORS.length)]);
   const [joinStatus, setJoinStatus] = useState("");
   const autoResumeAttemptedRef = useRef(false);
   const token = localStorage.getItem(controllerTokenKey(roomCode)) ?? (savedSession?.roomCode === roomCode ? savedSession.token : null);
@@ -466,13 +499,13 @@ function ControllerApp() {
   if (!game.playerId) {
     return (
       <main className="phone setup">
-        <h1>Drive Sim</h1>
+        <h1>Sim Drive</h1>
         {joinStatus && <small className="phone-note">{joinStatus}</small>}
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            localStorage.setItem("drive-sim-name", name);
-            localStorage.setItem("drive-sim-color", color);
+            localStorage.setItem("sim-drive-name", name);
+            localStorage.setItem("sim-drive-color", color);
             setJoinStatus(token ? "Reconnecting to your saved driver..." : "Joining controller...");
             game.send({ type: "set_profile", roomCode, displayGroupId, token: token ?? undefined, name, color });
           }}
@@ -507,7 +540,7 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} room={game.room} playerId={game.playerId} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} room={game.room} playerId={game.playerId} />;
   }
 
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} />;
@@ -517,12 +550,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
-  const [audioEnabled, setAudioEnabled] = useStoredBoolean("drive-sim-audio-enabled", true);
+  const [audioEnabled, setAudioEnabled] = useStoredBoolean("sim-drive-audio-enabled", true);
   const [audioStatus, setAudioStatus] = useState(audioEnabled ? "Audio on" : "Audio off");
   const [hapticStatus, setHapticStatus] = useState(hapticSupportMessage());
-  const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("drive-sim-haptics-enabled", true);
-  const [brakeStart, setBrakeStart] = useStoredNumber("drive-sim-brake-start", 0);
-  const [throttleStart, setThrottleStart] = useStoredNumber("drive-sim-throttle-start", 0);
+  const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("sim-drive-haptics-enabled", true);
+  const [brakeStart, setBrakeStart] = useStoredNumber("sim-drive-brake-start", 0);
+  const [throttleStart, setThrottleStart] = useStoredNumber("sim-drive-throttle-start", 0);
   const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
@@ -530,13 +563,23 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const settings = room?.settings;
 
+  const prepareToDrive = async () => {
+    if (audioEnabled) unlockControllerAudio();
+    const motion = await enableControllerDevice();
+    setMotionEnabled(motion.enabled);
+    setMotionStatus(motion.message);
+    return true;
+  };
+
   useEffect(() => {
     const neutral = { current: undefined as number | undefined };
     const onOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta === null && event.gamma === null) return;
-      const raw = readSteeringTilt(event, getScreenAngle());
-      neutral.current ??= raw;
-      setMotionLevel(clamp(((raw - neutral.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1));
+      const angle = getScreenAngle();
+      const raw = readSteeringTilt(event, angle);
+      const calibration = readMotionCalibration(motionOrientationFrameKey(angle));
+      neutral.current = calibration?.neutral ?? neutral.current ?? raw;
+      setMotionLevel(steeringFromTilt(raw, neutral.current, steeringSensitivity, motionSteeringDirection));
       setMotionStatus("Motion live");
     };
     window.addEventListener("deviceorientation", onOrientation);
@@ -614,9 +657,20 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
-      <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
-      <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
-      {player && <CarSetupSelector value={player.carSetupId} send={send} />}
+      <small className="phone-note">Use invert only if tilting right makes the motion test or car steer left on this phone.</small>
+      <StartPreference
+        label="Brake start"
+        value={brakeStart}
+        onChange={setBrakeStart}
+        description="How much brake is applied the instant your thumb lands before you slide."
+      />
+      <StartPreference
+        label="Throttle start"
+        value={throttleStart}
+        onChange={setThrottleStart}
+        description="How much throttle is applied the instant your thumb lands before you slide."
+      />
+      {player && <CarSetupSelector value={player.carSetupId} color={player.color} send={send} />}
       {player && <CockpitStyleSelector value={player.cockpitStyle} send={send} />}
       {player?.isVIP && settings && (
         <div className="vip-controls">
@@ -634,9 +688,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
           <small className="phone-note">Reset mode respawns crashes. Off-track reset appears after 5 seconds in the grass.</small>
           <button
             className="primary"
-            onClick={() => {
-              if (audioEnabled) unlockControllerAudio();
-              void requestLandscape();
+            onClick={async () => {
+              if (!(await prepareToDrive())) return;
               send({ type: "vip_start_race" });
             }}
           >
@@ -648,9 +701,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
         <>
           <button
             className="primary ready-button"
-            onClick={() => {
-              if (audioEnabled) unlockControllerAudio();
-              void requestLandscape();
+            onClick={async () => {
+              if (!(await prepareToDrive())) return;
               send({ type: "set_ready", ready: !player?.isReady });
             }}
           >
@@ -704,10 +756,11 @@ function FeelPreview({ test }: { test: { id: number; label: string } }) {
   );
 }
 
-function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType<typeof useGameSocket>["send"] }) {
+function CarSetupSelector({ value, color, send }: { value: CarSetupId; color: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const selected = CAR_SETUPS[value ?? DEFAULT_CAR_SETUP_ID];
   return (
     <section className="car-selector" aria-label="Car setup">
+      <CarSetupPreview setup={selected} color={color} />
       <div className="car-selector-head">
         <div>
           <span>Car setup</span>
@@ -715,7 +768,7 @@ function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType
         </div>
         <small>{selected.stats.topSpeedKmh} km/h dry top</small>
       </div>
-      <small className="phone-note">Grip builds with speed on road and curbs. Rain still lowers grip and top speed.</small>
+      <small className="phone-note">This changes the same formula car's tuning, not a different vehicle. Grip builds with speed on road and curbs. Rain still lowers grip and top speed.</small>
       <div className="setup-grid">
         {Object.values(CAR_SETUPS).map((setup) => (
           <button
@@ -730,6 +783,75 @@ function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType
         ))}
       </div>
     </section>
+  );
+}
+
+function CarSetupPreview({ setup, color }: { setup: CarSetup; color: string }) {
+  return (
+    <div className="car-preview">
+      <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+        <color attach="background" args={["#181b21"]} />
+        <ambientLight intensity={0.82} />
+        <directionalLight position={[3, 5, 4]} intensity={1.35} />
+        <CarPreviewScene color={color} />
+      </Canvas>
+      <div className="car-preview-meta">
+        <strong>{setup.shortName}</strong>
+        <span>{setup.stats.topSpeedKmh} km/h top · {setup.stats.grip}/10 grip</span>
+      </div>
+    </div>
+  );
+}
+
+function CarPreviewScene({ color }: { color: string }) {
+  const car = useMemo<CarState>(() => ({
+    playerId: "preview",
+    carSetupId: DEFAULT_CAR_SETUP_ID,
+    x: 0,
+    z: 0,
+    velocityX: 0,
+    velocityZ: 0,
+    heading: -0.62,
+    speed: 0,
+    steer: 0.12,
+    throttle: 0,
+    brake: 0,
+    lap: 1,
+    progress: 0,
+    distanceThisLap: 0,
+    nextCheckpoint: 0,
+    lastValidProgress: 0,
+    timedLapStarted: false,
+    timedRaceStartedAt: 0,
+    currentLapStartedAt: 0,
+    wheelDistance: 0,
+    surface: "road",
+    finished: false,
+    crashed: false,
+    dnf: false,
+    resetAvailable: false,
+    impact: 0,
+    slip: 0
+  }), []);
+  const group = useRef<THREE.Group>(null);
+
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    group.current.rotation.y += delta * 0.38;
+  });
+
+  return (
+    <group ref={group} position={[0, -0.18, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]} receiveShadow>
+        <circleGeometry args={[2.7, 48]} />
+        <meshStandardMaterial color="#22262c" roughness={0.82} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
+        <ringGeometry args={[1.45, 2.1, 48]} />
+        <meshBasicMaterial color="#2f343b" side={THREE.DoubleSide} />
+      </mesh>
+      <CarModel car={car} color={color} />
+    </group>
   );
 }
 
@@ -754,12 +876,13 @@ function StatMeter({ label, value, max, suffix }: { label: string; value: number
   );
 }
 
-function StartPreference({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function StartPreference({ label, value, description, onChange }: { label: string; value: number; description: string; onChange: (value: number) => void }) {
   return (
     <label className="range-control">
       <span>{label}</span>
       <input type="range" min="0" max="100" value={Math.round(value * 100)} onChange={(event) => onChange(Number(event.target.value) / 100)} />
       <strong>{Math.round(value * 100)}%</strong>
+      <small>{description}</small>
     </label>
   );
 }
@@ -770,6 +893,7 @@ function SteeringSensitivityPreference({ value, onChange }: { value: number; onC
       <span>Motion sensitivity</span>
       <input type="range" min="1" max="10" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <strong>{value}/10</strong>
+      <small>Higher reacts to smaller phone tilts. Lower gives a calmer wheel.</small>
     </label>
   );
 }
@@ -806,30 +930,34 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; room: RoomState; playerId: string }) {
+function RaceController({ send, feedback, crashEvents, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; room: RoomState; playerId: string }) {
+  const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
   const [steerUi, setSteerUi] = useState(0);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
-  const [motionStatus, setMotionStatus] = useState(motionInitialStatus());
+  const [motionStatus, setMotionStatus] = useState(initialMotionCalibrationRef.current ? "Motion steering" : motionInitialStatus());
   const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
   const steerRef = useRef(0);
   const hasMotionRef = useRef(false);
-  const lastRawSteerRef = useRef(0);
-  const lastOrientationAngleRef = useRef(getScreenAngle());
+  const lastRawSteerRef = useRef(initialMotionCalibrationRef.current?.neutral ?? 0);
+  const lastOrientationFrameRef = useRef(initialMotionCalibrationRef.current?.frame ?? motionOrientationFrameKey());
+  const neutralCaptureRef = useRef<{ startedAt: number; samples: number[] } | undefined>(undefined);
   const seqRef = useRef(0);
   const lastHapticAtRef = useRef(0);
+  const lastCrashHapticIdRef = useRef<string | undefined>(undefined);
   const pedalsRef = useRef(pedals);
   const feedbackRef = useRef(feedback);
+  const crashEventsRef = useRef(crashEvents);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
-  const neutralRef = useRef<number | undefined>(undefined);
+  const neutralRef = useRef<number | undefined>(initialMotionCalibrationRef.current?.neutral);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
-  const brakeStart = readStoredNumber("drive-sim-brake-start", 0);
-  const throttleStart = readStoredNumber("drive-sim-throttle-start", 0);
-  const audioEnabled = readStoredBoolean("drive-sim-audio-enabled", true);
-  const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
+  const brakeStart = readStoredNumber("sim-drive-brake-start", 0);
+  const throttleStart = readStoredNumber("sim-drive-throttle-start", 0);
+  const audioEnabled = readStoredBoolean("sim-drive-audio-enabled", true);
+  const hapticsEnabled = readStoredBoolean("sim-drive-haptics-enabled", true);
   const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
@@ -841,16 +969,47 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
     const onOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta === null && event.gamma === null) return;
       hasMotionRef.current = true;
-      setMotionStatus("Motion steering");
+      if (!phoneIsLandscape()) {
+        neutralRef.current = undefined;
+        neutralCaptureRef.current = undefined;
+        steerRef.current = 0;
+        setSteerUi(0);
+        setMotionStatus("Turn phone sideways");
+        return;
+      }
       const angle = getScreenAngle();
       const raw = readSteeringTilt(event, angle);
-      if (angle !== lastOrientationAngleRef.current) {
-        neutralRef.current = raw;
-        lastOrientationAngleRef.current = angle;
+      const orientationFrame = motionOrientationFrameKey(angle);
+      if (orientationFrame !== lastOrientationFrameRef.current) {
+        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+        neutralCaptureRef.current = undefined;
+        steerRef.current = 0;
+        setSteerUi(0);
+        lastOrientationFrameRef.current = orientationFrame;
       }
       lastRawSteerRef.current = raw;
-      if (neutralRef.current === undefined) neutralRef.current = raw;
-      steerRef.current = clamp(((raw - neutralRef.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1);
+      if (neutralRef.current === undefined) {
+        const now = performance.now();
+        const capture = neutralCaptureRef.current ?? { startedAt: now, samples: [] };
+        capture.samples.push(raw);
+        if (capture.samples.length > 12) capture.samples.shift();
+        neutralCaptureRef.current = capture;
+        steerRef.current = 0;
+        setMotionStatus("Hold steady, centering :D");
+        const elapsed = now - capture.startedAt;
+        const stable = motionSamplesStable(capture.samples);
+        if ((capture.samples.length >= MOTION_NEUTRAL_MIN_SAMPLES && elapsed >= MOTION_NEUTRAL_SAMPLE_MS && stable) || elapsed >= MOTION_NEUTRAL_MAX_SAMPLE_MS) {
+          neutralRef.current = median(capture.samples);
+          writeMotionCalibration({ frame: orientationFrame, neutral: neutralRef.current, capturedAt: Date.now() });
+          neutralCaptureRef.current = undefined;
+          setMotionStatus("Motion steering");
+        }
+        return;
+      }
+      const targetSteer = steeringFromTilt(raw, neutralRef.current, steeringSensitivity, motionSteeringDirection);
+      steerRef.current = THREE.MathUtils.lerp(steerRef.current, targetSteer, 0.42);
+      if (Math.abs(steerRef.current) < 0.01) steerRef.current = 0;
+      setMotionStatus("Motion steering");
     };
     window.addEventListener("deviceorientation", onOrientation);
     return () => window.removeEventListener("deviceorientation", onOrientation);
@@ -877,6 +1036,10 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   }, [feedback]);
 
   useEffect(() => {
+    crashEventsRef.current = crashEvents;
+  }, [crashEvents]);
+
+  useEffect(() => {
     roomRef.current = room;
   }, [room]);
 
@@ -893,8 +1056,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
-      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals);
-      driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef);
+      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current);
+      driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef, crashEventsRef.current, lastCrashHapticIdRef);
     }, 33);
     return () => {
       window.clearInterval(timer);
@@ -904,6 +1067,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
 
   const calibrate = () => {
     neutralRef.current = lastRawSteerRef.current;
+    writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
+    neutralCaptureRef.current = undefined;
     steerRef.current = 0;
     setSteerUi(0);
     setCalibrationLabel("Straight set");
@@ -956,6 +1121,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
           Reset to track
         </button>
       )}
+      {room.phase === "countdown" && <ControllerCountdownHints motionStatus={motionStatus} />}
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
@@ -964,6 +1130,21 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
         <button onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
+  );
+}
+
+function ControllerCountdownHints({ motionStatus }: { motionStatus: string }) {
+  const steerHint = motionStatus === "Turn phone sideways"
+    ? "Turn phone sideways"
+    : motionStatus === "Hold steady, centering :D"
+      ? "Hold steady, centering :D"
+      : "Hold straight to center";
+  return (
+    <div className="controller-hints" aria-live="polite">
+      <span className="hint brake-hint">Brake: slide down</span>
+      <span className="hint throttle-hint">Throttle: slide up</span>
+      <span className="hint steer-hint">{steerHint}</span>
+    </div>
   );
 }
 
@@ -1068,6 +1249,7 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
           </group>
         );
       })}
+      <CrashExplosions events={room.crashEvents} />
       {focus && (
         <Cockpit
           car={focus}
@@ -1098,10 +1280,11 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[35, -0.05, 45]} receiveShadow>
         <planeGeometry args={[260, 240]} />
-        <meshStandardMaterial color={rain ? "#516056" : "#5a7e48"} roughness={0.95} />
+        <meshStandardMaterial color={rain ? "#3e4d45" : "#5a7e48"} roughness={0.95} />
       </mesh>
+      <TrackTerrain track={track} rain={rain} />
       <mesh geometry={runoffGeometry} receiveShadow>
-        <meshStandardMaterial color={rain ? "#59625d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={rain ? "#46524d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
         <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
@@ -1116,6 +1299,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
         <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <AsphaltDetails track={track} rain={rain} />
+      {rain && <RainPuddles track={track} />}
       <mesh geometry={leftCurbGeometry}>
         <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
       </mesh>
@@ -1151,6 +1335,62 @@ type AsphaltPatch = {
   length: number;
   opacity: number;
 };
+
+function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 36 : 26), [track]);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        if (index % 2 === 1) return null;
+        const side = index % 4 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.5 + seededUnit(index + track.id.length) * 4;
+        const scaleX = track.id === "alpine" ? 6.5 : 4.8;
+        const scaleZ = track.id === "alpine" ? 2.2 : 1.4;
+        const height = track.id === "alpine" ? 0.72 + seededUnit(index * 3) * 0.65 : 0.18 + seededUnit(index * 3) * 0.18;
+        return (
+          <mesh
+            key={`bank-${index}`}
+            position={[sample.x + rightX * side * offset, height * 0.34 - 0.06, sample.z + rightZ * side * offset]}
+            rotation={[0, sample.heading + seededUnit(index * 7) * 0.8, 0]}
+            scale={[scaleX, height, scaleZ]}
+            receiveShadow
+          >
+            <sphereGeometry args={[1, 12, 6]} />
+            <meshStandardMaterial color={track.id === "alpine" ? (rain ? "#59605b" : "#74806c") : (rain ? "#4a5b4f" : "#78965d")} roughness={0.96} />
+          </mesh>
+        );
+      })}
+      {track.id === "alpine" ? <AlpineBackdrop rain={rain} /> : <SakuraGroundAccents rain={rain} />}
+    </group>
+  );
+}
+
+function RainPuddles({ track }: { track: TrackDef }) {
+  const puddles = useMemo(() => sampleTrackVisuals(track, 18).filter((_, index) => index % 3 === 0), [track]);
+  return (
+    <group>
+      {puddles.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const lateral = side * (track.width * (0.22 + seededUnit(index * 5) * 0.22));
+        return (
+          <mesh
+            key={`puddle-${index}`}
+            position={[sample.x + rightX * lateral, 0.088, sample.z + rightZ * lateral]}
+            rotation={[-Math.PI / 2, 0, -sample.heading + seededUnit(index * 11) * 0.5]}
+            scale={[0.65 + seededUnit(index * 13) * 0.8, 0.28 + seededUnit(index * 17) * 0.32, 1]}
+          >
+            <circleGeometry args={[1, 20]} />
+            <meshBasicMaterial color="#9bc8d8" transparent opacity={0.16} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
 
 function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
   const patches = useMemo<AsphaltPatch[]>(() => {
@@ -1220,7 +1460,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     return {
       x: sample.x + rightX * side * offset,
       z: sample.z + rightZ * side * offset,
-      heading: sample.heading + (side > 0 ? -0.22 : 0.22)
+      heading: sample.heading - side * (Math.PI / 2 - 0.18)
     };
   }, [track]);
 
@@ -1228,7 +1468,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     <group position={[placement.x, 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
       <mesh castShadow>
         <planeGeometry args={[4.2, 1.35]} />
-        <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
       {[-1.65, 1.65].map((x) => (
         <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
@@ -1268,6 +1508,24 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         <mesh position={[0, 4.2, -1.3]} castShadow>
           <boxGeometry args={[track.width + 6, 0.26, 0.26]} />
           <meshStandardMaterial color="#20242a" roughness={0.5} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + 1.4), 2.05, -1.3]} castShadow>
+            <boxGeometry args={[0.42, 4.1, 0.42]} />
+            <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
+          </mesh>
+        ))}
+        <mesh position={[0, 3.55, -1.08]} castShadow>
+          <boxGeometry args={[6.2, 0.72, 0.18]} />
+          <meshStandardMaterial color="#fffaf0" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 3.55, -0.96]}>
+          <boxGeometry args={[5.55, 0.18, 0.04]} />
+          <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+        </mesh>
+        <mesh position={[0, 3.26, -0.96]}>
+          <boxGeometry args={[5.55, 0.18, 0.04]} />
+          <meshStandardMaterial color="#e84f5f" roughness={0.42} />
         </mesh>
         {[-2.4, 0, 2.4].map((x, index) => (
           <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
@@ -1358,9 +1616,191 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           </mesh>
         </>
       )}
+      <TrackIdentityProps track={track} rain={rain} />
     </group>
   );
 });
+
+function SakuraGroundAccents({ rain }: { rain: boolean }) {
+  const patches = [
+    { x: 24, z: 67, s: 1.4 },
+    { x: -18, z: 45, s: 1.0 },
+    { x: 54, z: 33, s: 0.9 },
+    { x: 2, z: -8, s: 1.2 }
+  ];
+  return (
+    <group>
+      {patches.map((patch, index) => (
+        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, 0.01, patch.z]} rotation={[-Math.PI / 2, 0, seededUnit(index * 13) * Math.PI]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
+          <circleGeometry args={[1, 22]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function AlpineBackdrop({ rain }: { rain: boolean }) {
+  const mountains = [
+    { x: -78, z: 120, h: 22, r: 18 },
+    { x: -42, z: 138, h: 28, r: 24 },
+    { x: 18, z: 135, h: 20, r: 18 },
+    { x: 92, z: 122, h: 30, r: 26 },
+    { x: 142, z: 72, h: 24, r: 22 }
+  ];
+  return (
+    <group>
+      {mountains.map((mountain, index) => (
+        <group key={`mountain-${index}`} position={[mountain.x, mountain.h / 2 - 0.2, mountain.z]} rotation={[0, seededUnit(index * 17) * 0.8, 0]}>
+          <mesh>
+            <coneGeometry args={[mountain.r, mountain.h, 5]} />
+            <meshStandardMaterial color={rain ? "#707975" : "#7f8877"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, mountain.h * 0.28, 0]}>
+            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 5]} />
+            <meshStandardMaterial color={rain ? "#e5e8e8" : "#f4f6f2"} roughness={0.86} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function TrackIdentityProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return track.id === "sakura" ? <SakuraProps track={track} rain={rain} /> : <AlpineProps track={track} rain={rain} />;
+}
+
+function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 23), [track]);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 1.8 + seededUnit(index * 5) * 2.4;
+        const x = sample.x + rightX * side * offset;
+        const z = sample.z + rightZ * side * offset;
+        if (index % 3 === 1) return <SakuraLantern key={`sakura-lantern-${index}`} position={[x, 0, z]} heading={sample.heading} rain={rain} />;
+        if (index % 4 === 2) return <SakuraBanner key={`sakura-banner-${index}`} position={[x, 0.86, z]} heading={sample.heading - side * 0.28} rain={rain} />;
+        return <SakuraTree key={`sakura-tree-${index}`} position={[x, 0, z]} seed={index} rain={rain} />;
+      })}
+    </group>
+  );
+}
+
+function SakuraTree({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  const blossom = rain ? "#d98ea5" : "#f2a8bd";
+  const height = 2.3 + seededUnit(seed * 11) * 0.7;
+  return (
+    <group position={position} rotation={[0, seededUnit(seed * 7) * Math.PI, 0]}>
+      <mesh position={[0, height * 0.46, 0]} castShadow>
+        <cylinderGeometry args={[0.14, 0.22, height, 7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.78} />
+      </mesh>
+      {[
+        [0, height + 0.25, 0],
+        [0.42, height - 0.1, 0.08],
+        [-0.38, height - 0.18, -0.16]
+      ].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} scale={[1.3, 0.82, 1.05]} castShadow>
+          <sphereGeometry args={[0.72, 12, 8]} />
+          <meshStandardMaterial color={blossom} roughness={0.86} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function SakuraLantern({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.07, 1.8, 8]} />
+        <meshStandardMaterial color="#272322" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 1.7, 0.08]} castShadow>
+        <boxGeometry args={[0.42, 0.36, 0.32]} />
+        <meshStandardMaterial color={rain ? "#e6bca8" : "#ffd6b0"} emissive="#6b2518" emissiveIntensity={rain ? 0.6 : 0.35} roughness={0.62} />
+      </mesh>
+    </group>
+  );
+}
+
+function SakuraBanner({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1.5, 0.62, 0.08]} />
+        <meshStandardMaterial color={rain ? "#cf8fa0" : "#f2a8bd"} roughness={0.72} />
+      </mesh>
+      <mesh position={[0, -0.56, 0]}>
+        <boxGeometry args={[0.08, 1.1, 0.08]} />
+        <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 31), [track]);
+  const bridge = sampleTrack(track, trackMetrics(track).totalLength * 0.68);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.2 + seededUnit(index * 9) * 3.5;
+        const x = sample.x + rightX * side * offset;
+        const z = sample.z + rightZ * side * offset;
+        return index % 3 === 0
+          ? <AlpineSnowBank key={`snowbank-${index}`} position={[x, 0.14, z]} heading={sample.heading} seed={index} rain={rain} />
+          : <AlpineRock key={`rock-${index}`} position={[x, 0.25, z]} seed={index} rain={rain} />;
+      })}
+      <AlpineBridge sample={bridge} track={track} rain={rain} />
+    </group>
+  );
+}
+
+function AlpineRock({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  return (
+    <mesh position={position} rotation={[0, seededUnit(seed * 17) * Math.PI, 0]} scale={[0.9 + seededUnit(seed) * 1.4, 0.42 + seededUnit(seed * 3) * 0.55, 0.75 + seededUnit(seed * 5) * 1.3]} castShadow>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color={rain ? "#6f7775" : "#7c8177"} roughness={0.95} />
+    </mesh>
+  );
+}
+
+function AlpineSnowBank({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <mesh position={position} rotation={[0, heading + seededUnit(seed) * 0.5, 0]} scale={[2.2 + seededUnit(seed * 3) * 1.3, 0.22, 0.9 + seededUnit(seed * 5) * 0.5]} receiveShadow>
+      <sphereGeometry args={[1, 12, 6]} />
+      <meshStandardMaterial color={rain ? "#c9d1d0" : "#eef1f2"} roughness={0.9} />
+    </mesh>
+  );
+}
+
+function AlpineBridge({ sample, track, rain }: { sample: { x: number; z: number; heading: number }; track: TrackDef; rain: boolean }) {
+  return (
+    <group position={[sample.x, 0, sample.z]} rotation={[0, sample.heading, 0]}>
+      {[-1, 1].map((side) => (
+        <mesh key={`bridge-wall-${side}`} position={[side * (track.width / 2 + 1.15), 1.0, 0]} castShadow>
+          <boxGeometry args={[0.55, 2.0, 3.6]} />
+          <meshStandardMaterial color={rain ? "#6e7472" : "#8b8d85"} roughness={0.82} />
+        </mesh>
+      ))}
+      <mesh position={[0, 2.35, 0]} castShadow>
+        <boxGeometry args={[track.width + 3.1, 0.42, 3.8]} />
+        <meshStandardMaterial color={rain ? "#747a78" : "#989b91"} roughness={0.84} />
+      </mesh>
+      <mesh position={[0, 2.72, -1.2]} castShadow>
+        <boxGeometry args={[track.width + 2.2, 0.2, 0.18]} />
+        <meshStandardMaterial color={rain ? "#e2e8e8" : "#f3f5f1"} roughness={0.75} />
+      </mesh>
+    </group>
+  );
+}
 
 function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }) {
   const group = useRef<THREE.Group>(null);
@@ -1401,6 +1841,63 @@ function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }
       <mesh position={[0, 0.055, 5]} rotation={[-Math.PI / 2, 0, 0]} userData={{ kind: "mist" }}>
         <planeGeometry args={[22, 34]} />
         <meshBasicMaterial color="#dbecef" transparent opacity={0.14} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function CrashExplosions({ events }: { events: CrashEvent[] }) {
+  return (
+    <group>
+      {events.map((event) => <CrashExplosion key={event.id} event={event} />)}
+    </group>
+  );
+}
+
+function CrashExplosion({ event }: { event: CrashEvent }) {
+  const group = useRef<THREE.Group>(null);
+  const startedAtRef = useRef(performance.now());
+  const fire = useRef<THREE.MeshBasicMaterial>(null);
+  const cap = useRef<THREE.MeshBasicMaterial>(null);
+  const smoke = useRef<THREE.MeshBasicMaterial>(null);
+  const ring = useRef<THREE.MeshBasicMaterial>(null);
+  const baseScale = 1.15 + event.severity * 0.95;
+
+  useFrame(() => {
+    const age = clamp((performance.now() - startedAtRef.current) / CRASH_EXPLOSION_VISUAL_MS, 0, 1);
+    const pop = Math.sin(Math.min(1, age * 1.55) * Math.PI);
+    const rise = age * 1.4;
+    group.current?.scale.setScalar(baseScale * (0.45 + age * 0.9));
+    if (group.current) group.current.position.y = 0.18 + rise;
+    if (fire.current) fire.current.opacity = Math.max(0, 1 - age * 1.65);
+    if (cap.current) cap.current.opacity = Math.max(0, 0.72 - age * 0.48);
+    if (smoke.current) smoke.current.opacity = Math.max(0, 0.46 - age * 0.34);
+    if (ring.current) ring.current.opacity = Math.max(0, pop * 0.42);
+  });
+
+  return (
+    <group ref={group} position={[event.x, 0.18, event.z]}>
+      <mesh position={[0, 0.34, 0]}>
+        <sphereGeometry args={[0.9, 18, 12]} />
+        <meshBasicMaterial ref={fire} color={event.kind === "car" ? "#ff7a1a" : "#ffb13d"} transparent depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} scale={[1.35, 0.72, 1.35]}>
+        <sphereGeometry args={[0.92, 18, 10]} />
+        <meshBasicMaterial ref={cap} color="#2e3032" transparent opacity={0.72} depthWrite={false} />
+      </mesh>
+      {[
+        [-0.58, 0.82, 0.14],
+        [0.48, 0.7, -0.28],
+        [0.05, 1.42, 0.34]
+      ].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} scale={[0.85, 0.65, 0.85]}>
+          <sphereGeometry args={[0.62, 12, 8]} />
+          <meshBasicMaterial ref={index === 0 ? smoke : undefined} color="#5c6062" transparent opacity={0.42} depthWrite={false} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.15, 0.055, 8, 36]} />
+        <meshBasicMaterial ref={ring} color="#fff1a8" transparent opacity={0.36} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -1817,56 +2314,72 @@ function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number
 
 function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
   const turn = clamp(steer, -1, 1) * 0.8;
+  const hands = useRef<THREE.Group>(null);
+  const handTurn = useRef(turn);
+  useFrame((_, delta) => {
+    handTurn.current = THREE.MathUtils.lerp(handTurn.current, turn, smoothingAmount(delta, 10));
+    if (hands.current) hands.current.rotation.z = handTurn.current;
+  });
   return (
-    <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, turn]}>
-      <mesh>
-        <torusGeometry args={[0.42, 0.035, 8, 30]} />
-        <meshStandardMaterial color="#0b0e12" roughness={0.46} />
-      </mesh>
-      {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle) => (
-        <mesh key={angle} position={[Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0]} rotation={[0, 0, angle]}>
-          <boxGeometry args={[0.44, 0.035, 0.035]} />
-          <meshStandardMaterial color="#151922" roughness={0.5} />
+    <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, 0]}>
+      <group rotation={[0, 0, turn]}>
+        <mesh>
+          <torusGeometry args={[0.42, 0.035, 8, 30]} />
+          <meshStandardMaterial color="#0b0e12" roughness={0.46} />
         </mesh>
-      ))}
+        {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle) => (
+          <mesh key={angle} position={[Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0]} rotation={[0, 0, angle]}>
+            <boxGeometry args={[0.44, 0.035, 0.035]} />
+            <meshStandardMaterial color="#151922" roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
       {style !== "none" && (
-        <>
+        <group ref={hands} rotation={[0, 0, handTurn.current]}>
           <CockpitHand side={-1} style={style} />
           <CockpitHand side={1} style={style} />
-        </>
+        </group>
       )}
     </group>
   );
 }
 
 function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const x = side * 0.3;
+  const x = side * 0.36;
   const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
   const pad = style === "paws" ? "#5c2b35" : "#1b1d23";
   return (
-    <group position={[x, -0.1, -0.03]} rotation={[0, 0, side * -0.38]}>
-      <mesh>
-        <sphereGeometry args={[0.13, 16, 12]} />
+    <group position={[x, -0.02, 0.02]} rotation={[0, 0, side * -0.16]}>
+      <mesh scale={style === "paws" ? [1.12, 0.92, 0.68] : [1.0, 0.82, 0.58]}>
+        <sphereGeometry args={[style === "paws" ? 0.145 : 0.12, 18, 12]} />
         <meshStandardMaterial color={skin} roughness={0.76} />
       </mesh>
       {style === "paws" ? (
         <>
-          {[-0.07, 0, 0.07].map((offset) => (
-            <mesh key={offset} position={[offset, 0.11, 0.035]}>
-              <sphereGeometry args={[0.035, 10, 8]} />
+          {[-0.09, -0.03, 0.03, 0.09].map((offset) => (
+            <mesh key={offset} position={[offset, 0.105 - Math.abs(offset) * 0.12, 0.055]} scale={[1, 0.78, 0.62]}>
+              <sphereGeometry args={[0.034, 10, 8]} />
               <meshStandardMaterial color={pad} roughness={0.82} />
             </mesh>
           ))}
-          <mesh position={[0, -0.02, 0.045]}>
-            <sphereGeometry args={[0.055, 10, 8]} />
+          <mesh position={[0, -0.025, 0.065]} scale={[1.25, 0.82, 0.6]}>
+            <sphereGeometry args={[0.06, 12, 8]} />
             <meshStandardMaterial color={pad} roughness={0.82} />
           </mesh>
         </>
       ) : (
-        <mesh position={[side * 0.055, 0.0, 0.05]} rotation={[0, 0, side * 0.7]}>
-          <boxGeometry args={[0.08, 0.22, 0.055]} />
-          <meshStandardMaterial color="#20242d" roughness={0.62} />
-        </mesh>
+        <>
+          {[-0.06, -0.02, 0.02, 0.06].map((offset) => (
+            <mesh key={offset} position={[offset, 0.092, 0.035]} rotation={[0.45, 0, side * 0.08]}>
+              <cylinderGeometry args={[0.017, 0.021, 0.15, 8]} />
+              <meshStandardMaterial color="#20242d" roughness={0.62} />
+            </mesh>
+          ))}
+          <mesh position={[side * -0.1, -0.025, 0.045]} rotation={[0.15, 0, side * 0.78]}>
+            <boxGeometry args={[0.05, 0.16, 0.055]} />
+            <meshStandardMaterial color="#20242d" roughness={0.62} />
+          </mesh>
+        </>
       )}
     </group>
   );
@@ -2077,6 +2590,7 @@ function useGameSocket() {
   const [playerId, setPlayerId] = useState<string>();
   const [joinedToken, setJoinedToken] = useState<string>();
   const [feedback, setFeedback] = useState<CarState>();
+  const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
   const [notice, setNotice] = useState<{ id: number; message: string }>();
   const [isConnected, setIsConnected] = useState(false);
 
@@ -2104,7 +2618,7 @@ function useGameSocket() {
         if (message.type === "hello") setClientId(message.clientId);
         if (message.type === "joined_display") {
           setDisplayGroupId(message.displayGroupId);
-          sessionStorage.setItem("drive-sim-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
+          sessionStorage.setItem("sim-drive-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
         }
         if (message.type === "joined_controller") {
           setPlayerId(message.playerId);
@@ -2121,25 +2635,30 @@ function useGameSocket() {
               countdownEndsAt: message.snapshot.countdownEndsAt,
               raceStartedAt: message.snapshot.raceStartedAt,
               cars: message.snapshot.cars,
+              crashEvents: message.snapshot.crashEvents,
               results: message.snapshot.results ?? current.results
             }
             : current);
         }
-        if (message.type === "controller_feedback") setFeedback(message.car);
+        if (message.type === "controller_feedback") {
+          setFeedback(message.car);
+          setControllerCrashEvents(message.crashEvents ?? []);
+        }
         if (message.type === "room_closed") {
           console.warn(message.message);
-          sessionStorage.removeItem("drive-sim-display-session");
+          sessionStorage.removeItem("sim-drive-display-session");
           setRoom(undefined);
           setDisplayGroupId(undefined);
           setPlayerId(undefined);
           setJoinedToken(undefined);
           setFeedback(undefined);
+          setControllerCrashEvents([]);
           setNotice({ id: Date.now(), message: message.message });
         }
         if (message.type === "error_notice") {
           console.warn(message.message);
           if (message.message === "Room not found.") {
-            sessionStorage.removeItem("drive-sim-display-session");
+            sessionStorage.removeItem("sim-drive-display-session");
           }
           setNotice({ id: Date.now(), message: message.message });
         }
@@ -2148,13 +2667,15 @@ function useGameSocket() {
         ws.close();
       };
       ws.onclose = () => {
-        if (wsRef.current === ws) wsRef.current = null;
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
         if (unmountedRef.current) return;
         setIsConnected(false);
         setClientId("");
         setPlayerId(undefined);
         setJoinedToken(undefined);
         setFeedback(undefined);
+        setControllerCrashEvents([]);
         setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
         const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
         reconnectAttemptRef.current += 1;
@@ -2184,7 +2705,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, controllerCrashEvents, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
@@ -2283,7 +2804,7 @@ type ControllerSession = {
 };
 
 function controllerTokenKey(roomCode: string) {
-  return `drive-sim-token-${roomCode}`;
+  return `sim-drive-token-${roomCode}`;
 }
 
 function readControllerSession(): ControllerSession | undefined {
@@ -2318,7 +2839,7 @@ function clearControllerSession(roomCode?: string) {
 
 function readDisplaySession() {
   try {
-    const value = sessionStorage.getItem("drive-sim-display-session");
+    const value = sessionStorage.getItem("sim-drive-display-session");
     if (!value) return undefined;
     const parsed = JSON.parse(value) as { roomCode?: string; displayGroupId?: string };
     if (!parsed.roomCode || !parsed.displayGroupId) return undefined;
@@ -2337,6 +2858,10 @@ async function enableControllerDevice() {
   const motion = await requestMotion();
   await requestLandscape();
   return motion;
+}
+
+function phoneIsLandscape() {
+  return window.innerWidth > window.innerHeight;
 }
 
 async function requestMotion() {
@@ -2410,11 +2935,27 @@ function getScreenAngle() {
   return screen.orientation?.angle ?? legacyWindow.orientation ?? 0;
 }
 
+function motionOrientationFrameKey(angle = getScreenAngle()) {
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  return `${normalizedAngle}:${phoneIsLandscape() ? "landscape" : "portrait"}`;
+}
+
+function readMotionCalibration(frame = motionOrientationFrameKey()) {
+  if (!latestMotionCalibration) return undefined;
+  if (latestMotionCalibration.frame !== frame) return undefined;
+  if (Date.now() - latestMotionCalibration.capturedAt > MOTION_CALIBRATION_MAX_AGE_MS) return undefined;
+  return latestMotionCalibration;
+}
+
+function writeMotionCalibration(calibration: MotionCalibration) {
+  latestMotionCalibration = calibration;
+}
+
 function readSteeringTilt(event: DeviceOrientationEvent, angle: number) {
   const beta = event.beta ?? 0;
   const gamma = event.gamma ?? 0;
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  const isLandscape = window.innerWidth > window.innerHeight;
+  const isLandscape = phoneIsLandscape();
 
   if (isLandscape && normalizedAngle === 270) return beta;
   if (isLandscape) return -beta;
@@ -2422,6 +2963,24 @@ function readSteeringTilt(event: DeviceOrientationEvent, angle: number) {
   if (normalizedAngle === 270) return -beta;
   if (normalizedAngle === 180) return -gamma;
   return gamma;
+}
+
+function steeringFromTilt(raw: number, neutral: number, sensitivity: number, direction: number) {
+  const value = clamp(((raw - neutral) / 28) * sensitivity * direction, -1, 1);
+  const magnitude = Math.abs(value);
+  if (magnitude < MOTION_STEERING_DEADZONE) return 0;
+  return Math.sign(value) * ((magnitude - MOTION_STEERING_DEADZONE) / (1 - MOTION_STEERING_DEADZONE));
+}
+
+function motionSamplesStable(values: number[]) {
+  if (values.length < MOTION_NEUTRAL_MIN_SAMPLES) return false;
+  return Math.max(...values) - Math.min(...values) <= MOTION_NEUTRAL_MAX_SPREAD;
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 type ControllerAudio = {
@@ -2438,6 +2997,7 @@ type ControllerAudio = {
   masterGain: GainNode;
   lastCountdownMark?: number | "go";
   lastImpactAt: number;
+  lastCrashEventId?: string;
 };
 
 let sharedControllerAudio: ControllerAudio | null = null;
@@ -2511,7 +3071,7 @@ function createControllerAudio(): ControllerAudio {
   };
 }
 
-function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }) {
+function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[]) {
   if (!audio || audio.context.state !== "running") return;
   if (room.phase !== "countdown" && room.phase !== "racing") {
     silenceControllerAudio(audio);
@@ -2526,6 +3086,7 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   const slip = raceCar?.slip ?? 0;
   const surface = raceCar?.surface ?? "road";
   const impact = raceCar?.impact ?? 0;
+  const crashEvent = crashEvents[crashEvents.length - 1];
 
   const rev = clamp(speed / 42 + throttle * 0.46, 0, 1.35);
   audio.engineOsc.frequency.setTargetAtTime(64 + rev * 215, now, 0.055);
@@ -2545,6 +3106,11 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   if (impact > 0.18 && now - audio.lastImpactAt > 0.16) {
     audio.lastImpactAt = now;
     playCue(audio, "impact", impact);
+  }
+  if (crashEvent && audio.lastCrashEventId !== crashEvent.id) {
+    audio.lastCrashEventId = crashEvent.id;
+    audio.lastImpactAt = now;
+    playCue(audio, "explosion", crashEvent.severity);
   }
 
   updateCountdownAudio(audio, room);
@@ -2566,27 +3132,27 @@ function updateCountdownAudio(audio: ControllerAudio, room: RoomState) {
     return;
   }
   const remaining = Math.max(0, room.countdownEndsAt - Date.now());
-  const mark = remaining > 2200 ? 3 : remaining > 1200 ? 2 : remaining > 220 ? 1 : "go";
+  const mark = remaining > 220 ? Math.ceil(remaining / 1000) : "go";
   if (audio.lastCountdownMark === mark) return;
   audio.lastCountdownMark = mark;
   playCue(audio, mark === "go" ? "go" : "countdown");
 }
 
-function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "start", intensity = 1) {
+function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1) {
   const context = audio.context;
   const osc = context.createOscillator();
   const gain = context.createGain();
   const now = context.currentTime;
 
-  osc.type = kind === "impact" ? "square" : "sine";
-  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "impact" ? 80 : 660;
+  osc.type = kind === "impact" || kind === "explosion" ? "square" : "sine";
+  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "impact" ? 0.16 : 0.18));
+  gain.gain.exponentialRampToValueAtTime(kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
   osc.connect(gain);
   gain.connect(audio.masterGain);
   osc.start(now);
-  osc.stop(now + 0.38);
+  osc.stop(now + (kind === "explosion" ? 0.52 : 0.38));
 }
 
 function createNoiseBuffer(context: AudioContext) {
@@ -2646,10 +3212,24 @@ function isIOS() {
   return typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
-function driveHaptics(car: CarState | undefined, pedals: { throttle: number; brake: number }, enabled: boolean, lastHapticAtRef: React.MutableRefObject<number>) {
-  if (!enabled || !car || !hapticsSupported()) return;
+function driveHaptics(
+  car: CarState | undefined,
+  pedals: { throttle: number; brake: number },
+  enabled: boolean,
+  lastHapticAtRef: React.MutableRefObject<number>,
+  crashEvents: CrashEvent[],
+  lastCrashEventIdRef: React.MutableRefObject<string | undefined>
+) {
+  if (!enabled || !hapticsSupported()) return;
 
   const now = performance.now();
+  const crashEvent = crashEvents[crashEvents.length - 1];
+  if (crashEvent && lastCrashEventIdRef.current !== crashEvent.id) {
+    lastCrashEventIdRef.current = crashEvent.id;
+    if (pulseHaptic([120, 45, 190, 55, 90])) lastHapticAtRef.current = now;
+    return;
+  }
+  if (!car) return;
   const speedKmh = speedToKmh(car.speed);
   if (car.impact > 0.2 && now - lastHapticAtRef.current > 240) {
     if (pulseHaptic(Math.round(45 + car.impact * 95))) lastHapticAtRef.current = now;

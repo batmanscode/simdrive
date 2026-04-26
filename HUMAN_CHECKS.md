@@ -10,8 +10,13 @@ Things that need real-device playtesting before we trust the tuning.
 - Test grass/off-track recovery: it should punish mistakes without feeling like the car is stuck forever.
 - Test braking into the Sakura hairpin and Alpine chicane: braking should feel strong but not instant.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.
+- Test hard wall hits and hard car-to-car crashes: all displays should see a short fireball/smoke crash effect, and the crashing phone should get the strongest boom/vibration cue without changing collision physics.
 - Test motion steering from a secure phone URL. Android Chrome/Chromium may not deliver device orientation over plain LAN `http://` URLs.
 - Test motion steering direction. If the browser/device reports landscape orientation with the opposite sign, the saved invert-motion-steering toggle should make the motion test meter and race steering match the physical tilt direction.
+- Test race countdown while the phone is still portrait: the phone should ask to turn sideways instead of saving a portrait steering center.
+- Test race countdown while holding the phone straight in landscape: the phone should briefly show `Hold steady, centering :D`.
+- Test race start without pressing `Calibrate`: holding the phone straight during the countdown should keep steering centered after the race controller appears.
+- Rotate or orientation-lock the phone as the race starts: steering should briefly center itself instead of latching a hard left/right input.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.
 - Test the 1-10 phone motion sensitivity control: default level 6 should feel slightly tighter than the original steering, and the range should cover both relaxed and sensitive steering.
@@ -36,6 +41,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Refresh a phone controller in the lobby: it should reconnect as the same saved driver without creating a duplicate.
 - Refresh a phone controller during a race: it should resume control if it returns before the DNF grace window.
 - Scan the same room QR again from the same phone: it should reuse the saved driver token.
+- Scan the room QR from the real phone dev URL: after a successful join, the phone should not remain stuck on `Connection lost. Reconnecting...`.
 - Try an old saved controller session after the room closes: it should show an error and fall back to normal join.
 
 ## Things To Judge

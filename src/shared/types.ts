@@ -98,6 +98,16 @@ export type CarState = {
   slip: number;
 };
 
+export type CrashEvent = {
+  id: string;
+  kind: "wall" | "car";
+  x: number;
+  z: number;
+  createdAt: number;
+  severity: number;
+  playerIds: string[];
+};
+
 export type RaceResult = {
   playerId: string;
   name: string;
@@ -116,6 +126,7 @@ export type RoomState = {
   countdownEndsAt?: number;
   raceStartedAt?: number;
   cars: CarState[];
+  crashEvents: CrashEvent[];
   results: RaceResult[];
 };
 
@@ -125,6 +136,7 @@ export type RaceSnapshot = {
   countdownEndsAt?: number;
   raceStartedAt?: number;
   cars: CarState[];
+  crashEvents: CrashEvent[];
   results?: RaceResult[];
 };
 
@@ -150,7 +162,7 @@ export type ServerMessage =
   | { type: "joined_controller"; roomCode: string; playerId: string; token: string; displayGroupId: string }
   | { type: "room_state"; state: RoomState }
   | { type: "race_snapshot"; snapshot: RaceSnapshot }
-  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number }
+  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number; crashEvents?: CrashEvent[] }
   | { type: "room_closed"; message: string }
   | { type: "error_notice"; message: string }
   | { type: "pong"; at: number };

@@ -69,7 +69,7 @@ Changes 25/04/26
 
 Original above is preserved
 
-Current game name is Drive Sim
+Current game name is Sim Drive
 
 For now tracks are original tracks, not fan favourite copies
 
@@ -92,3 +92,13 @@ Visuals are procedural for now, not authored assets
 Rolling start is now warm-up / flying start
 
 Players can choose cockpit style: none, hands, paws
+
+Changes 26/04/26
+
+Before a race starts, the phone should be sideways before it saves the steering center
+
+Ready / start should handle this automatically so players do not have to press calibrate every race
+
+Actually this should happen on the phone countdown screen, not in the lobby
+
+Countdown should start from 5 so players have time to turn the phone sideways and see quick controls

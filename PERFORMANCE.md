@@ -1,6 +1,6 @@
 # Performance And Engineering Notes
 
-This file tracks the practical constraints that matter when changing Drive Sim. Use it before adding tracks, race visuals, multiplayer behavior, phone feedback, or any high-frequency UI.
+This file tracks the practical constraints that matter when changing Sim Drive. Use it before adding tracks, race visuals, multiplayer behavior, phone feedback, or any high-frequency UI.
 
 ## Current Race Architecture
 
@@ -41,6 +41,7 @@ Networking:
 - Broadcast payloads are serialized once per room per broadcast where practical, instead of once per client.
 - Lobby/results do not broadcast full room state at the race snapshot rate.
 - Display/controller disconnect handling is based on whether another live socket still owns the same display group or player, so old sockets closing after a reconnect should not mark active clients disconnected.
+- Client reconnect handlers ignore `close` events from stale sockets that are no longer the current socket. This avoids false `Connection lost` UI and duplicate reconnect timers after React dev remounts or quick reconnect races.
 - Each player has one active controller socket lease. If the same saved controller token reconnects from another tab/device, stale sockets can stay connected but their inputs, VIP actions, and feedback stream are ignored.
 - VIP race settings and start-race messages are accepted only in the lobby, preventing stale controller tabs from mutating or restarting an active race.
 - Display and controller clients reconnect automatically after socket drops. Realtime `input_frame` messages are not queued while disconnected, so stale steering/brake inputs are not replayed after reconnect.
@@ -80,6 +81,7 @@ Networking:
 - If a message is only useful when fresh, it should be safe to drop when backed up.
 - If a message must never be dropped, keep it separate from high-frequency streams.
 - Reconnect-sensitive state must be based on currently live sockets, not only the socket that just closed.
+- Browser-side reconnect state must only be updated by the current socket. Stale socket `close`/`error` handlers should return without changing UI state or scheduling reconnects.
 - Any controller command that affects race truth must verify the socket is the active controller lease for that player.
 - Lobby-only commands, especially race settings and race start, must stay phase guarded on the server. UI guards are not enough because stale tabs can still send old messages.
 - Do not queue high-frequency realtime messages across reconnects. Dropping old `input_frame` data is better than replaying stale controls.

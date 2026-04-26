@@ -19,7 +19,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Non-VIP players can see the chosen race settings and driver setups in the lobby.
 - Two tracks: Sakura Sprint and Alpine Grand Prix.
 - Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, formula-style cars, and per-driver cockpit Hands/Paws/None display cosmetics.
-- Phone controller supports tilt steering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, and landscape race mode.
+- Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
 - Audio feedback includes engine speed/throttle, tire slip/off-road noise, brake tone, curb rumble, impact thuds, start/test cue, and countdown beeps.
 - Optional vibration feedback includes impacts, hard braking, curb rumble, grass/off-road rumble, and high-slip pulses on supported mobile browsers.
 - Server-authoritative racing with velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, lateral slip, tuned braking, aero drag, downforce-style speed-building grip, surface grip/drag, wet-weather grip and top-speed changes, collisions, optional crash/off-track reset, lap timing, best lap, DNF handling, and results.

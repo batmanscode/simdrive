@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -13,10 +13,13 @@ const FIXED_DT = 1 / TICK_HZ;
 const SNAPSHOT_HZ = 30;
 const CONTROLLER_FEEDBACK_HZ = 20;
 const ACTIVE_FULL_STATE_HZ = 2;
-const COUNTDOWN_MS = 3200;
+const COUNTDOWN_MS = 5000;
 const DISCONNECT_GRACE_MS = 12_000;
 const NO_DISPLAY_GRACE_MS = 20_000;
 const RACE_DNF_GRACE_MS = DISCONNECT_GRACE_MS;
+const CRASH_EVENT_TTL_MS = 1_600;
+const CRASH_EVENT_COOLDOWN_MS = 1_200;
+const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
 
 type ClientRole = "unknown" | "display" | "controller";
@@ -46,6 +49,8 @@ type Room = {
   noDisplaySince?: number;
   noDisplayCloseTimer?: NodeJS.Timeout;
   results: RaceResult[];
+  crashEvents: CrashEvent[];
+  crashEventCooldowns: Map<string, number>;
 };
 
 const rooms = new Map<string, Room>();
@@ -112,7 +117,7 @@ setInterval(() => {
 setInterval(cleanRooms, 5_000);
 
 server.listen(PORT, () => {
-  console.log(`Drive Sim server listening on http://localhost:${PORT}`);
+  console.log(`Sim Drive server listening on http://localhost:${PORT}`);
 });
 
 function handleMessage(client: Client, message: ClientMessage) {
@@ -316,7 +321,9 @@ function createRoom(): Room {
       stabilityAssist: true,
       resetEnabled: false
     },
-    results: []
+    results: [],
+    crashEvents: [],
+    crashEventCooldowns: new Map()
   };
   rooms.set(code, room);
   return room;
@@ -363,8 +370,11 @@ function tickRoom(room: Room, dt: number) {
   const track = TRACKS[room.settings.trackId];
   const raceTime = (Date.now() - room.raceStartedAt) / 1000;
   const raceTimeLimit = raceLimitSeconds(track, room.settings.lapCount);
+  const crashedBeforeContacts = new Map<string, boolean>();
   for (const car of room.cars.values()) {
     const player = room.players.get(car.playerId);
+    const wasCrashed = car.crashed;
+    const speedBeforeStep = car.speed;
     if (room.settings.resetEnabled && car.crashed && !car.dnf && !car.finished) {
       car.crashedAt ??= raceTime;
       car.resetAvailable = false;
@@ -385,9 +395,24 @@ function tickRoom(room: Room, dt: number) {
       ? room.inputs.get(car.playerId) ?? emptyInput
       : { ...emptyInput, brake: 0.35 };
     stepCar(car, input, track, room.settings, dt, raceTime);
+    if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= WALL_EXPLOSION_SPEED_THRESHOLD) {
+      addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId]);
+    }
+    crashedBeforeContacts.set(car.playerId, car.crashed);
     updateResetAvailability(car, raceTime);
   }
   resolveCarContacts([...room.cars.values()], room.settings);
+  const newlyCrashed = [...room.cars.values()].filter((car) => car.crashed && !crashedBeforeContacts.get(car.playerId));
+  if (newlyCrashed.length > 0) {
+    addCrashEvent(
+      room,
+      "car",
+      newlyCrashed.reduce((sum, car) => sum + car.x, 0) / newlyCrashed.length,
+      newlyCrashed.reduce((sum, car) => sum + car.z, 0) / newlyCrashed.length,
+      1,
+      newlyCrashed.map((car) => car.playerId)
+    );
+  }
   if (room.settings.resetEnabled) {
     for (const car of room.cars.values()) {
       if (car.crashed && !car.crashedAt) car.crashedAt = raceTime;
@@ -396,6 +421,7 @@ function tickRoom(room: Room, dt: number) {
   if (collectResults(room)) {
     broadcastRoom(room);
   }
+  pruneCrashEvents(room);
 }
 
 function startCountdown(room: Room) {
@@ -407,6 +433,8 @@ function startCountdown(room: Room) {
   room.raceStartedAt = undefined;
   room.lastFullStateBroadcastAt = 0;
   room.results = [];
+  room.crashEvents = [];
+  room.crashEventCooldowns.clear();
   room.cars.clear();
   room.inputs.clear();
   players.forEach((player, index) => {
@@ -504,6 +532,7 @@ function roomState(room: Room): RoomState {
     countdownEndsAt: room.countdownEndsAt,
     raceStartedAt: room.raceStartedAt,
     cars: [...room.cars.values()],
+    crashEvents: activeCrashEvents(room),
     results: room.results
   };
 }
@@ -515,8 +544,38 @@ function raceSnapshot(room: Room): RaceSnapshot {
     countdownEndsAt: room.countdownEndsAt,
     raceStartedAt: room.raceStartedAt,
     cars: [...room.cars.values()],
+    crashEvents: activeCrashEvents(room),
     results: room.phase === "results" ? room.results : undefined
   };
+}
+
+function activeCrashEvents(room: Room) {
+  pruneCrashEvents(room);
+  return room.crashEvents;
+}
+
+function addCrashEvent(room: Room, kind: CrashEvent["kind"], x: number, z: number, severity: number, playerIds: string[]) {
+  const now = Date.now();
+  const cooldownKeys = playerIds.map((playerId) => `${kind}:${playerId}`);
+  if (cooldownKeys.every((key) => now - (room.crashEventCooldowns.get(key) ?? 0) < CRASH_EVENT_COOLDOWN_MS)) return;
+  for (const key of cooldownKeys) room.crashEventCooldowns.set(key, now);
+  room.crashEvents.push({
+    id: id("boom"),
+    kind,
+    x,
+    z,
+    createdAt: now,
+    severity: clamp(severity, 0.6, 1),
+    playerIds
+  });
+  pruneCrashEvents(room, now);
+}
+
+function pruneCrashEvents(room: Room, now = Date.now()) {
+  room.crashEvents = room.crashEvents.filter((event) => now - event.createdAt <= CRASH_EVENT_TTL_MS);
+  for (const [key, at] of room.crashEventCooldowns) {
+    if (now - at > CRASH_EVENT_COOLDOWN_MS * 2) room.crashEventCooldowns.delete(key);
+  }
 }
 
 function broadcastRealtime(room: Room) {
@@ -559,7 +618,8 @@ function sendControllerFeedback(room: Room) {
       type: "controller_feedback",
       car: room.cars.get(client.playerId),
       roomPhase: room.phase,
-      raceTime
+      raceTime,
+      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!))
     });
   }
 }
