@@ -142,8 +142,8 @@ function HeroShowcase() {
         </div>
         <div className="mock-leaderboard">
           <span>1 YOU</span>
-          <span>2 RIVAL</span>
-          <span>3 GUEST</span>
+          <span>2 LOSER</span>
+          <span>3 OTHER LOSER</span>
         </div>
         <div className="mock-minimap" />
       </div>
