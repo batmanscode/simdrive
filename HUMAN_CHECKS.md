@@ -36,6 +36,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Refresh a phone controller in the lobby: it should reconnect as the same saved driver without creating a duplicate.
 - Refresh a phone controller during a race: it should resume control if it returns before the DNF grace window.
 - Scan the same room QR again from the same phone: it should reuse the saved driver token.
+- Scan the room QR from the real phone dev URL: after a successful join, the phone should not remain stuck on `Connection lost. Reconnecting...`.
 - Try an old saved controller session after the room closes: it should show an error and fall back to normal join.
 
 ## Things To Judge

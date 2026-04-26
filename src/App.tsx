@@ -2148,7 +2148,8 @@ function useGameSocket() {
         ws.close();
       };
       ws.onclose = () => {
-        if (wsRef.current === ws) wsRef.current = null;
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
         if (unmountedRef.current) return;
         setIsConnected(false);
         setClientId("");
