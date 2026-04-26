@@ -9,7 +9,9 @@ import type { CarState, ClientMessage, CockpitStyle, DisplayGroup, InputFrame, P
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
-const SNAPSHOT_HZ = 20;
+const FIXED_DT = 1 / TICK_HZ;
+const SNAPSHOT_HZ = 30;
+const CONTROLLER_FEEDBACK_HZ = 20;
 const ACTIVE_FULL_STATE_HZ = 2;
 const COUNTDOWN_MS = 3200;
 const DISCONNECT_GRACE_MS = 12_000;
@@ -36,6 +38,7 @@ type Room = {
   players: Map<string, Player>;
   cars: Map<string, CarState>;
   inputs: Map<string, InputFrame>;
+  controllerClients: Map<string, string>;
   settings: RaceSettings;
   lastFullStateBroadcastAt: number;
   countdownEndsAt?: number;
@@ -47,6 +50,8 @@ type Room = {
 
 const rooms = new Map<string, Room>();
 const clients = new Map<string, Client>();
+let lastPhysicsTickAt = Date.now();
+let physicsAccumulator = 0;
 
 const app = express();
 const server = http.createServer(app);
@@ -79,18 +84,30 @@ wss.on("connection", (ws) => {
 });
 
 setInterval(() => {
-  const dt = 1 / TICK_HZ;
-  for (const room of rooms.values()) {
-    tickRoom(room, dt);
+  const now = Date.now();
+  physicsAccumulator += Math.min((now - lastPhysicsTickAt) / 1000, 0.25);
+  lastPhysicsTickAt = now;
+  while (physicsAccumulator >= FIXED_DT) {
+    for (const room of rooms.values()) {
+      tickRoom(room, FIXED_DT);
+    }
+    physicsAccumulator -= FIXED_DT;
   }
 }, 1000 / TICK_HZ);
 
 setInterval(() => {
   for (const room of rooms.values()) {
-    broadcastRealtime(room);
-    sendControllerFeedback(room);
+    if (room.phase === "countdown" || room.phase === "racing") {
+      broadcastRealtime(room);
+    }
   }
 }, 1000 / SNAPSHOT_HZ);
+
+setInterval(() => {
+  for (const room of rooms.values()) {
+    sendControllerFeedback(room);
+  }
+}, 1000 / CONTROLLER_FEEDBACK_HZ);
 
 setInterval(cleanRooms, 5_000);
 
@@ -145,6 +162,10 @@ function handleMessage(client: Client, message: ClientMessage) {
       return;
     }
     const existing = findPlayerByToken(room, message.token);
+    if (!existing && room.players.size >= 8) {
+      send(client, { type: "error_notice", message: "Room is full." });
+      return;
+    }
     const player = existing ?? createPlayer(room, resolvedGroupId);
     player.name = cleanName(message.name);
     player.color = cleanColor(message.color);
@@ -152,6 +173,8 @@ function handleMessage(client: Client, message: ClientMessage) {
     player.disconnectedAt = undefined;
     player.isVIP = room.players.size === 1 || player.id === getVipId(room);
     if (!getVipId(room)) player.isVIP = true;
+    releasePreviousControllerSlot(client, room, player.id);
+    claimControllerConnection(room, player.id, client);
     client.role = "controller";
     client.roomCode = room.code;
     client.displayGroupId = player.displayGroupId;
@@ -205,7 +228,7 @@ function handleMessage(client: Client, message: ClientMessage) {
   }
 
   if (message.type === "vip_set_settings") {
-    if (!isVip(client, room)) return;
+    if (!isVip(client, room) || room.phase !== "lobby") return;
     room.settings = {
       ...room.settings,
       ...message.settings,
@@ -232,9 +255,8 @@ function handleMessage(client: Client, message: ClientMessage) {
   }
 
   if (message.type === "vip_start_race") {
-    if (!isVip(client, room)) return;
-    startCountdown(room);
-    broadcastRoom(room);
+    if (!isVip(client, room) || room.phase !== "lobby") return;
+    if (startCountdown(room)) broadcastRoom(room);
     return;
   }
 
@@ -265,6 +287,7 @@ function returnToLobby(room: Room) {
   room.inputs.clear();
   room.countdownEndsAt = undefined;
   room.raceStartedAt = undefined;
+  room.lastFullStateBroadcastAt = 0;
   for (const player of room.players.values()) player.isReady = false;
 }
 
@@ -282,6 +305,7 @@ function createRoom(): Room {
     players: new Map(),
     cars: new Map(),
     inputs: new Map(),
+    controllerClients: new Map(),
     lastFullStateBroadcastAt: 0,
     settings: {
       trackId: "sakura",
@@ -369,22 +393,26 @@ function tickRoom(room: Room, dt: number) {
       if (car.crashed && !car.crashedAt) car.crashedAt = raceTime;
     }
   }
-  collectResults(room);
+  if (collectResults(room)) {
+    broadcastRoom(room);
+  }
 }
 
 function startCountdown(room: Room) {
   const players = [...room.players.values()].filter((player) => player.connected);
-  if (players.length === 0) return;
+  if (players.length === 0) return false;
   const track = TRACKS[room.settings.trackId];
   room.phase = "countdown";
   room.countdownEndsAt = Date.now() + COUNTDOWN_MS;
   room.raceStartedAt = undefined;
+  room.lastFullStateBroadcastAt = 0;
   room.results = [];
   room.cars.clear();
   room.inputs.clear();
   players.forEach((player, index) => {
     room.cars.set(player.id, createCar(player, track, index, room.settings.warmupStart));
   });
+  return true;
 }
 
 function collectResults(room: Room) {
@@ -420,9 +448,30 @@ function collectResults(room: Room) {
       });
     }
   }
+  sortResults(room);
   if (cars.length > 0 && room.results.length === cars.length) {
     room.phase = "results";
+    return true;
   }
+  return false;
+}
+
+function sortResults(room: Room) {
+  room.results.sort((a, b) => {
+    const status = resultStatusRank(a) - resultStatusRank(b);
+    if (status !== 0) return status;
+    const time = (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
+    if (time !== 0) return time;
+    const joinedAt = (room.players.get(a.playerId)?.joinedAt ?? 0) - (room.players.get(b.playerId)?.joinedAt ?? 0);
+    if (joinedAt !== 0) return joinedAt;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function resultStatusRank(result: RaceResult) {
+  if (result.status === "finished") return 0;
+  if (result.status === "crashed") return 1;
+  return 2;
 }
 
 function updateResetAvailability(car: CarState, raceTime: number) {
@@ -484,19 +533,19 @@ function broadcastRealtime(room: Room) {
 }
 
 function broadcastRaceSnapshot(room: Room) {
-  const snapshot = raceSnapshot(room);
+  const payload = JSON.stringify({ type: "race_snapshot", snapshot: raceSnapshot(room) } satisfies ServerMessage);
   for (const client of clients.values()) {
-    if (client.roomCode === room.code) {
-      send(client, { type: "race_snapshot", snapshot });
+    if (client.roomCode === room.code && client.role === "display") {
+      sendRaw(client, payload, true);
     }
   }
 }
 
 function broadcastRoom(room: Room) {
-  const state = roomState(room);
+  const payload = JSON.stringify({ type: "room_state", state: roomState(room) } satisfies ServerMessage);
   for (const client of clients.values()) {
     if (client.roomCode === room.code) {
-      send(client, { type: "room_state", state });
+      sendRaw(client, payload);
     }
   }
 }
@@ -505,6 +554,7 @@ function sendControllerFeedback(room: Room) {
   const raceTime = room.raceStartedAt ? (Date.now() - room.raceStartedAt) / 1000 : 0;
   for (const client of clients.values()) {
     if (client.roomCode !== room.code || client.role !== "controller" || !client.playerId) continue;
+    if (room.controllerClients.get(client.playerId) !== client.id) continue;
     send(client, {
       type: "controller_feedback",
       car: room.cars.get(client.playerId),
@@ -520,22 +570,26 @@ function markDisconnected(client: Client) {
   if (!room) return;
   if (client.role === "display" && client.displayGroupId) {
     const group = room.displayGroups.get(client.displayGroupId);
-    if (group) group.connected = false;
+    if (group) group.connected = hasConnectedDisplayForGroup(room.code, group.id);
     if (!hasConnectedDisplay(room)) {
       scheduleNoDisplayClose(room);
     }
   }
   if (client.role === "controller" && client.playerId) {
     const player = room.players.get(client.playerId);
-    if (player) {
+    if (room.controllerClients.get(client.playerId) === client.id) {
+      room.controllerClients.delete(client.playerId);
+    }
+    if (player && !hasConnectedControllerForPlayer(room.code, player.id)) {
       player.connected = false;
       player.disconnectedAt = Date.now();
     }
     setTimeout(() => {
-      const stillDisconnected = player && !player.connected;
+      const stillDisconnected = player && !hasConnectedControllerForPlayer(room.code, player.id) && !player.connected;
       if (stillDisconnected && room.phase === "lobby") {
         room.players.delete(player.id);
         room.inputs.delete(player.id);
+        room.controllerClients.delete(player.id);
         assignVip(room);
         broadcastRoom(room);
       }
@@ -584,7 +638,49 @@ function closeRoom(room: Room, message: string) {
 }
 
 function hasConnectedDisplay(room: Room) {
-  return [...room.displayGroups.values()].some((group) => group.connected);
+  return [...clients.values()].some((client) => client.roomCode === room.code && client.role === "display");
+}
+
+function hasConnectedDisplayForGroup(roomCode: string, displayGroupId: string) {
+  return [...clients.values()].some((client) => client.roomCode === roomCode && client.role === "display" && client.displayGroupId === displayGroupId);
+}
+
+function hasConnectedControllerForPlayer(roomCode: string, playerId: string) {
+  const room = rooms.get(roomCode);
+  const activeClientId = room?.controllerClients.get(playerId);
+  if (!activeClientId) return false;
+  const activeClient = clients.get(activeClientId);
+  return Boolean(activeClient && activeClient.roomCode === roomCode && activeClient.role === "controller" && activeClient.playerId === playerId);
+}
+
+function claimControllerConnection(room: Room, playerId: string, activeClient: Client) {
+  const previousClientId = room.controllerClients.get(playerId);
+  if (previousClientId && previousClientId !== activeClient.id) {
+    const previousClient = clients.get(previousClientId);
+    if (previousClient) send(previousClient, { type: "error_notice", message: "Controller resumed in another tab." });
+  }
+  room.controllerClients.set(playerId, activeClient.id);
+}
+
+function releasePreviousControllerSlot(client: Client, nextRoom: Room, nextPlayerId: string) {
+  if (client.role !== "controller" || !client.roomCode || !client.playerId) return;
+  if (client.roomCode === nextRoom.code && client.playerId === nextPlayerId) return;
+  const previousRoom = rooms.get(client.roomCode);
+  const previousPlayerId = client.playerId;
+  if (previousRoom?.controllerClients.get(previousPlayerId) === client.id) {
+    previousRoom.controllerClients.delete(previousPlayerId);
+  }
+  client.role = "unknown";
+  client.roomCode = undefined;
+  client.displayGroupId = undefined;
+  client.playerId = undefined;
+  const previousPlayer = previousRoom?.players.get(previousPlayerId);
+  if (previousRoom && previousPlayer && !hasConnectedControllerForPlayer(previousRoom.code, previousPlayerId)) {
+    previousPlayer.connected = false;
+    previousPlayer.disconnectedAt = Date.now();
+    assignVip(previousRoom);
+    broadcastRoom(previousRoom);
+  }
 }
 
 function assignVip(room: Room) {
@@ -603,6 +699,7 @@ function getVipId(room: Room) {
 
 function getClientPlayer(client: Client, room: Room) {
   if (!client.playerId) return undefined;
+  if (room.controllerClients.get(client.playerId) !== client.id) return undefined;
   return room.players.get(client.playerId);
 }
 
@@ -625,8 +722,13 @@ function findPlayerByToken(room: Room, token?: string) {
 }
 
 function send(client: Client, message: ServerMessage) {
+  sendRaw(client, JSON.stringify(message));
+}
+
+function sendRaw(client: Client, payload: string, dropIfBackedUp = false) {
   if (client.ws.readyState === client.ws.OPEN) {
-    client.ws.send(JSON.stringify(message));
+    if (dropIfBackedUp && client.ws.bufferedAmount > 64_000) return;
+    client.ws.send(payload);
   }
 }
 

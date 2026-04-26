@@ -28,7 +28,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, formula-style cars, countdown lights, and a short first-place banner.
 - Race view includes a minimap and live global leaderboard.
 - Results include podium-style placement, total time, and best lap.
-- Phone controller supports tilt steering, 1-10 motion sensitivity, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, basic audio, and vibration where supported.
+- Phone controller supports tilt steering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, basic audio, and vibration where supported.
 - Web vibration depends on browser support. Android Chromium/Samsung-style browsers are the main target; iOS Safari does not support it; Firefox Android may expose partial/no-op support.
 - Server owns room state, race phase, velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, optional crash/off-track reset, checkpoint-gated lap completion, directional collisions, DNF handling, and results.
 - If every display/host browser disconnects, the room stays resumable for a 20-second grace window. If no display reconnects in that window, the room closes and controllers are sent back out of the game.
@@ -36,6 +36,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Product-facing feature copy is tracked in `FEATURES.md`.
 - Phone-side sound and haptics are tracked in `DRIVER_FEEDBACK.md`.
 - Current car/handling notes are tracked in `CARS.md`.
+- Race performance, networking, rendering, and new-track engineering notes are tracked in `PERFORMANCE.md`.
 - Follow-up ideas for the next session are tracked in `REMINDERS.md`.
 - Current implementation details are tracked in `SPEC_detailed_live.md`; `SPEC_detailed.md` remains the broader target spec.
 

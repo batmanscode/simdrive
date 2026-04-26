@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
@@ -11,6 +11,7 @@ import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettin
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
+const INVERT_MOTION_STEERING_KEY = "drive-sim-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
 const DISPLAY_THEME_KEY = "drive-sim-display-theme";
@@ -33,7 +34,6 @@ function DisplayApp() {
   if (!game.room) {
     return (
       <main className={`landing ${themeClass}`}>
-        {themeToggle}
         <section className="hero">
           <div className="hero-copy-wrap">
             <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
@@ -74,7 +74,7 @@ function DisplayApp() {
   }
 
   if (game.room.phase === "results") {
-    return <ResultsDisplay room={game.room} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
+    return <ResultsDisplay room={game.room} send={game.send} themeClass={themeClass} />;
   }
 
   return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
@@ -236,6 +236,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
   const panes = (localPlayers.length ? localPlayers : room.players).slice(0, 4);
   const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000)) : 0;
   const className = `race-grid panes-${Math.max(1, panes.length)}`;
+  const paneCount = Math.max(1, panes.length);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -253,7 +254,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
       <div className={className}>
         {panes.map((player) => (
           <div className="race-pane" key={player.id}>
-            <RaceCanvas room={room} focusPlayerId={player.id} />
+            <RaceCanvas room={room} focusPlayerId={player.id} paneCount={paneCount} />
             {room.settings.rain && <div className="rain-visor" aria-hidden />}
             <RaceHud room={room} focusPlayerId={player.id} />
             <RaceMiniMap room={room} focusPlayerId={player.id} />
@@ -320,10 +321,13 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
 
 function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
   const track = TRACKS[room.settings.trackId];
-  const bounds = getTrackBounds(track);
-  const points = sampleTrackVisuals(track, 4)
-    .map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`)
-    .join(" ");
+  const { bounds, points } = useMemo(() => {
+    const bounds = getTrackBounds(track);
+    const points = sampleTrackVisuals(track, 4)
+      .map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`)
+      .join(" ");
+    return { bounds, points };
+  }, [track]);
   return (
     <svg className="race-minimap" viewBox="0 0 210 150" aria-label="Race minimap">
       <polyline points={points} fill="none" stroke="rgba(255,250,240,0.28)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
@@ -374,12 +378,11 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
   );
 }
 
-function ResultsDisplay({ room, send, themeClass, themeToggle }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string; themeToggle: ReactNode }) {
+function ResultsDisplay({ room, send, themeClass }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string }) {
   const vip = room.players.find((player) => player.isVIP);
   const podium = room.results.slice(0, 3);
   return (
     <main className={`results ${themeClass}`}>
-      {themeToggle}
       <section>
         <h2><Trophy /> Results</h2>
         {podium.length > 0 && (
@@ -439,6 +442,10 @@ function ControllerApp() {
   useEffect(() => {
     autoResumeAttemptedRef.current = false;
   }, [roomCode]);
+
+  useEffect(() => {
+    if (!game.isConnected) autoResumeAttemptedRef.current = false;
+  }, [game.isConnected]);
 
   useEffect(() => {
     if (!roomCode || !token || game.playerId || autoResumeAttemptedRef.current) return;
@@ -517,8 +524,10 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const [brakeStart, setBrakeStart] = useStoredNumber("drive-sim-brake-start", 0);
   const [throttleStart, setThrottleStart] = useStoredNumber("drive-sim-throttle-start", 0);
   const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
+  const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
   const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
+  const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const settings = room?.settings;
 
   useEffect(() => {
@@ -527,12 +536,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       if (event.beta === null && event.gamma === null) return;
       const raw = readSteeringTilt(event, getScreenAngle());
       neutral.current ??= raw;
-      setMotionLevel(clamp(((raw - neutral.current) / 28) * steeringSensitivity, -1, 1));
+      setMotionLevel(clamp(((raw - neutral.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1));
       setMotionStatus("Motion live");
     };
     window.addEventListener("deviceorientation", onOrientation);
     return () => window.removeEventListener("deviceorientation", onOrientation);
-  }, [steeringSensitivity]);
+  }, [motionSteeringDirection, steeringSensitivity]);
 
   return (
     <main className="phone controller-lobby">
@@ -604,6 +613,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <small className="phone-note">{hapticStatus}</small>
       <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
+      <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
       <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
       <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
       {player && <CarSetupSelector value={player.carSetupId} send={send} />}
@@ -821,7 +831,9 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const audioEnabled = readStoredBoolean("drive-sim-audio-enabled", true);
   const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
   const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
-  const car = room.cars.find((item) => item.playerId === playerId);
+  const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
+  const motionSteeringDirection = invertMotionSteering ? -1 : 1;
+  const car = feedback ?? room.cars.find((item) => item.playerId === playerId);
   const resetAvailable = Boolean(car?.resetAvailable);
 
   useEffect(() => {
@@ -838,11 +850,11 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       }
       lastRawSteerRef.current = raw;
       if (neutralRef.current === undefined) neutralRef.current = raw;
-      steerRef.current = clamp(((raw - neutralRef.current) / 28) * steeringSensitivity, -1, 1);
+      steerRef.current = clamp(((raw - neutralRef.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1);
     };
     window.addEventListener("deviceorientation", onOrientation);
     return () => window.removeEventListener("deviceorientation", onOrientation);
-  }, [steeringSensitivity]);
+  }, [motionSteeringDirection, steeringSensitivity]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -935,6 +947,9 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
         >
           {hapticStatus}
         </button>
+        <button onClick={() => setInvertMotionSteering(!invertMotionSteering)}>
+          {invertMotionSteering ? "Steer inverted" : "Steer normal"}
+        </button>
       </div>
       {resetAvailable && (
         <button className="reset-to-track" onClick={() => send({ type: "request_reset" })}>
@@ -945,7 +960,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
         <button onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
-        <div className="tilt-meter"><span style={{ transform: `translateX(${(steerUi || touchSteer) * 42}px)` }} /></div>
+        <div className="tilt-meter"><span style={{ transform: `translateX(${(touchSteer || steerUi) * 42}px)` }} /></div>
         <button onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
@@ -979,20 +994,28 @@ function PedalZone({ side, value, firstTap, onChange }: { side: "brake" | "throt
   );
 }
 
-function RaceCanvas({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+type RaceRenderQuality = "full" | "split";
+
+function RaceCanvas({ room, focusPlayerId, paneCount }: { room: RoomState; focusPlayerId: string; paneCount: number }) {
+  const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
   return (
-    <Canvas shadows camera={{ fov: 76, near: 0.1, far: 420 }}>
+    <Canvas
+      shadows={quality === "full"}
+      dpr={quality === "split" ? [0.75, 1] : [1, 1.35]}
+      gl={{ antialias: quality === "full", powerPreference: "high-performance" }}
+      camera={{ fov: 76, near: 0.1, far: 420 }}
+    >
       <color attach="background" args={[room.settings.rain ? "#78818a" : "#9fc4dc"]} />
       <fog attach="fog" args={[room.settings.rain ? "#8b949b" : "#b8d4e2", room.settings.rain ? 38 : 95, room.settings.rain ? 175 : 290]} />
       <ambientLight intensity={room.settings.rain ? 0.58 : 0.72} />
       <hemisphereLight args={[room.settings.rain ? "#b7c2cc" : "#d8f0ff", "#526447", room.settings.rain ? 0.55 : 0.42]} />
-      <directionalLight position={[20, 35, 12]} intensity={room.settings.rain ? 0.72 : 1.38} castShadow />
-      <RaceScene room={room} focusPlayerId={focusPlayerId} />
+      <directionalLight position={[20, 35, 12]} intensity={room.settings.rain ? 0.72 : 1.38} castShadow={quality === "full"} />
+      <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
     </Canvas>
   );
 }
 
-function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality }) {
   const { camera } = useThree();
   const track = TRACKS[room.settings.trackId];
   const focus = room.cars.find((car) => car.playerId === focusPlayerId);
@@ -1033,8 +1056,8 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
     <>
       <TrackMesh track={track} rain={room.settings.rain} />
       <TrackProps track={track} rain={room.settings.rain} />
-      <DynamicSkidMarks cars={room.cars} rain={room.settings.rain} />
-      {room.settings.rain && focus && <RainEffect focus={focus} />}
+      <DynamicSkidMarks cars={room.cars} rain={room.settings.rain} quality={quality} />
+      {room.settings.rain && focus && <RainEffect focus={focus} dropCount={quality === "split" ? 90 : 240} />}
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
         const color = player?.color ?? "#ff3b5c";
@@ -1056,8 +1079,8 @@ function RaceScene({ room, focusPlayerId }: { room: RoomState; focusPlayerId: st
   );
 }
 
-function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const curbStripes = useMemo(() => createCurbStripeGeometries(track, 4.6), [track]);
+const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const curbStripeGeometries = useMemo(() => createCurbStripeGeometries(track, 4.6), [track]);
   const roadGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width, 0, 0.035, 2.7), [track]);
   const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
   const leftCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, -track.width / 2 - track.curbWidth / 2, 0.055, 2.7), [track]);
@@ -1110,17 +1133,15 @@ function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
       <mesh geometry={rightLineGeometry}>
         <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
       </mesh>
-      {curbStripes.map((stripe, index) => {
-        const color = stripe.color === "white" ? "#e8e1d1" : "#b02b35";
-        return (
-          <mesh key={index} geometry={stripe.geometry}>
-            <meshStandardMaterial color={color} roughness={0.58} side={THREE.DoubleSide} />
-          </mesh>
-        );
-      })}
+      <mesh geometry={curbStripeGeometries.white}>
+        <meshStandardMaterial color="#e8e1d1" roughness={0.58} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={curbStripeGeometries.red}>
+        <meshStandardMaterial color="#b02b35" roughness={0.58} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
-}
+});
 
 type AsphaltPatch = {
   x: number;
@@ -1219,7 +1240,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const start = sampleTrackVisuals(track, 7)[0];
   const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 28 : 21), [track]);
   const boards = propSamples.filter((_, index) => index % 3 === 0);
@@ -1339,16 +1360,16 @@ function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       )}
     </group>
   );
-}
+});
 
-function RainEffect({ focus }: { focus: CarState }) {
+function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }) {
   const group = useRef<THREE.Group>(null);
-  const drops = useMemo(() => Array.from({ length: 240 }, (_, index) => ({
+  const drops = useMemo(() => Array.from({ length: dropCount }, (_, index) => ({
     x: ((index * 37) % 58) - 29,
     y: 2 + ((index * 19) % 30),
     z: ((index * 53) % 72) - 18,
     speed: 0.24 + ((index * 11) % 24) / 100
-  })), []);
+  })), [dropCount]);
 
   useFrame(() => {
     if (!group.current) return;
@@ -1435,9 +1456,11 @@ type LiveSkidMark = {
   opacity: number;
 };
 
-function DynamicSkidMarks({ cars, rain }: { cars: CarState[]; rain: boolean }) {
+function DynamicSkidMarks({ cars, rain, quality }: { cars: CarState[]; rain: boolean; quality: RaceRenderQuality }) {
   const [marks, setMarks] = useState<LiveSkidMark[]>([]);
   const lastSpawnAt = useRef<Record<string, number>>({});
+  const spawnInterval = quality === "split" ? 180 : 115;
+  const maxMarks = quality === "split" ? 60 : 140;
 
   useFrame(() => {
     const now = performance.now();
@@ -1447,7 +1470,7 @@ function DynamicSkidMarks({ cars, rain }: { cars: CarState[]; rain: boolean }) {
       const brakingMark = car.brake > 0.74 && car.speed > 11;
       const slipMark = car.slip > 0.52 && car.speed > 9;
       if (!brakingMark && !slipMark) continue;
-      if (now - (lastSpawnAt.current[car.playerId] ?? 0) < 115) continue;
+      if (now - (lastSpawnAt.current[car.playerId] ?? 0) < spawnInterval) continue;
       lastSpawnAt.current[car.playerId] = now;
 
       const forwardX = Math.sin(car.heading);
@@ -1466,7 +1489,7 @@ function DynamicSkidMarks({ cars, rain }: { cars: CarState[]; rain: boolean }) {
       }
     }
     if (additions.length) {
-      setMarks((current) => [...current, ...additions].slice(-140));
+      setMarks((current) => [...current, ...additions].slice(-maxMarks));
     }
   });
 
@@ -1954,24 +1977,27 @@ function createCurbStripeGeometries(track: TrackDef, stripeLength: number) {
   const leftOffset = -track.width / 2 - track.curbWidth / 2;
   const rightOffset = track.width / 2 + track.curbWidth / 2;
   const stripeWidth = track.curbWidth * 0.82;
-  const stripes: Array<{ geometry: THREE.BufferGeometry; color: "red" | "white" }> = [];
+  const red: THREE.BufferGeometry[] = [];
+  const white: THREE.BufferGeometry[] = [];
 
   for (let index = 0; index < stripeCount; index += 1) {
     const start = (metrics.totalLength * index) / stripeCount;
     const end = (metrics.totalLength * (index + 1)) / stripeCount;
-    const color = index % 2 === 0 ? "white" : "red";
-    const alternateColor = index % 2 === 0 ? "red" : "white";
-    stripes.push({
-      geometry: createTrackRibbonSectionGeometry(track, stripeWidth, leftOffset, 0.083, start, end, 0.9),
-      color
-    });
-    stripes.push({
-      geometry: createTrackRibbonSectionGeometry(track, stripeWidth, rightOffset, 0.083, start, end, 0.9),
-      color: alternateColor
-    });
+    const left = createTrackRibbonSectionGeometry(track, stripeWidth, leftOffset, 0.083, start, end, 0.9);
+    const right = createTrackRibbonSectionGeometry(track, stripeWidth, rightOffset, 0.083, start, end, 0.9);
+    if (index % 2 === 0) {
+      white.push(left);
+      red.push(right);
+    } else {
+      red.push(left);
+      white.push(right);
+    }
   }
 
-  return stripes;
+  return {
+    red: mergeIndexedGeometries(red),
+    white: mergeIndexedGeometries(white)
+  };
 }
 
 function createTrackRibbonSectionGeometry(track: TrackDef, width: number, lateralOffset: number, y: number, startProgress: number, endProgress: number, spacing: number) {
@@ -2007,9 +2033,44 @@ function createTrackRibbonSectionGeometry(track: TrackDef, width: number, latera
   return geometry;
 }
 
+function mergeIndexedGeometries(geometries: THREE.BufferGeometry[]) {
+  let vertexCount = 0;
+  let indexCount = 0;
+  for (const geometry of geometries) {
+    vertexCount += geometry.getAttribute("position").count;
+    indexCount += geometry.getIndex()?.count ?? 0;
+  }
+
+  const positions = new Float32Array(vertexCount * 3);
+  const indices = vertexCount > 65535 ? new Uint32Array(indexCount) : new Uint16Array(indexCount);
+  let vertexOffset = 0;
+  let indexOffset = 0;
+  for (const geometry of geometries) {
+    const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const index = geometry.getIndex();
+    positions.set(position.array as ArrayLike<number>, vertexOffset * 3);
+    if (index) {
+      for (let i = 0; i < index.count; i += 1) {
+        indices[indexOffset + i] = index.getX(i) + vertexOffset;
+      }
+      indexOffset += index.count;
+    }
+    vertexOffset += position.count;
+  }
+
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  merged.setIndex(new THREE.BufferAttribute(indices, 1));
+  merged.computeVertexNormals();
+  return merged;
+}
+
 function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const queuedMessagesRef = useRef<object[]>([]);
+  const reconnectTimerRef = useRef<number | undefined>(undefined);
+  const reconnectAttemptRef = useRef(0);
+  const unmountedRef = useRef(false);
   const [room, setRoom] = useState<RoomState>();
   const [clientId, setClientId] = useState("");
   const [displayGroupId, setDisplayGroupId] = useState<string>();
@@ -2017,79 +2078,117 @@ function useGameSocket() {
   const [joinedToken, setJoinedToken] = useState<string>();
   const [feedback, setFeedback] = useState<CarState>();
   const [notice, setNotice] = useState<{ id: number; message: string }>();
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const ws = new WebSocket(wsUrl());
-    wsRef.current = ws;
-    ws.onopen = () => {
-      const displaySession = readDisplaySession();
-      if (!location.pathname.startsWith("/controller") && displaySession) {
-        ws.send(JSON.stringify({ type: "join_display", roomCode: displaySession.roomCode, displayGroupId: displaySession.displayGroupId }));
-      }
-      for (const message of queuedMessagesRef.current) {
-        ws.send(JSON.stringify(message));
-      }
-      queuedMessagesRef.current = [];
-    };
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data) as ServerMessage;
-      if (message.type === "hello") setClientId(message.clientId);
-      if (message.type === "joined_display") {
-        setDisplayGroupId(message.displayGroupId);
-        sessionStorage.setItem("drive-sim-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
-      }
-      if (message.type === "joined_controller") {
-        setPlayerId(message.playerId);
-        setDisplayGroupId(message.displayGroupId);
-        setJoinedToken(message.token);
+    unmountedRef.current = false;
+    const connect = () => {
+      const ws = new WebSocket(wsUrl());
+      wsRef.current = ws;
+      ws.onopen = () => {
+        if (wsRef.current !== ws) return;
+        reconnectAttemptRef.current = 0;
+        setIsConnected(true);
         setNotice(undefined);
-      }
-      if (message.type === "room_state") setRoom(message.state);
-      if (message.type === "race_snapshot") {
-        setRoom((current) => current && current.roomCode === message.snapshot.roomCode
-          ? {
-            ...current,
-            phase: message.snapshot.phase,
-            countdownEndsAt: message.snapshot.countdownEndsAt,
-            raceStartedAt: message.snapshot.raceStartedAt,
-            cars: message.snapshot.cars,
-            results: message.snapshot.results ?? current.results
+        const displaySession = readDisplaySession();
+        if (!location.pathname.startsWith("/controller") && displaySession) {
+          ws.send(JSON.stringify({ type: "join_display", roomCode: displaySession.roomCode, displayGroupId: displaySession.displayGroupId }));
+        }
+        for (const message of queuedMessagesRef.current) {
+          ws.send(JSON.stringify(message));
+        }
+        queuedMessagesRef.current = [];
+      };
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data) as ServerMessage;
+        if (message.type === "hello") setClientId(message.clientId);
+        if (message.type === "joined_display") {
+          setDisplayGroupId(message.displayGroupId);
+          sessionStorage.setItem("drive-sim-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
+        }
+        if (message.type === "joined_controller") {
+          setPlayerId(message.playerId);
+          setDisplayGroupId(message.displayGroupId);
+          setJoinedToken(message.token);
+          setNotice(undefined);
+        }
+        if (message.type === "room_state") setRoom(message.state);
+        if (message.type === "race_snapshot") {
+          setRoom((current) => current && current.roomCode === message.snapshot.roomCode
+            ? {
+              ...current,
+              phase: message.snapshot.phase,
+              countdownEndsAt: message.snapshot.countdownEndsAt,
+              raceStartedAt: message.snapshot.raceStartedAt,
+              cars: message.snapshot.cars,
+              results: message.snapshot.results ?? current.results
+            }
+            : current);
+        }
+        if (message.type === "controller_feedback") setFeedback(message.car);
+        if (message.type === "room_closed") {
+          console.warn(message.message);
+          sessionStorage.removeItem("drive-sim-display-session");
+          setRoom(undefined);
+          setDisplayGroupId(undefined);
+          setPlayerId(undefined);
+          setJoinedToken(undefined);
+          setFeedback(undefined);
+          setNotice({ id: Date.now(), message: message.message });
+        }
+        if (message.type === "error_notice") {
+          console.warn(message.message);
+          if (message.message === "Room not found.") {
+            sessionStorage.removeItem("drive-sim-display-session");
           }
-          : current);
-      }
-      if (message.type === "controller_feedback") setFeedback(message.car);
-      if (message.type === "room_closed") {
-        console.warn(message.message);
-        sessionStorage.removeItem("drive-sim-display-session");
-        setRoom(undefined);
-        setDisplayGroupId(undefined);
+          setNotice({ id: Date.now(), message: message.message });
+        }
+      };
+      ws.onerror = () => {
+        ws.close();
+      };
+      ws.onclose = () => {
+        if (wsRef.current === ws) wsRef.current = null;
+        if (unmountedRef.current) return;
+        setIsConnected(false);
+        setClientId("");
         setPlayerId(undefined);
         setJoinedToken(undefined);
         setFeedback(undefined);
-        setNotice({ id: Date.now(), message: message.message });
-      }
-      if (message.type === "error_notice") {
-        console.warn(message.message);
-        if (message.message === "Room not found.") {
-          sessionStorage.removeItem("drive-sim-display-session");
-        }
-        setNotice({ id: Date.now(), message: message.message });
-      }
+        setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
+        const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
+        reconnectAttemptRef.current += 1;
+        reconnectTimerRef.current = window.setTimeout(connect, delay);
+      };
     };
-    return () => ws.close();
+    connect();
+    return () => {
+      unmountedRef.current = true;
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
+      const ws = wsRef.current;
+      wsRef.current = null;
+      ws?.close();
+    };
   }, []);
 
   const send = useCallback((message: object) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState === WebSocket.CONNECTING) {
-      queuedMessagesRef.current.push(message);
+      if (shouldQueueSocketMessage(message)) queuedMessagesRef.current.push(message);
       return;
     }
-    if (ws.readyState !== WebSocket.OPEN) return;
+    if (ws.readyState !== WebSocket.OPEN) {
+      if (shouldQueueSocketMessage(message)) queuedMessagesRef.current.push(message);
+      return;
+    }
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, notice, isConnected, send };
+}
+
+function shouldQueueSocketMessage(message: object) {
+  return !("type" in message) || message.type !== "input_frame";
 }
 
 function useStoredDisplayTheme() {
