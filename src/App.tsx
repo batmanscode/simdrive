@@ -1817,56 +1817,72 @@ function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number
 
 function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
   const turn = clamp(steer, -1, 1) * 0.8;
+  const hands = useRef<THREE.Group>(null);
+  const handTurn = useRef(turn);
+  useFrame((_, delta) => {
+    handTurn.current = THREE.MathUtils.lerp(handTurn.current, turn, smoothingAmount(delta, 10));
+    if (hands.current) hands.current.rotation.z = handTurn.current;
+  });
   return (
-    <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, turn]}>
-      <mesh>
-        <torusGeometry args={[0.42, 0.035, 8, 30]} />
-        <meshStandardMaterial color="#0b0e12" roughness={0.46} />
-      </mesh>
-      {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle) => (
-        <mesh key={angle} position={[Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0]} rotation={[0, 0, angle]}>
-          <boxGeometry args={[0.44, 0.035, 0.035]} />
-          <meshStandardMaterial color="#151922" roughness={0.5} />
+    <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, 0]}>
+      <group rotation={[0, 0, turn]}>
+        <mesh>
+          <torusGeometry args={[0.42, 0.035, 8, 30]} />
+          <meshStandardMaterial color="#0b0e12" roughness={0.46} />
         </mesh>
-      ))}
+        {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((angle) => (
+          <mesh key={angle} position={[Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0]} rotation={[0, 0, angle]}>
+            <boxGeometry args={[0.44, 0.035, 0.035]} />
+            <meshStandardMaterial color="#151922" roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
       {style !== "none" && (
-        <>
+        <group ref={hands} rotation={[0, 0, handTurn.current]}>
           <CockpitHand side={-1} style={style} />
           <CockpitHand side={1} style={style} />
-        </>
+        </group>
       )}
     </group>
   );
 }
 
 function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const x = side * 0.3;
+  const x = side * 0.36;
   const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
   const pad = style === "paws" ? "#5c2b35" : "#1b1d23";
   return (
-    <group position={[x, -0.1, -0.03]} rotation={[0, 0, side * -0.38]}>
-      <mesh>
-        <sphereGeometry args={[0.13, 16, 12]} />
+    <group position={[x, -0.02, 0.02]} rotation={[0, 0, side * -0.16]}>
+      <mesh scale={style === "paws" ? [1.12, 0.92, 0.68] : [1.0, 0.82, 0.58]}>
+        <sphereGeometry args={[style === "paws" ? 0.145 : 0.12, 18, 12]} />
         <meshStandardMaterial color={skin} roughness={0.76} />
       </mesh>
       {style === "paws" ? (
         <>
-          {[-0.07, 0, 0.07].map((offset) => (
-            <mesh key={offset} position={[offset, 0.11, 0.035]}>
-              <sphereGeometry args={[0.035, 10, 8]} />
+          {[-0.09, -0.03, 0.03, 0.09].map((offset) => (
+            <mesh key={offset} position={[offset, 0.105 - Math.abs(offset) * 0.12, 0.055]} scale={[1, 0.78, 0.62]}>
+              <sphereGeometry args={[0.034, 10, 8]} />
               <meshStandardMaterial color={pad} roughness={0.82} />
             </mesh>
           ))}
-          <mesh position={[0, -0.02, 0.045]}>
-            <sphereGeometry args={[0.055, 10, 8]} />
+          <mesh position={[0, -0.025, 0.065]} scale={[1.25, 0.82, 0.6]}>
+            <sphereGeometry args={[0.06, 12, 8]} />
             <meshStandardMaterial color={pad} roughness={0.82} />
           </mesh>
         </>
       ) : (
-        <mesh position={[side * 0.055, 0.0, 0.05]} rotation={[0, 0, side * 0.7]}>
-          <boxGeometry args={[0.08, 0.22, 0.055]} />
-          <meshStandardMaterial color="#20242d" roughness={0.62} />
-        </mesh>
+        <>
+          {[-0.06, -0.02, 0.02, 0.06].map((offset) => (
+            <mesh key={offset} position={[offset, 0.092, 0.035]} rotation={[0.45, 0, side * 0.08]}>
+              <cylinderGeometry args={[0.017, 0.021, 0.15, 8]} />
+              <meshStandardMaterial color="#20242d" roughness={0.62} />
+            </mesh>
+          ))}
+          <mesh position={[side * -0.1, -0.025, 0.045]} rotation={[0.15, 0, side * 0.78]}>
+            <boxGeometry args={[0.05, 0.16, 0.055]} />
+            <meshStandardMaterial color="#20242d" roughness={0.62} />
+          </mesh>
+        </>
       )}
     </group>
   );
