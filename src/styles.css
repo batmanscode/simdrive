@@ -98,6 +98,37 @@ h2 {
   color: rgba(255, 250, 240, 0.72);
 }
 
+.hero-flow {
+  max-width: 650px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.hero-flow div {
+  display: grid;
+  gap: 6px;
+  min-height: 112px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.34);
+  border: 1px solid rgba(255, 250, 240, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+.hero-flow strong {
+  color: #fffaf0;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.hero-flow span {
+  color: rgba(255, 250, 240, 0.78);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .hero-pills {
   display: flex;
   gap: 8px;
@@ -1079,6 +1110,14 @@ input {
   font-weight: 800;
 }
 
+.range-control small {
+  grid-column: 1 / -1;
+  color: rgba(255, 250, 240, 0.64);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .motion-test {
   display: grid;
   grid-template-columns: 1fr 116px;
@@ -1168,6 +1207,48 @@ input {
 
 .car-selector-head strong {
   font-size: 20px;
+}
+
+.car-preview {
+  position: relative;
+  height: 176px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #181b21;
+  border: 1px solid rgba(255, 250, 240, 0.12);
+}
+
+.car-preview canvas {
+  display: block;
+}
+
+.car-preview-meta {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.72);
+  color: #fffaf0;
+  backdrop-filter: blur(8px);
+}
+
+.car-preview-meta strong {
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.car-preview-meta span {
+  min-width: 0;
+  color: rgba(255, 250, 240, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .setup-grid {
@@ -1462,6 +1543,10 @@ input {
   .hero,
   .lobby,
   .track-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-flow {
     grid-template-columns: 1fr;
   }
 

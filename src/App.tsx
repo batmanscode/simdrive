@@ -66,10 +66,24 @@ function DisplayApp() {
                 }}
               >
                 <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
-                <button type="submit">Join Screen</button>
+                <button type="submit">Join Game</button>
               </form>
             </div>
             <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
+            <div className="hero-flow" aria-label="How Sim Drive works">
+              <div>
+                <strong>Host screen</strong>
+                <span>Open a room on a TV, laptop, projector, or second browser tab.</span>
+              </div>
+              <div>
+                <strong>Phone controllers</strong>
+                <span>Scan the QR. Each player gets tilt steering, touch pedals, fallback buttons, and their own preferences.</span>
+              </div>
+              <div>
+                <strong>Race options</strong>
+                <span>Choose laps, track, rain, ghost cars, gentle assist, warm-up start, and reset rules.</span>
+              </div>
+            </div>
             <div className="hero-pills" aria-label="Game features">
               <span><Smartphone size={16} /> Phone steering</span>
               <span><Gauge size={16} /> Sim-lite grip</span>
@@ -123,8 +137,8 @@ function HeroShowcase() {
         </div>
         <div className="mock-leaderboard">
           <span>1 YOU</span>
-          <span>2 LOSER</span>
-          <span>3 OTHER LOSER</span>
+          <span>2 RIVAL</span>
+          <span>3 GUEST</span>
         </div>
         <div className="mock-minimap" />
       </div>
@@ -638,9 +652,20 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
-      <StartPreference label="Brake first tap" value={brakeStart} onChange={setBrakeStart} />
-      <StartPreference label="Throttle first tap" value={throttleStart} onChange={setThrottleStart} />
-      {player && <CarSetupSelector value={player.carSetupId} send={send} />}
+      <small className="phone-note">Use invert only if tilting right makes the motion test or car steer left on this phone.</small>
+      <StartPreference
+        label="Brake start"
+        value={brakeStart}
+        onChange={setBrakeStart}
+        description="How much brake is applied the instant your thumb lands before you slide."
+      />
+      <StartPreference
+        label="Throttle start"
+        value={throttleStart}
+        onChange={setThrottleStart}
+        description="How much throttle is applied the instant your thumb lands before you slide."
+      />
+      {player && <CarSetupSelector value={player.carSetupId} color={player.color} send={send} />}
       {player && <CockpitStyleSelector value={player.cockpitStyle} send={send} />}
       {player?.isVIP && settings && (
         <div className="vip-controls">
@@ -726,10 +751,11 @@ function FeelPreview({ test }: { test: { id: number; label: string } }) {
   );
 }
 
-function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType<typeof useGameSocket>["send"] }) {
+function CarSetupSelector({ value, color, send }: { value: CarSetupId; color: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const selected = CAR_SETUPS[value ?? DEFAULT_CAR_SETUP_ID];
   return (
     <section className="car-selector" aria-label="Car setup">
+      <CarSetupPreview setup={selected} color={color} />
       <div className="car-selector-head">
         <div>
           <span>Car setup</span>
@@ -737,7 +763,7 @@ function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType
         </div>
         <small>{selected.stats.topSpeedKmh} km/h dry top</small>
       </div>
-      <small className="phone-note">Grip builds with speed on road and curbs. Rain still lowers grip and top speed.</small>
+      <small className="phone-note">This changes the same formula car's tuning, not a different vehicle. Grip builds with speed on road and curbs. Rain still lowers grip and top speed.</small>
       <div className="setup-grid">
         {Object.values(CAR_SETUPS).map((setup) => (
           <button
@@ -752,6 +778,75 @@ function CarSetupSelector({ value, send }: { value: CarSetupId; send: ReturnType
         ))}
       </div>
     </section>
+  );
+}
+
+function CarSetupPreview({ setup, color }: { setup: CarSetup; color: string }) {
+  return (
+    <div className="car-preview">
+      <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+        <color attach="background" args={["#181b21"]} />
+        <ambientLight intensity={0.82} />
+        <directionalLight position={[3, 5, 4]} intensity={1.35} />
+        <CarPreviewScene color={color} />
+      </Canvas>
+      <div className="car-preview-meta">
+        <strong>{setup.shortName}</strong>
+        <span>{setup.stats.topSpeedKmh} km/h top · {setup.stats.grip}/10 grip</span>
+      </div>
+    </div>
+  );
+}
+
+function CarPreviewScene({ color }: { color: string }) {
+  const car = useMemo<CarState>(() => ({
+    playerId: "preview",
+    carSetupId: DEFAULT_CAR_SETUP_ID,
+    x: 0,
+    z: 0,
+    velocityX: 0,
+    velocityZ: 0,
+    heading: -0.62,
+    speed: 0,
+    steer: 0.12,
+    throttle: 0,
+    brake: 0,
+    lap: 1,
+    progress: 0,
+    distanceThisLap: 0,
+    nextCheckpoint: 0,
+    lastValidProgress: 0,
+    timedLapStarted: false,
+    timedRaceStartedAt: 0,
+    currentLapStartedAt: 0,
+    wheelDistance: 0,
+    surface: "road",
+    finished: false,
+    crashed: false,
+    dnf: false,
+    resetAvailable: false,
+    impact: 0,
+    slip: 0
+  }), []);
+  const group = useRef<THREE.Group>(null);
+
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    group.current.rotation.y += delta * 0.38;
+  });
+
+  return (
+    <group ref={group} position={[0, -0.18, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]} receiveShadow>
+        <circleGeometry args={[2.7, 48]} />
+        <meshStandardMaterial color="#22262c" roughness={0.82} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
+        <ringGeometry args={[1.45, 2.1, 48]} />
+        <meshBasicMaterial color="#2f343b" side={THREE.DoubleSide} />
+      </mesh>
+      <CarModel car={car} color={color} />
+    </group>
   );
 }
 
@@ -776,12 +871,13 @@ function StatMeter({ label, value, max, suffix }: { label: string; value: number
   );
 }
 
-function StartPreference({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function StartPreference({ label, value, description, onChange }: { label: string; value: number; description: string; onChange: (value: number) => void }) {
   return (
     <label className="range-control">
       <span>{label}</span>
       <input type="range" min="0" max="100" value={Math.round(value * 100)} onChange={(event) => onChange(Number(event.target.value) / 100)} />
       <strong>{Math.round(value * 100)}%</strong>
+      <small>{description}</small>
     </label>
   );
 }
@@ -792,6 +888,7 @@ function SteeringSensitivityPreference({ value, onChange }: { value: number; onC
       <span>Motion sensitivity</span>
       <input type="range" min="1" max="10" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <strong>{value}/10</strong>
+      <small>Higher reacts to smaller phone tilts. Lower gives a calmer wheel.</small>
     </label>
   );
 }
