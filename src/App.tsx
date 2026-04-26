@@ -1390,7 +1390,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     return {
       x: sample.x + rightX * side * offset,
       z: sample.z + rightZ * side * offset,
-      heading: sample.heading + (side > 0 ? -0.22 : 0.22)
+      heading: sample.heading - side * (Math.PI / 2 - 0.18)
     };
   }, [track]);
 
@@ -1398,7 +1398,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     <group position={[placement.x, 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
       <mesh castShadow>
         <planeGeometry args={[4.2, 1.35]} />
-        <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
       {[-1.65, 1.65].map((x) => (
         <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
