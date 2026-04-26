@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
-import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
+import { nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
 import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
@@ -1343,16 +1343,14 @@ function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
       {samples.map((sample, index) => {
         if (index % 2 === 1) return null;
         const side = index % 4 === 0 ? -1 : 1;
-        const rightX = Math.sin(sample.heading + Math.PI / 2);
-        const rightZ = Math.cos(sample.heading + Math.PI / 2);
-        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.5 + seededUnit(index + track.id.length) * 4;
         const scaleX = track.id === "alpine" ? 6.5 : 4.8;
         const scaleZ = track.id === "alpine" ? 2.2 : 1.4;
         const height = track.id === "alpine" ? 0.72 + seededUnit(index * 3) * 0.65 : 0.18 + seededUnit(index * 3) * 0.18;
+        const position = tracksidePropPosition(track, sample, side, 2.5 + seededUnit(index + track.id.length) * 4, scaleX, 0.35);
         return (
           <mesh
             key={`bank-${index}`}
-            position={[sample.x + rightX * side * offset, height * 0.34 - 0.06, sample.z + rightZ * side * offset]}
+            position={[position.x, height * 0.34 - 0.06, position.z]}
             rotation={[0, sample.heading + seededUnit(index * 7) * 0.8, 0]}
             scale={[scaleX, height, scaleZ]}
             receiveShadow
@@ -1362,7 +1360,7 @@ function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
           </mesh>
         );
       })}
-      {track.id === "alpine" ? <AlpineBackdrop rain={rain} /> : <SakuraGroundAccents rain={rain} />}
+      {track.id === "alpine" ? <AlpineBackdrop rain={rain} /> : <SakuraGroundAccents track={track} rain={rain} />}
     </group>
   );
 }
@@ -1506,11 +1504,11 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           </mesh>
         ))}
         <mesh position={[0, 4.2, -1.3]} castShadow>
-          <boxGeometry args={[track.width + 6, 0.26, 0.26]} />
+          <boxGeometry args={[track.width + track.curbWidth * 2 + 4.4, 0.26, 0.26]} />
           <meshStandardMaterial color="#20242a" roughness={0.5} />
         </mesh>
         {[-1, 1].map((side) => (
-          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + 1.4), 2.05, -1.3]} castShadow>
+          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.62), 2.05, -1.3]} castShadow>
             <boxGeometry args={[0.42, 4.1, 0.42]} />
             <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
           </mesh>
@@ -1592,46 +1590,83 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           </group>
         );
       })}
-      {track.id === "sakura" && (
-        <>
-          <mesh position={[35, 1.4, 66]} castShadow>
-            <cylinderGeometry args={[0.18, 0.18, 2.8, 8]} />
-            <meshStandardMaterial color="#5d4037" roughness={0.7} />
-          </mesh>
-          <mesh position={[35, 3.0, 66]} castShadow>
-            <sphereGeometry args={[1.05, 12, 8]} />
-            <meshStandardMaterial color="#f2a8bd" roughness={0.8} />
-          </mesh>
-        </>
-      )}
-      {track.id === "alpine" && (
-        <>
-          <mesh position={[88, 4.5, 116]} rotation={[0, -0.5, 0]}>
-            <coneGeometry args={[12, 14, 4]} />
-            <meshStandardMaterial color={rain ? "#8f9692" : "#8b907d"} roughness={0.95} />
-          </mesh>
-          <mesh position={[88, 11.8, 116]} rotation={[0, -0.5, 0]}>
-            <coneGeometry args={[6.5, 4.2, 4]} />
-            <meshStandardMaterial color="#eef1f2" roughness={0.82} />
-          </mesh>
-        </>
-      )}
+      {track.id === "sakura" && <SakuraFeatureGrove track={track} rain={rain} />}
+      {track.id === "alpine" && <AlpineVistaPeak track={track} rain={rain} />}
       <TrackIdentityProps track={track} rain={rain} />
     </group>
   );
 });
 
-function SakuraGroundAccents({ rain }: { rain: boolean }) {
-  const patches = [
-    { x: 24, z: 67, s: 1.4 },
-    { x: -18, z: 45, s: 1.0 },
-    { x: 54, z: 33, s: 0.9 },
-    { x: 2, z: -8, s: 1.2 }
-  ];
+function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const trees = useMemo(() => {
+    const metrics = trackMetrics(track);
+    const anchor = sampleTrack(track, metrics.totalLength * 0.42);
+    const main = tracksidePropPosition(track, anchor, 1, 4.2, 2.2, 1.2);
+    return [
+      { x: main.x, z: main.z, seed: 104 },
+      { x: main.x + Math.sin(anchor.heading + 0.55) * 3.1, z: main.z + Math.cos(anchor.heading + 0.55) * 3.1, seed: 117 },
+      { x: main.x - Math.sin(anchor.heading - 0.35) * 2.5, z: main.z - Math.cos(anchor.heading - 0.35) * 2.5, seed: 131 }
+    ].map((tree) => ({ ...tree, ...clearTrackPropPosition(track, tree, 2.1, 1.0) }));
+  }, [track]);
+
+  return (
+    <group>
+      {trees.map((tree) => (
+        <SakuraTree key={`feature-sakura-${tree.seed}`} position={[tree.x, 0, tree.z]} seed={tree.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const metrics = trackMetrics(track);
+    const sample = sampleTrack(track, metrics.totalLength * 0.24);
+    const position = tracksidePropPosition(track, sample, 1, 14, 13, 2.5);
+    return { ...position, heading: sample.heading - 0.45 };
+  }, [track]);
+
+  return (
+    <group position={[placement.x, 0, placement.z]} rotation={[0, placement.heading, 0]}>
+      <mesh position={[0, 4.9, 0]} scale={[1.15, 1, 0.86]}>
+        <coneGeometry args={[11.5, 15.5, 9]} />
+        <meshStandardMaterial color={rain ? "#848c88" : "#8d937f"} roughness={0.96} />
+      </mesh>
+      <mesh position={[-6.8, 3.2, 4.2]} rotation={[0, -0.35, 0]} scale={[0.78, 0.72, 0.92]}>
+        <coneGeometry args={[8.4, 10.4, 8]} />
+        <meshStandardMaterial color={rain ? "#737c79" : "#7d8675"} roughness={0.98} />
+      </mesh>
+      <mesh position={[0, 12.4, 0]} scale={[0.92, 0.82, 0.7]}>
+        <coneGeometry args={[4.9, 4.5, 9]} />
+        <meshStandardMaterial color={rain ? "#e3e8e8" : "#f4f6f2"} roughness={0.82} />
+      </mesh>
+      <mesh position={[-6.8, 7.3, 4.2]} rotation={[0, -0.35, 0]} scale={[0.62, 0.58, 0.72]}>
+        <coneGeometry args={[3.5, 2.7, 8]} />
+        <meshStandardMaterial color={rain ? "#d9e0df" : "#eef1f2"} roughness={0.84} />
+      </mesh>
+    </group>
+  );
+}
+
+function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const patches = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [
+      { progress: 0.18, side: 1, s: 1.25, extra: 2.4 },
+      { progress: 0.39, side: 1, s: 1.05, extra: 3.6 },
+      { progress: 0.58, side: -1, s: 0.95, extra: 2.8 },
+      { progress: 0.78, side: -1, s: 1.15, extra: 3.2 }
+    ].map((patch, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * patch.progress);
+      const position = tracksidePropPosition(track, sample, patch.side, patch.extra, patch.s * 4.8, 0.8);
+      return { ...patch, ...position, rotation: seededUnit(index * 13) * Math.PI };
+    });
+  }, [track]);
+
   return (
     <group>
       {patches.map((patch, index) => (
-        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, 0.01, patch.z]} rotation={[-Math.PI / 2, 0, seededUnit(index * 13) * Math.PI]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
+        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, 0.01, patch.z]} rotation={[-Math.PI / 2, 0, patch.rotation]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
           <circleGeometry args={[1, 22]} />
           <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
@@ -1642,22 +1677,22 @@ function SakuraGroundAccents({ rain }: { rain: boolean }) {
 
 function AlpineBackdrop({ rain }: { rain: boolean }) {
   const mountains = [
-    { x: -78, z: 120, h: 22, r: 18 },
-    { x: -42, z: 138, h: 28, r: 24 },
-    { x: 18, z: 135, h: 20, r: 18 },
-    { x: 92, z: 122, h: 30, r: 26 },
-    { x: 142, z: 72, h: 24, r: 22 }
+    { x: -88, z: 128, h: 22, r: 18 },
+    { x: -48, z: 148, h: 29, r: 24 },
+    { x: 18, z: 158, h: 20, r: 18 },
+    { x: 108, z: 152, h: 31, r: 27 },
+    { x: 178, z: 70, h: 24, r: 22 }
   ];
   return (
     <group>
       {mountains.map((mountain, index) => (
         <group key={`mountain-${index}`} position={[mountain.x, mountain.h / 2 - 0.2, mountain.z]} rotation={[0, seededUnit(index * 17) * 0.8, 0]}>
           <mesh>
-            <coneGeometry args={[mountain.r, mountain.h, 5]} />
+            <coneGeometry args={[mountain.r, mountain.h, 8]} />
             <meshStandardMaterial color={rain ? "#707975" : "#7f8877"} roughness={0.98} />
           </mesh>
           <mesh position={[0, mountain.h * 0.28, 0]}>
-            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 5]} />
+            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 8]} />
             <meshStandardMaterial color={rain ? "#e5e8e8" : "#f4f6f2"} roughness={0.86} />
           </mesh>
         </group>
@@ -1676,11 +1711,10 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
     <group>
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
-        const rightX = Math.sin(sample.heading + Math.PI / 2);
-        const rightZ = Math.cos(sample.heading + Math.PI / 2);
-        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 1.8 + seededUnit(index * 5) * 2.4;
-        const x = sample.x + rightX * side * offset;
-        const z = sample.z + rightZ * side * offset;
+        const radius = index % 3 === 1 ? 0.55 : index % 4 === 2 ? 0.95 : 2.1;
+        const position = tracksidePropPosition(track, sample, side, 1.8 + seededUnit(index * 5) * 2.4, radius, 0.8);
+        const x = position.x;
+        const z = position.z;
         if (index % 3 === 1) return <SakuraLantern key={`sakura-lantern-${index}`} position={[x, 0, z]} heading={sample.heading} rain={rain} />;
         if (index % 4 === 2) return <SakuraBanner key={`sakura-banner-${index}`} position={[x, 0.86, z]} heading={sample.heading - side * 0.28} rain={rain} />;
         return <SakuraTree key={`sakura-tree-${index}`} position={[x, 0, z]} seed={index} rain={rain} />;
@@ -1691,9 +1725,14 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
 
 function SakuraTree({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
   const blossom = rain ? "#d98ea5" : "#f2a8bd";
+  const blossomShade = rain ? "#c77d96" : "#ffc1cf";
   const height = 2.3 + seededUnit(seed * 11) * 0.7;
   return (
     <group position={position} rotation={[0, seededUnit(seed * 7) * Math.PI, 0]}>
+      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 3) * Math.PI]} scale={[1.8, 1.05, 1]} receiveShadow>
+        <circleGeometry args={[1, 18]} />
+        <meshBasicMaterial color={blossomShade} transparent opacity={rain ? 0.14 : 0.2} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
       <mesh position={[0, height * 0.46, 0]} castShadow>
         <cylinderGeometry args={[0.14, 0.22, height, 7]} />
         <meshStandardMaterial color="#5d4037" roughness={0.78} />
@@ -1701,11 +1740,13 @@ function SakuraTree({ position, seed, rain }: { position: [number, number, numbe
       {[
         [0, height + 0.25, 0],
         [0.42, height - 0.1, 0.08],
-        [-0.38, height - 0.18, -0.16]
+        [-0.38, height - 0.18, -0.16],
+        [0.12, height + 0.05, -0.52],
+        [-0.1, height + 0.02, 0.5]
       ].map(([x, y, z], index) => (
-        <mesh key={index} position={[x, y, z]} scale={[1.3, 0.82, 1.05]} castShadow>
+        <mesh key={index} position={[x, y, z]} scale={[1.24 - index * 0.04, 0.78, 1.0 - index * 0.03]} castShadow>
           <sphereGeometry args={[0.72, 12, 8]} />
-          <meshStandardMaterial color={blossom} roughness={0.86} />
+          <meshStandardMaterial color={index % 2 === 0 ? blossom : blossomShade} roughness={0.86} />
         </mesh>
       ))}
     </group>
@@ -1749,16 +1790,40 @@ function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
     <group>
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
-        const rightX = Math.sin(sample.heading + Math.PI / 2);
-        const rightZ = Math.cos(sample.heading + Math.PI / 2);
-        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.2 + seededUnit(index * 9) * 3.5;
-        const x = sample.x + rightX * side * offset;
-        const z = sample.z + rightZ * side * offset;
-        return index % 3 === 0
-          ? <AlpineSnowBank key={`snowbank-${index}`} position={[x, 0.14, z]} heading={sample.heading} seed={index} rain={rain} />
-          : <AlpineRock key={`rock-${index}`} position={[x, 0.25, z]} seed={index} rain={rain} />;
+        if (index % 5 === 2) {
+          const position = tracksidePropPosition(track, sample, side, 3.2 + seededUnit(index * 7) * 3.2, 1.8, 0.8);
+          return <AlpinePine key={`pine-${index}`} position={[position.x, 0, position.z]} seed={index} rain={rain} />;
+        }
+        if (index % 3 === 0) {
+          const position = tracksidePropPosition(track, sample, side, 2.5 + seededUnit(index * 9) * 2.8, 3.6, 0.8);
+          return <AlpineSnowBank key={`snowbank-${index}`} position={[position.x, 0.14, position.z]} heading={sample.heading} seed={index} rain={rain} />;
+        }
+        const position = tracksidePropPosition(track, sample, side, 2.8 + seededUnit(index * 9) * 3.4, 2.5, 0.8);
+        return <AlpineRock key={`rock-${index}`} position={[position.x, 0.25, position.z]} seed={index} rain={rain} />;
       })}
       <AlpineBridge sample={bridge} track={track} rain={rain} />
+    </group>
+  );
+}
+
+function AlpinePine({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  const height = 3.0 + seededUnit(seed * 13) * 1.1;
+  return (
+    <group position={position} rotation={[0, seededUnit(seed * 19) * Math.PI, 0]}>
+      <mesh position={[0, height * 0.32, 0]} castShadow>
+        <cylinderGeometry args={[0.1, 0.16, height * 0.64, 7]} />
+        <meshStandardMaterial color="#4b382b" roughness={0.78} />
+      </mesh>
+      {[0, 1, 2].map((layer) => (
+        <mesh key={layer} position={[0, height * (0.52 + layer * 0.16), 0]} castShadow>
+          <coneGeometry args={[1.25 - layer * 0.25, 1.45 - layer * 0.18, 7]} />
+          <meshStandardMaterial color={rain ? "#34433d" : "#2f5139"} roughness={0.9} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 23) * Math.PI]} scale={[1.4, 0.8, 1]} receiveShadow>
+        <circleGeometry args={[1, 16]} />
+        <meshBasicMaterial color={rain ? "#d7dedc" : "#edf1ec"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
@@ -1785,17 +1850,17 @@ function AlpineBridge({ sample, track, rain }: { sample: { x: number; z: number;
   return (
     <group position={[sample.x, 0, sample.z]} rotation={[0, sample.heading, 0]}>
       {[-1, 1].map((side) => (
-        <mesh key={`bridge-wall-${side}`} position={[side * (track.width / 2 + 1.15), 1.0, 0]} castShadow>
+        <mesh key={`bridge-wall-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.7), 1.0, 0]} castShadow>
           <boxGeometry args={[0.55, 2.0, 3.6]} />
           <meshStandardMaterial color={rain ? "#6e7472" : "#8b8d85"} roughness={0.82} />
         </mesh>
       ))}
       <mesh position={[0, 2.35, 0]} castShadow>
-        <boxGeometry args={[track.width + 3.1, 0.42, 3.8]} />
+        <boxGeometry args={[track.width + track.curbWidth * 2 + 2.6, 0.42, 3.8]} />
         <meshStandardMaterial color={rain ? "#747a78" : "#989b91"} roughness={0.84} />
       </mesh>
       <mesh position={[0, 2.72, -1.2]} castShadow>
-        <boxGeometry args={[track.width + 2.2, 0.2, 0.18]} />
+        <boxGeometry args={[track.width + track.curbWidth * 2 + 1.7, 0.2, 0.18]} />
         <meshStandardMaterial color={rain ? "#e2e8e8" : "#f3f5f1"} roughness={0.75} />
       </mesh>
     </group>
@@ -2445,6 +2510,56 @@ function sampleTrackVisuals(track: TrackDef, spacing: number) {
     samples.push({ ...sample, length: end - start });
   }
   return samples;
+}
+
+function tracksidePropPosition(
+  track: TrackDef,
+  sample: { x: number; z: number; heading: number },
+  side: number,
+  extraOffset: number,
+  radius = 0,
+  padding = 0.75
+) {
+  const rightX = Math.sin(sample.heading + Math.PI / 2);
+  const rightZ = Math.cos(sample.heading + Math.PI / 2);
+  const baseOffset = track.width / 2 + track.curbWidth + track.wallMargin + extraOffset + radius;
+  return clearTrackPropPosition(
+    track,
+    {
+      x: sample.x + rightX * side * baseOffset,
+      z: sample.z + rightZ * side * baseOffset
+    },
+    radius,
+    padding
+  );
+}
+
+function clearTrackPropPosition(track: TrackDef, point: { x: number; z: number }, radius = 0, padding = 0.75) {
+  const requiredDistance = track.width / 2 + track.curbWidth + track.wallMargin + radius + padding;
+  let x = point.x;
+  let z = point.z;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const nearest = nearestTrackPoint(track, { x, z });
+    const missing = requiredDistance - nearest.distance;
+    if (missing <= 0) return { x, z };
+
+    let awayX = x - nearest.x;
+    let awayZ = z - nearest.z;
+    const length = Math.hypot(awayX, awayZ);
+    if (length < 0.001) {
+      awayX = Math.sin(nearest.heading + Math.PI / 2);
+      awayZ = Math.cos(nearest.heading + Math.PI / 2);
+    } else {
+      awayX /= length;
+      awayZ /= length;
+    }
+
+    x += awayX * (missing + 0.35);
+    z += awayZ * (missing + 0.35);
+  }
+
+  return { x, z };
 }
 
 function createTrackRibbonGeometry(track: TrackDef, width: number, lateralOffset: number, y: number, spacing: number) {
