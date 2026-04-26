@@ -51,10 +51,14 @@ function DisplayApp() {
       <main className={`landing ${themeClass}`}>
         <section className="hero">
           <div className="hero-copy-wrap">
-            <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
+            <p className="eyebrow">Real sim-racing energy, no rig required.</p>
             <h1>Sim Drive</h1>
             <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
-            <p className="hero-copy">Tilt your phone to steer, work the pedals, and really feel your car: engine sound, tire slip, curb rumble, and rain grip through sound and haptics.</p>
+            <p className="hero-copy">
+              Tilt to steer. Touch to throttle &amp; brake.
+              <br />
+              Feel your car: engine roar, tire slip, curb rumble, and rain grip through sound + haptics.
+            </p>
             <div className="hero-actions">
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
@@ -74,11 +78,11 @@ function DisplayApp() {
             <div className="hero-flow" aria-label="How Sim Drive works">
               <div>
                 <strong>Host screen</strong>
-                <span>Open a room on a TV, laptop, projector, or second browser tab.</span>
+                <span>Host on TV, laptop, projector.</span>
               </div>
               <div>
                 <strong>Phone controllers</strong>
-                <span>Scan the QR. Each player gets tilt steering, touch pedals, fallback buttons, and their own preferences.</span>
+                <span>Scan the QR. Each player gets tilt steering + touch pedals, and can even choose paw hands hehe.</span>
               </div>
               <div>
                 <strong>Race options</strong>
@@ -87,7 +91,7 @@ function DisplayApp() {
             </div>
             <div className="hero-pills" aria-label="Game features">
               <span><Smartphone size={16} /> Phone steering</span>
-              <span><Gauge size={16} /> Sim-lite grip</span>
+              <span><Gauge size={16} /> Sim-like grip</span>
               <span><Gamepad2 size={16} /> Sound + haptics</span>
               <span><Users size={16} /> 1-8 drivers</span>
             </div>
