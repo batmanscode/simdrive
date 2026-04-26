@@ -5,6 +5,8 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 ## Browser Limits
 
 - Audio is generated with Web Audio on the phone controller.
+- Motion steering uses `deviceorientation`, which may require HTTPS on Android Chrome/Chromium. Plain LAN `http://` can leave the app in touch steering fallback even when the API exists.
+- Race touch steering deliberately overrides motion steering while an arrow is held. This prevents partial/noisy sensor events from fighting the fallback controls on mobile browsers.
 - Vibration uses `navigator.vibrate()`.
 - Web vibration can vary pulse duration and patterns, but not reliable motor amplitude/intensity/sharpness like native Android or iOS haptics.
 - iOS Safari does not support web vibration. Android Chromium/Samsung-style browsers are the main target. Firefox Android may expose partial or no-op support.
