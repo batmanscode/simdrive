@@ -6,6 +6,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 
 - Audio is generated with Web Audio on the phone controller.
 - Motion steering uses `deviceorientation`, which may require HTTPS on Android Chrome/Chromium. Plain LAN `http://` can leave the app in touch steering fallback even when the API exists.
+- Race countdown captures a stable median neutral baseline before sending motion steering. If the phone stays portrait, the app asks the player to turn sideways instead of saving a portrait steering center. Race motion steering also re-centers when the phone changes orientation frame.
 - Race touch steering deliberately overrides motion steering while an arrow is held. This prevents partial/noisy sensor events from fighting the fallback controls on mobile browsers.
 - Vibration uses `navigator.vibrate()`.
 - Web vibration can vary pulse duration and patterns, but not reliable motor amplitude/intensity/sharpness like native Android or iOS haptics.
@@ -16,7 +17,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 
 - Start/test cue: short confirmation tone when audio is enabled or tested.
 - Audio test also triggers a small on-screen pulse preview on the phone controller.
-- Countdown: 3/2/1/go beeps after audio is unlocked.
+- Countdown: 5/4/3/2/1/go beeps after audio is unlocked.
 - Engine: persistent tone follows car speed and throttle.
 - Tire: filtered noise follows slip, grass/off-road driving, and curb contact.
 - Brake: tone fades in during braking at speed.

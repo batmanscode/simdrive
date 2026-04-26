@@ -1259,6 +1259,7 @@ input {
 .telemetry,
 .reset-to-track,
 .steer-touch,
+.controller-hints,
 .rotate-warning {
   position: fixed;
   z-index: 5;
@@ -1311,6 +1312,63 @@ input {
   font-size: 19px;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.controller-hints {
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.hint {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.9);
+  color: #101214;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.brake-hint {
+  left: 18px;
+  bottom: 92px;
+}
+
+.brake-hint::after,
+.throttle-hint::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  margin-left: 8px;
+  border-right: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+}
+
+.brake-hint::after {
+  transform: rotate(45deg);
+}
+
+.throttle-hint {
+  right: 18px;
+  bottom: 92px;
+}
+
+.throttle-hint::after {
+  transform: rotate(225deg);
+}
+
+.steer-hint {
+  left: 50%;
+  top: 64px;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .rotate-warning {

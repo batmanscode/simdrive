@@ -15,6 +15,20 @@ const INVERT_MOTION_STEERING_KEY = "sim-drive-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "sim-drive-controller-session";
 const DISPLAY_THEME_KEY = "sim-drive-display-theme";
+const MOTION_NEUTRAL_SAMPLE_MS = 320;
+const MOTION_NEUTRAL_MAX_SAMPLE_MS = 900;
+const MOTION_NEUTRAL_MIN_SAMPLES = 5;
+const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
+const MOTION_STEERING_DEADZONE = 0.06;
+const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
+
+type MotionCalibration = {
+  frame: string;
+  neutral: number;
+  capturedAt: number;
+};
+
+let latestMotionCalibration: MotionCalibration | undefined;
 
 type DisplayThemeMode = "system" | "light" | "dark";
 
@@ -269,12 +283,12 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
 }
 
 function StartLights({ countdown }: { countdown: number | string }) {
-  const lit = typeof countdown === "number" ? clamp(4 - countdown, 0, 3) : 3;
   const isGo = countdown === 0 || countdown === "GO";
+  const lit = isGo ? 5 : typeof countdown === "number" ? clamp(6 - countdown, 0, 5) : 5;
   return (
     <div className="start-lights" aria-label="Race countdown">
       <div>
-        {[0, 1, 2].map((index) => <span key={index} className={index < lit ? `lit${isGo ? " go" : ""}` : undefined} />)}
+        {[0, 1, 2, 3, 4].map((index) => <span key={index} className={index < lit ? `lit${isGo ? " go" : ""}` : undefined} />)}
       </div>
       <strong>{countdown || "GO"}</strong>
     </div>
@@ -530,13 +544,23 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const settings = room?.settings;
 
+  const prepareToDrive = async () => {
+    if (audioEnabled) unlockControllerAudio();
+    const motion = await enableControllerDevice();
+    setMotionEnabled(motion.enabled);
+    setMotionStatus(motion.message);
+    return true;
+  };
+
   useEffect(() => {
     const neutral = { current: undefined as number | undefined };
     const onOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta === null && event.gamma === null) return;
-      const raw = readSteeringTilt(event, getScreenAngle());
-      neutral.current ??= raw;
-      setMotionLevel(clamp(((raw - neutral.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1));
+      const angle = getScreenAngle();
+      const raw = readSteeringTilt(event, angle);
+      const calibration = readMotionCalibration(motionOrientationFrameKey(angle));
+      neutral.current = calibration?.neutral ?? neutral.current ?? raw;
+      setMotionLevel(steeringFromTilt(raw, neutral.current, steeringSensitivity, motionSteeringDirection));
       setMotionStatus("Motion live");
     };
     window.addEventListener("deviceorientation", onOrientation);
@@ -634,9 +658,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
           <small className="phone-note">Reset mode respawns crashes. Off-track reset appears after 5 seconds in the grass.</small>
           <button
             className="primary"
-            onClick={() => {
-              if (audioEnabled) unlockControllerAudio();
-              void requestLandscape();
+            onClick={async () => {
+              if (!(await prepareToDrive())) return;
               send({ type: "vip_start_race" });
             }}
           >
@@ -648,9 +671,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
         <>
           <button
             className="primary ready-button"
-            onClick={() => {
-              if (audioEnabled) unlockControllerAudio();
-              void requestLandscape();
+            onClick={async () => {
+              if (!(await prepareToDrive())) return;
               send({ type: "set_ready", ready: !player?.isReady });
             }}
           >
@@ -807,16 +829,18 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 }
 
 function RaceController({ send, feedback, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; room: RoomState; playerId: string }) {
+  const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
   const [steerUi, setSteerUi] = useState(0);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
-  const [motionStatus, setMotionStatus] = useState(motionInitialStatus());
+  const [motionStatus, setMotionStatus] = useState(initialMotionCalibrationRef.current ? "Motion steering" : motionInitialStatus());
   const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
   const steerRef = useRef(0);
   const hasMotionRef = useRef(false);
-  const lastRawSteerRef = useRef(0);
-  const lastOrientationAngleRef = useRef(getScreenAngle());
+  const lastRawSteerRef = useRef(initialMotionCalibrationRef.current?.neutral ?? 0);
+  const lastOrientationFrameRef = useRef(initialMotionCalibrationRef.current?.frame ?? motionOrientationFrameKey());
+  const neutralCaptureRef = useRef<{ startedAt: number; samples: number[] } | undefined>(undefined);
   const seqRef = useRef(0);
   const lastHapticAtRef = useRef(0);
   const pedalsRef = useRef(pedals);
@@ -824,7 +848,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
-  const neutralRef = useRef<number | undefined>(undefined);
+  const neutralRef = useRef<number | undefined>(initialMotionCalibrationRef.current?.neutral);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
   const brakeStart = readStoredNumber("sim-drive-brake-start", 0);
   const throttleStart = readStoredNumber("sim-drive-throttle-start", 0);
@@ -841,16 +865,47 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
     const onOrientation = (event: DeviceOrientationEvent) => {
       if (event.beta === null && event.gamma === null) return;
       hasMotionRef.current = true;
-      setMotionStatus("Motion steering");
+      if (!phoneIsLandscape()) {
+        neutralRef.current = undefined;
+        neutralCaptureRef.current = undefined;
+        steerRef.current = 0;
+        setSteerUi(0);
+        setMotionStatus("Turn phone sideways");
+        return;
+      }
       const angle = getScreenAngle();
       const raw = readSteeringTilt(event, angle);
-      if (angle !== lastOrientationAngleRef.current) {
-        neutralRef.current = raw;
-        lastOrientationAngleRef.current = angle;
+      const orientationFrame = motionOrientationFrameKey(angle);
+      if (orientationFrame !== lastOrientationFrameRef.current) {
+        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+        neutralCaptureRef.current = undefined;
+        steerRef.current = 0;
+        setSteerUi(0);
+        lastOrientationFrameRef.current = orientationFrame;
       }
       lastRawSteerRef.current = raw;
-      if (neutralRef.current === undefined) neutralRef.current = raw;
-      steerRef.current = clamp(((raw - neutralRef.current) / 28) * steeringSensitivity * motionSteeringDirection, -1, 1);
+      if (neutralRef.current === undefined) {
+        const now = performance.now();
+        const capture = neutralCaptureRef.current ?? { startedAt: now, samples: [] };
+        capture.samples.push(raw);
+        if (capture.samples.length > 12) capture.samples.shift();
+        neutralCaptureRef.current = capture;
+        steerRef.current = 0;
+        setMotionStatus("Hold steady, centering :D");
+        const elapsed = now - capture.startedAt;
+        const stable = motionSamplesStable(capture.samples);
+        if ((capture.samples.length >= MOTION_NEUTRAL_MIN_SAMPLES && elapsed >= MOTION_NEUTRAL_SAMPLE_MS && stable) || elapsed >= MOTION_NEUTRAL_MAX_SAMPLE_MS) {
+          neutralRef.current = median(capture.samples);
+          writeMotionCalibration({ frame: orientationFrame, neutral: neutralRef.current, capturedAt: Date.now() });
+          neutralCaptureRef.current = undefined;
+          setMotionStatus("Motion steering");
+        }
+        return;
+      }
+      const targetSteer = steeringFromTilt(raw, neutralRef.current, steeringSensitivity, motionSteeringDirection);
+      steerRef.current = THREE.MathUtils.lerp(steerRef.current, targetSteer, 0.42);
+      if (Math.abs(steerRef.current) < 0.01) steerRef.current = 0;
+      setMotionStatus("Motion steering");
     };
     window.addEventListener("deviceorientation", onOrientation);
     return () => window.removeEventListener("deviceorientation", onOrientation);
@@ -904,6 +959,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
 
   const calibrate = () => {
     neutralRef.current = lastRawSteerRef.current;
+    writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
+    neutralCaptureRef.current = undefined;
     steerRef.current = 0;
     setSteerUi(0);
     setCalibrationLabel("Straight set");
@@ -956,6 +1013,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
           Reset to track
         </button>
       )}
+      {room.phase === "countdown" && <ControllerCountdownHints motionStatus={motionStatus} />}
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
@@ -964,6 +1022,21 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
         <button onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
+  );
+}
+
+function ControllerCountdownHints({ motionStatus }: { motionStatus: string }) {
+  const steerHint = motionStatus === "Turn phone sideways"
+    ? "Turn phone sideways"
+    : motionStatus === "Hold steady, centering :D"
+      ? "Hold steady, centering :D"
+      : "Hold straight to center";
+  return (
+    <div className="controller-hints" aria-live="polite">
+      <span className="hint brake-hint">Brake: slide down</span>
+      <span className="hint throttle-hint">Throttle: slide up</span>
+      <span className="hint steer-hint">{steerHint}</span>
+    </div>
   );
 }
 
@@ -2356,6 +2429,10 @@ async function enableControllerDevice() {
   return motion;
 }
 
+function phoneIsLandscape() {
+  return window.innerWidth > window.innerHeight;
+}
+
 async function requestMotion() {
   if (!sensorSupported()) {
     return { enabled: false, message: "Motion unavailable in this browser" };
@@ -2427,11 +2504,27 @@ function getScreenAngle() {
   return screen.orientation?.angle ?? legacyWindow.orientation ?? 0;
 }
 
+function motionOrientationFrameKey(angle = getScreenAngle()) {
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  return `${normalizedAngle}:${phoneIsLandscape() ? "landscape" : "portrait"}`;
+}
+
+function readMotionCalibration(frame = motionOrientationFrameKey()) {
+  if (!latestMotionCalibration) return undefined;
+  if (latestMotionCalibration.frame !== frame) return undefined;
+  if (Date.now() - latestMotionCalibration.capturedAt > MOTION_CALIBRATION_MAX_AGE_MS) return undefined;
+  return latestMotionCalibration;
+}
+
+function writeMotionCalibration(calibration: MotionCalibration) {
+  latestMotionCalibration = calibration;
+}
+
 function readSteeringTilt(event: DeviceOrientationEvent, angle: number) {
   const beta = event.beta ?? 0;
   const gamma = event.gamma ?? 0;
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  const isLandscape = window.innerWidth > window.innerHeight;
+  const isLandscape = phoneIsLandscape();
 
   if (isLandscape && normalizedAngle === 270) return beta;
   if (isLandscape) return -beta;
@@ -2439,6 +2532,24 @@ function readSteeringTilt(event: DeviceOrientationEvent, angle: number) {
   if (normalizedAngle === 270) return -beta;
   if (normalizedAngle === 180) return -gamma;
   return gamma;
+}
+
+function steeringFromTilt(raw: number, neutral: number, sensitivity: number, direction: number) {
+  const value = clamp(((raw - neutral) / 28) * sensitivity * direction, -1, 1);
+  const magnitude = Math.abs(value);
+  if (magnitude < MOTION_STEERING_DEADZONE) return 0;
+  return Math.sign(value) * ((magnitude - MOTION_STEERING_DEADZONE) / (1 - MOTION_STEERING_DEADZONE));
+}
+
+function motionSamplesStable(values: number[]) {
+  if (values.length < MOTION_NEUTRAL_MIN_SAMPLES) return false;
+  return Math.max(...values) - Math.min(...values) <= MOTION_NEUTRAL_MAX_SPREAD;
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
 }
 
 type ControllerAudio = {
@@ -2583,7 +2694,7 @@ function updateCountdownAudio(audio: ControllerAudio, room: RoomState) {
     return;
   }
   const remaining = Math.max(0, room.countdownEndsAt - Date.now());
-  const mark = remaining > 2200 ? 3 : remaining > 1200 ? 2 : remaining > 220 ? 1 : "go";
+  const mark = remaining > 220 ? Math.ceil(remaining / 1000) : "go";
   if (audio.lastCountdownMark === mark) return;
   audio.lastCountdownMark = mark;
   playCue(audio, mark === "go" ? "go" : "countdown");

@@ -12,6 +12,10 @@ Things that need real-device playtesting before we trust the tuning.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.
 - Test motion steering from a secure phone URL. Android Chrome/Chromium may not deliver device orientation over plain LAN `http://` URLs.
 - Test motion steering direction. If the browser/device reports landscape orientation with the opposite sign, the saved invert-motion-steering toggle should make the motion test meter and race steering match the physical tilt direction.
+- Test race countdown while the phone is still portrait: the phone should ask to turn sideways instead of saving a portrait steering center.
+- Test race countdown while holding the phone straight in landscape: the phone should briefly show `Hold steady, centering :D`.
+- Test race start without pressing `Calibrate`: holding the phone straight during the countdown should keep steering centered after the race controller appears.
+- Rotate or orientation-lock the phone as the race starts: steering should briefly center itself instead of latching a hard left/right input.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.
 - Test the 1-10 phone motion sensitivity control: default level 6 should feel slightly tighter than the original steering, and the range should cover both relaxed and sensitive steering.
