@@ -11,6 +11,7 @@ import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettin
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
+const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
 const DISPLAY_THEME_KEY = "drive-sim-display-theme";
 
@@ -69,7 +70,7 @@ function DisplayApp() {
   }
 
   if (game.room.phase === "racing" || game.room.phase === "countdown") {
-    return <RaceDisplay room={game.room} displayGroupId={game.displayGroupId} />;
+    return <RaceDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
   }
 
   if (game.room.phase === "results") {
@@ -230,14 +231,25 @@ function PlayerGrid({ room }: { room: RoomState }) {
   );
 }
 
-function RaceDisplay({ room, displayGroupId }: { room: RoomState; displayGroupId?: string }) {
+function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const localPlayers = room.players.filter((player) => player.displayGroupId === displayGroupId);
   const panes = (localPlayers.length ? localPlayers : room.players).slice(0, 4);
   const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000)) : 0;
   const className = `race-grid panes-${Math.max(1, panes.length)}`;
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") send({ type: "display_return_lobby" });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [send]);
+
   return (
     <main className="race-screen">
+      <button className="race-exit" onClick={() => send({ type: "display_return_lobby" })}>
+        <RotateCcw size={18} /> Exit Race
+      </button>
       <div className={className}>
         {panes.map((player) => (
           <div className="race-pane" key={player.id}>
@@ -496,7 +508,7 @@ function ControllerApp() {
 
 function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
-  const [motionStatus, setMotionStatus] = useState(sensorSupported() ? "Motion ready" : "Motion unavailable");
+  const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
   const [audioEnabled, setAudioEnabled] = useStoredBoolean("drive-sim-audio-enabled", true);
   const [audioStatus, setAudioStatus] = useState(audioEnabled ? "Audio on" : "Audio off");
@@ -582,7 +594,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <button
         className="secondary"
         onClick={() => {
-          const result = pulseHaptic([35, 30, 55]);
+          const result = pulseHaptic(HAPTIC_TEST_PATTERN);
           setHapticStatus(hapticResultMessage(result));
           setFeelTest((current) => ({ id: current.id + 1, label: "Haptic pulse" }));
         }}
@@ -609,7 +621,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
           <Toggle label="Gentle assist" value={settings.stabilityAssist} onChange={(stabilityAssist) => send({ type: "vip_set_settings", settings: { stabilityAssist } })} />
           <small className="phone-note">Gentle assist softly aligns the car toward the road direction so steering is more forgiving.</small>
           <Toggle label="Reset mode" value={settings.resetEnabled} onChange={(resetEnabled) => send({ type: "vip_set_settings", settings: { resetEnabled } })} />
-          <small className="phone-note">Reset mode respawns crashes and enables off-track resets. Default crash-out kicks crashed players; it's more fun to kick players who crash ;)</small>
+          <small className="phone-note">Reset mode respawns crashes. Off-track reset appears after 5 seconds in the grass.</small>
           <button
             className="primary"
             onClick={() => {
@@ -789,7 +801,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const [touchSteer, setTouchSteer] = useState(0);
   const [steerUi, setSteerUi] = useState(0);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
-  const [motionStatus, setMotionStatus] = useState(sensorSupported() ? "Motion waiting" : "Touch steering");
+  const [motionStatus, setMotionStatus] = useState(motionInitialStatus());
   const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
   const steerRef = useRef(0);
   const hasMotionRef = useRef(false);
@@ -801,6 +813,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const feedbackRef = useRef(feedback);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
+  const touchSteerOverrideUntilRef = useRef(0);
   const neutralRef = useRef<number | undefined>(undefined);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
   const brakeStart = readStoredNumber("drive-sim-brake-start", 0);
@@ -809,7 +822,7 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
   const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
   const car = room.cars.find((item) => item.playerId === playerId);
-  const resetAvailable = room.settings.resetEnabled && Boolean(car?.resetAvailable);
+  const resetAvailable = Boolean(car?.resetAvailable);
 
   useEffect(() => {
     void requestLandscape();
@@ -863,7 +876,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
     const timer = window.setInterval(() => {
       const activeFeedback = feedbackRef.current;
       const activePedals = pedalsRef.current;
-      const steer = hasMotionRef.current && Math.abs(steerRef.current) > 0.03 ? steerRef.current : touchSteerRef.current;
+      const touchActive = Math.abs(touchSteerRef.current) > 0.03 || performance.now() < touchSteerOverrideUntilRef.current;
+      const steer = touchActive ? touchSteerRef.current : hasMotionRef.current && Math.abs(steerRef.current) > 0.03 ? steerRef.current : 0;
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
@@ -884,6 +898,11 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
     window.setTimeout(() => setCalibrationLabel("Calibrate"), 1200);
   };
 
+  const setTouchSteering = (value: number) => {
+    touchSteerOverrideUntilRef.current = performance.now() + (value === 0 ? 140 : 1200);
+    setTouchSteer(value);
+  };
+
   return (
     <main
       className="phone race-controller"
@@ -901,11 +920,17 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <div className="telemetry">
         <span>{Math.round(speedToKmh(car?.speed ?? 0))} km/h</span>
         <span>{car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
-        <span>{motionStatus}</span>
         <button
           onClick={() => {
-            const result = pulseHaptic([35, 30, 55]);
-            setHapticStatus(hapticResultMessage(result));
+            enableControllerDevice().then((result) => setMotionStatus(result.message));
+          }}
+        >
+          {motionStatus}
+        </button>
+        <button
+          onClick={() => {
+            const result = pulseHaptic(HAPTIC_TEST_PATTERN);
+            setHapticStatus(hapticResultMessage(result, "compact"));
           }}
         >
           {hapticStatus}
@@ -919,9 +944,9 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
-        <button onPointerDown={() => setTouchSteer(-1)} onPointerUp={() => setTouchSteer(0)}><ArrowLeft /></button>
+        <button onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
         <div className="tilt-meter"><span style={{ transform: `translateX(${(steerUi || touchSteer) * 42}px)` }} /></div>
-        <button onPointerDown={() => setTouchSteer(1)} onPointerUp={() => setTouchSteer(0)}><ArrowRight /></button>
+        <button onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -2219,6 +2244,9 @@ async function requestMotion() {
   if (!sensorSupported()) {
     return { enabled: false, message: "Motion unavailable in this browser" };
   }
+  if (!motionContextAllowed()) {
+    return { enabled: false, message: "Motion needs HTTPS on this phone" };
+  }
   const orientation = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<PermissionState> };
   if (typeof orientation.requestPermission === "function") {
     const permission = await orientation.requestPermission();
@@ -2230,8 +2258,24 @@ async function requestMotion() {
   return { enabled: true, message: "Motion ready" };
 }
 
+function motionInitialStatus() {
+  if (!sensorSupported()) return "Touch steering";
+  if (!motionContextAllowed()) return "Motion needs HTTPS";
+  return "Motion waiting";
+}
+
+function motionLobbyStatus() {
+  if (!sensorSupported()) return "Motion unavailable";
+  if (!motionContextAllowed()) return "Motion needs HTTPS on this phone";
+  return "Motion ready";
+}
+
 function sensorSupported() {
   return typeof window !== "undefined" && "DeviceOrientationEvent" in window;
+}
+
+function motionContextAllowed() {
+  return typeof window !== "undefined" && window.isSecureContext;
 }
 
 async function requestLandscape() {
@@ -2464,6 +2508,7 @@ function hapticSupportMessage() {
   if (!hapticsSupported()) return "No Vibration API in this browser";
   if (isFirefox()) return "Limited in Firefox; test on this phone";
   if (isIOS()) return "iOS Safari does not support web vibration";
+  if (isAndroid()) return "Haptics ready. Test on this phone.";
   return "Haptics ready";
 }
 
@@ -2473,11 +2518,12 @@ function hapticShortStatus() {
   return "Haptics on";
 }
 
-function hapticResultMessage(result: boolean) {
+function hapticResultMessage(result: boolean, detail: "detail" | "compact" = "detail") {
   if (!hapticsSupported()) return "No Vibration API";
   if (!result) return "Vibration blocked";
-  if (isFirefox()) return "Pulse requested";
-  return "Pulse sent";
+  if (detail === "compact") return "Pulse requested";
+  if (isAndroid()) return "Pulse requested. If no buzz, check Silent/DND, power saving, and touch vibration.";
+  return "Pulse requested";
 }
 
 function pulseHaptic(pattern: number | number[]) {
@@ -2491,6 +2537,10 @@ function stopHaptics() {
 
 function isFirefox() {
   return typeof navigator !== "undefined" && /firefox|fennec|fxios/i.test(navigator.userAgent);
+}
+
+function isAndroid() {
+  return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
 function isIOS() {

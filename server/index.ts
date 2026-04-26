@@ -224,7 +224,7 @@ function handleMessage(client: Client, message: ClientMessage) {
   if (message.type === "request_reset") {
     const player = getClientPlayer(client, room);
     const car = player ? room.cars.get(player.id) : undefined;
-    if (!player || !car || !room.raceStartedAt || room.phase !== "racing" || !room.settings.resetEnabled) return;
+    if (!player || !car || !room.raceStartedAt || room.phase !== "racing") return;
     if (!car.resetAvailable || car.finished || car.crashed || car.dnf) return;
     resetCarToTrack(car, TRACKS[room.settings.trackId], (Date.now() - room.raceStartedAt) / 1000);
     broadcastRealtime(room);
@@ -361,7 +361,7 @@ function tickRoom(room: Room, dt: number) {
       ? room.inputs.get(car.playerId) ?? emptyInput
       : { ...emptyInput, brake: 0.35 };
     stepCar(car, input, track, room.settings, dt, raceTime);
-    updateResetAvailability(car, room.settings, raceTime);
+    updateResetAvailability(car, raceTime);
   }
   resolveCarContacts([...room.cars.values()], room.settings);
   if (room.settings.resetEnabled) {
@@ -425,8 +425,8 @@ function collectResults(room: Room) {
   }
 }
 
-function updateResetAvailability(car: CarState, settings: RaceSettings, raceTime: number) {
-  if (!settings.resetEnabled || car.finished || car.crashed || car.dnf) {
+function updateResetAvailability(car: CarState, raceTime: number) {
+  if (car.finished || car.crashed || car.dnf) {
     car.resetAvailable = false;
     car.offTrackSince = undefined;
     return;

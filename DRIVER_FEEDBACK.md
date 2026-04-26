@@ -5,9 +5,12 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 ## Browser Limits
 
 - Audio is generated with Web Audio on the phone controller.
+- Motion steering uses `deviceorientation`, which may require HTTPS on Android Chrome/Chromium. Plain LAN `http://` can leave the app in touch steering fallback even when the API exists.
+- Race touch steering deliberately overrides motion steering while an arrow is held. This prevents partial/noisy sensor events from fighting the fallback controls on mobile browsers.
 - Vibration uses `navigator.vibrate()`.
 - Web vibration can vary pulse duration and patterns, but not reliable motor amplitude/intensity/sharpness like native Android or iOS haptics.
 - iOS Safari does not support web vibration. Android Chromium/Samsung-style browsers are the main target. Firefox Android may expose partial or no-op support.
+- Android Chrome/Samsung browsers can expose the API and return success while the phone suppresses the motor. Check Silent mode, Do Not Disturb, power saving, and the Android/Samsung touch vibration or system haptics settings when the app says a pulse was requested but nothing is felt.
 
 ## Audio
 
@@ -25,7 +28,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 
 Speed thresholds below use the same km/h scale shown on the in-game speedometer.
 
-- Test pulse: `[35, 30, 55]`.
+- Test pulse: `[120, 60, 180]`.
 - Haptic test also triggers a small on-screen pulse preview on the phone controller.
 - Impact: one pulse, roughly `45-140ms` depending on impact strength.
 - Hard braking: `[18, 24, 18]` when braking hard above about `35 km/h`.

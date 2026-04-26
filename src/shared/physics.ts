@@ -180,13 +180,21 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   if (newSurface === "wall") {
     const snap = nearestAfter;
     const maxDistance = track.width / 2 + track.curbWidth + track.wallMargin;
+    const settledDistance = Math.max(track.width / 2 + track.curbWidth, maxDistance - 0.35);
     const dx = car.x - snap.x;
     const dz = car.z - snap.z;
     const dist = Math.max(0.001, Math.hypot(dx, dz));
-    car.x = snap.x + (dx / dist) * maxDistance;
-    car.z = snap.z + (dz / dist) * maxDistance;
-    car.velocityX *= 0.22;
-    car.velocityZ *= 0.22;
+    const normalX = dx / dist;
+    const normalZ = dz / dist;
+    const outwardSpeed = car.velocityX * normalX + car.velocityZ * normalZ;
+    car.x = snap.x + normalX * settledDistance;
+    car.z = snap.z + normalZ * settledDistance;
+    if (outwardSpeed > 0) {
+      car.velocityX -= normalX * outwardSpeed * 0.65;
+      car.velocityZ -= normalZ * outwardSpeed * 0.65;
+    }
+    car.velocityX *= 0.24;
+    car.velocityZ *= 0.24;
     car.speed = Math.hypot(car.velocityX, car.velocityZ);
     car.heading = snap.heading;
     car.impact = 1;
