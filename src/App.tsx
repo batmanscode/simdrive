@@ -1268,10 +1268,11 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[35, -0.05, 45]} receiveShadow>
         <planeGeometry args={[260, 240]} />
-        <meshStandardMaterial color={rain ? "#516056" : "#5a7e48"} roughness={0.95} />
+        <meshStandardMaterial color={rain ? "#3e4d45" : "#5a7e48"} roughness={0.95} />
       </mesh>
+      <TrackTerrain track={track} rain={rain} />
       <mesh geometry={runoffGeometry} receiveShadow>
-        <meshStandardMaterial color={rain ? "#59625d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={rain ? "#46524d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
         <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
@@ -1286,6 +1287,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
         <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <AsphaltDetails track={track} rain={rain} />
+      {rain && <RainPuddles track={track} />}
       <mesh geometry={leftCurbGeometry}>
         <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
       </mesh>
@@ -1321,6 +1323,62 @@ type AsphaltPatch = {
   length: number;
   opacity: number;
 };
+
+function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, track.id === "alpine" ? 36 : 26), [track]);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        if (index % 2 === 1) return null;
+        const side = index % 4 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.5 + seededUnit(index + track.id.length) * 4;
+        const scaleX = track.id === "alpine" ? 6.5 : 4.8;
+        const scaleZ = track.id === "alpine" ? 2.2 : 1.4;
+        const height = track.id === "alpine" ? 0.72 + seededUnit(index * 3) * 0.65 : 0.18 + seededUnit(index * 3) * 0.18;
+        return (
+          <mesh
+            key={`bank-${index}`}
+            position={[sample.x + rightX * side * offset, height * 0.34 - 0.06, sample.z + rightZ * side * offset]}
+            rotation={[0, sample.heading + seededUnit(index * 7) * 0.8, 0]}
+            scale={[scaleX, height, scaleZ]}
+            receiveShadow
+          >
+            <sphereGeometry args={[1, 12, 6]} />
+            <meshStandardMaterial color={track.id === "alpine" ? (rain ? "#59605b" : "#74806c") : (rain ? "#4a5b4f" : "#78965d")} roughness={0.96} />
+          </mesh>
+        );
+      })}
+      {track.id === "alpine" ? <AlpineBackdrop rain={rain} /> : <SakuraGroundAccents rain={rain} />}
+    </group>
+  );
+}
+
+function RainPuddles({ track }: { track: TrackDef }) {
+  const puddles = useMemo(() => sampleTrackVisuals(track, 18).filter((_, index) => index % 3 === 0), [track]);
+  return (
+    <group>
+      {puddles.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const lateral = side * (track.width * (0.22 + seededUnit(index * 5) * 0.22));
+        return (
+          <mesh
+            key={`puddle-${index}`}
+            position={[sample.x + rightX * lateral, 0.088, sample.z + rightZ * lateral]}
+            rotation={[-Math.PI / 2, 0, -sample.heading + seededUnit(index * 11) * 0.5]}
+            scale={[0.65 + seededUnit(index * 13) * 0.8, 0.28 + seededUnit(index * 17) * 0.32, 1]}
+          >
+            <circleGeometry args={[1, 20]} />
+            <meshBasicMaterial color="#9bc8d8" transparent opacity={0.16} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
 
 function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
   const patches = useMemo<AsphaltPatch[]>(() => {
@@ -1439,6 +1497,24 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           <boxGeometry args={[track.width + 6, 0.26, 0.26]} />
           <meshStandardMaterial color="#20242a" roughness={0.5} />
         </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + 1.4), 2.05, -1.3]} castShadow>
+            <boxGeometry args={[0.42, 4.1, 0.42]} />
+            <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
+          </mesh>
+        ))}
+        <mesh position={[0, 3.55, -1.08]} castShadow>
+          <boxGeometry args={[6.2, 0.72, 0.18]} />
+          <meshStandardMaterial color="#fffaf0" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 3.55, -0.96]}>
+          <boxGeometry args={[5.55, 0.18, 0.04]} />
+          <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+        </mesh>
+        <mesh position={[0, 3.26, -0.96]}>
+          <boxGeometry args={[5.55, 0.18, 0.04]} />
+          <meshStandardMaterial color="#e84f5f" roughness={0.42} />
+        </mesh>
         {[-2.4, 0, 2.4].map((x, index) => (
           <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
             <sphereGeometry args={[0.28, 16, 16]} />
@@ -1528,9 +1604,191 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           </mesh>
         </>
       )}
+      <TrackIdentityProps track={track} rain={rain} />
     </group>
   );
 });
+
+function SakuraGroundAccents({ rain }: { rain: boolean }) {
+  const patches = [
+    { x: 24, z: 67, s: 1.4 },
+    { x: -18, z: 45, s: 1.0 },
+    { x: 54, z: 33, s: 0.9 },
+    { x: 2, z: -8, s: 1.2 }
+  ];
+  return (
+    <group>
+      {patches.map((patch, index) => (
+        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, 0.01, patch.z]} rotation={[-Math.PI / 2, 0, seededUnit(index * 13) * Math.PI]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
+          <circleGeometry args={[1, 22]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function AlpineBackdrop({ rain }: { rain: boolean }) {
+  const mountains = [
+    { x: -78, z: 120, h: 22, r: 18 },
+    { x: -42, z: 138, h: 28, r: 24 },
+    { x: 18, z: 135, h: 20, r: 18 },
+    { x: 92, z: 122, h: 30, r: 26 },
+    { x: 142, z: 72, h: 24, r: 22 }
+  ];
+  return (
+    <group>
+      {mountains.map((mountain, index) => (
+        <group key={`mountain-${index}`} position={[mountain.x, mountain.h / 2 - 0.2, mountain.z]} rotation={[0, seededUnit(index * 17) * 0.8, 0]}>
+          <mesh>
+            <coneGeometry args={[mountain.r, mountain.h, 5]} />
+            <meshStandardMaterial color={rain ? "#707975" : "#7f8877"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, mountain.h * 0.28, 0]}>
+            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 5]} />
+            <meshStandardMaterial color={rain ? "#e5e8e8" : "#f4f6f2"} roughness={0.86} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function TrackIdentityProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return track.id === "sakura" ? <SakuraProps track={track} rain={rain} /> : <AlpineProps track={track} rain={rain} />;
+}
+
+function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 23), [track]);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 1.8 + seededUnit(index * 5) * 2.4;
+        const x = sample.x + rightX * side * offset;
+        const z = sample.z + rightZ * side * offset;
+        if (index % 3 === 1) return <SakuraLantern key={`sakura-lantern-${index}`} position={[x, 0, z]} heading={sample.heading} rain={rain} />;
+        if (index % 4 === 2) return <SakuraBanner key={`sakura-banner-${index}`} position={[x, 0.86, z]} heading={sample.heading - side * 0.28} rain={rain} />;
+        return <SakuraTree key={`sakura-tree-${index}`} position={[x, 0, z]} seed={index} rain={rain} />;
+      })}
+    </group>
+  );
+}
+
+function SakuraTree({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  const blossom = rain ? "#d98ea5" : "#f2a8bd";
+  const height = 2.3 + seededUnit(seed * 11) * 0.7;
+  return (
+    <group position={position} rotation={[0, seededUnit(seed * 7) * Math.PI, 0]}>
+      <mesh position={[0, height * 0.46, 0]} castShadow>
+        <cylinderGeometry args={[0.14, 0.22, height, 7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.78} />
+      </mesh>
+      {[
+        [0, height + 0.25, 0],
+        [0.42, height - 0.1, 0.08],
+        [-0.38, height - 0.18, -0.16]
+      ].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} scale={[1.3, 0.82, 1.05]} castShadow>
+          <sphereGeometry args={[0.72, 12, 8]} />
+          <meshStandardMaterial color={blossom} roughness={0.86} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function SakuraLantern({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.07, 1.8, 8]} />
+        <meshStandardMaterial color="#272322" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 1.7, 0.08]} castShadow>
+        <boxGeometry args={[0.42, 0.36, 0.32]} />
+        <meshStandardMaterial color={rain ? "#e6bca8" : "#ffd6b0"} emissive="#6b2518" emissiveIntensity={rain ? 0.6 : 0.35} roughness={0.62} />
+      </mesh>
+    </group>
+  );
+}
+
+function SakuraBanner({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1.5, 0.62, 0.08]} />
+        <meshStandardMaterial color={rain ? "#cf8fa0" : "#f2a8bd"} roughness={0.72} />
+      </mesh>
+      <mesh position={[0, -0.56, 0]}>
+        <boxGeometry args={[0.08, 1.1, 0.08]} />
+        <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 31), [track]);
+  const bridge = sampleTrack(track, trackMetrics(track).totalLength * 0.68);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        const side = index % 2 === 0 ? -1 : 1;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin + 2.2 + seededUnit(index * 9) * 3.5;
+        const x = sample.x + rightX * side * offset;
+        const z = sample.z + rightZ * side * offset;
+        return index % 3 === 0
+          ? <AlpineSnowBank key={`snowbank-${index}`} position={[x, 0.14, z]} heading={sample.heading} seed={index} rain={rain} />
+          : <AlpineRock key={`rock-${index}`} position={[x, 0.25, z]} seed={index} rain={rain} />;
+      })}
+      <AlpineBridge sample={bridge} track={track} rain={rain} />
+    </group>
+  );
+}
+
+function AlpineRock({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  return (
+    <mesh position={position} rotation={[0, seededUnit(seed * 17) * Math.PI, 0]} scale={[0.9 + seededUnit(seed) * 1.4, 0.42 + seededUnit(seed * 3) * 0.55, 0.75 + seededUnit(seed * 5) * 1.3]} castShadow>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color={rain ? "#6f7775" : "#7c8177"} roughness={0.95} />
+    </mesh>
+  );
+}
+
+function AlpineSnowBank({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <mesh position={position} rotation={[0, heading + seededUnit(seed) * 0.5, 0]} scale={[2.2 + seededUnit(seed * 3) * 1.3, 0.22, 0.9 + seededUnit(seed * 5) * 0.5]} receiveShadow>
+      <sphereGeometry args={[1, 12, 6]} />
+      <meshStandardMaterial color={rain ? "#c9d1d0" : "#eef1f2"} roughness={0.9} />
+    </mesh>
+  );
+}
+
+function AlpineBridge({ sample, track, rain }: { sample: { x: number; z: number; heading: number }; track: TrackDef; rain: boolean }) {
+  return (
+    <group position={[sample.x, 0, sample.z]} rotation={[0, sample.heading, 0]}>
+      {[-1, 1].map((side) => (
+        <mesh key={`bridge-wall-${side}`} position={[side * (track.width / 2 + 1.15), 1.0, 0]} castShadow>
+          <boxGeometry args={[0.55, 2.0, 3.6]} />
+          <meshStandardMaterial color={rain ? "#6e7472" : "#8b8d85"} roughness={0.82} />
+        </mesh>
+      ))}
+      <mesh position={[0, 2.35, 0]} castShadow>
+        <boxGeometry args={[track.width + 3.1, 0.42, 3.8]} />
+        <meshStandardMaterial color={rain ? "#747a78" : "#989b91"} roughness={0.84} />
+      </mesh>
+      <mesh position={[0, 2.72, -1.2]} castShadow>
+        <boxGeometry args={[track.width + 2.2, 0.2, 0.18]} />
+        <meshStandardMaterial color={rain ? "#e2e8e8" : "#f3f5f1"} roughness={0.75} />
+      </mesh>
+    </group>
+  );
+}
 
 function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }) {
   const group = useRef<THREE.Group>(null);
