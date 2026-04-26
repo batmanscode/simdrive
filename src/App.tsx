@@ -11,6 +11,7 @@ import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettin
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
+const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
 const DISPLAY_THEME_KEY = "drive-sim-display-theme";
 
@@ -582,7 +583,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <button
         className="secondary"
         onClick={() => {
-          const result = pulseHaptic([35, 30, 55]);
+          const result = pulseHaptic(HAPTIC_TEST_PATTERN);
           setHapticStatus(hapticResultMessage(result));
           setFeelTest((current) => ({ id: current.id + 1, label: "Haptic pulse" }));
         }}
@@ -904,8 +905,8 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
         <span>{motionStatus}</span>
         <button
           onClick={() => {
-            const result = pulseHaptic([35, 30, 55]);
-            setHapticStatus(hapticResultMessage(result));
+            const result = pulseHaptic(HAPTIC_TEST_PATTERN);
+            setHapticStatus(hapticResultMessage(result, "compact"));
           }}
         >
           {hapticStatus}
@@ -2464,6 +2465,7 @@ function hapticSupportMessage() {
   if (!hapticsSupported()) return "No Vibration API in this browser";
   if (isFirefox()) return "Limited in Firefox; test on this phone";
   if (isIOS()) return "iOS Safari does not support web vibration";
+  if (isAndroid()) return "Haptics ready. Test on this phone.";
   return "Haptics ready";
 }
 
@@ -2473,11 +2475,12 @@ function hapticShortStatus() {
   return "Haptics on";
 }
 
-function hapticResultMessage(result: boolean) {
+function hapticResultMessage(result: boolean, detail: "detail" | "compact" = "detail") {
   if (!hapticsSupported()) return "No Vibration API";
   if (!result) return "Vibration blocked";
-  if (isFirefox()) return "Pulse requested";
-  return "Pulse sent";
+  if (detail === "compact") return "Pulse requested";
+  if (isAndroid()) return "Pulse requested. If no buzz, check Silent/DND, power saving, and touch vibration.";
+  return "Pulse requested";
 }
 
 function pulseHaptic(pattern: number | number[]) {
@@ -2491,6 +2494,10 @@ function stopHaptics() {
 
 function isFirefox() {
   return typeof navigator !== "undefined" && /firefox|fennec|fxios/i.test(navigator.userAgent);
+}
+
+function isAndroid() {
+  return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
 function isIOS() {
