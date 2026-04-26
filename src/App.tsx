@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Info, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
@@ -455,6 +455,7 @@ function ControllerApp() {
   const params = new URLSearchParams(location.search);
   const game = useGameSocket();
   const savedSession = useMemo(() => readControllerSession(), []);
+  const browserNotice = useMemo(() => controllerBrowserRecommendation(), []);
   const initialRoomCode = params.get("room")?.toUpperCase() ?? savedSession?.roomCode ?? "";
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [displayGroupId, setDisplayGroupId] = useState(params.get("group") ?? (initialRoomCode === savedSession?.roomCode ? savedSession.displayGroupId : ""));
@@ -535,6 +536,7 @@ function ControllerApp() {
           {token && <small className="phone-note">Saved driver found for this room. Refreshes and QR rescans reconnect automatically.</small>}
           <button className="primary" type="submit"><Smartphone size={18} /> {token ? "Reconnect Controller" : "Join Controller"}</button>
         </form>
+        <BrowserRecommendationNotice notice={browserNotice} />
       </main>
     );
   }
@@ -543,10 +545,10 @@ function ControllerApp() {
     return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} room={game.room} playerId={game.playerId} />;
   }
 
-  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} />;
+  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} />;
 }
 
-function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string }) {
+function ControllerLobby({ room, player, send, feedback, joinStatus, browserNotice }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string; browserNotice?: string }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
@@ -654,6 +656,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
         <Activity size={18} /> Test Haptics
       </button>
       <small className="phone-note">{hapticStatus}</small>
+      <BrowserRecommendationNotice notice={browserNotice} />
       <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
       <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
@@ -714,6 +717,19 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
       <small className="phone-note">Use earphones for clearer engine, tire, curb, and impact feedback. Full directional audio is not implemented yet.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
     </main>
+  );
+}
+
+function BrowserRecommendationNotice({ notice }: { notice?: string }) {
+  if (!notice) return null;
+  return (
+    <div className="browser-notice" role="status">
+      <Info size={18} aria-hidden />
+      <div>
+        <strong>Recommended browser</strong>
+        <span>{notice}</span>
+      </div>
+    </div>
   );
 }
 
@@ -3285,9 +3301,9 @@ function hapticsSupported() {
 }
 
 function hapticSupportMessage() {
+  if (isIOS()) return "iOS browsers do not support web vibration";
   if (!hapticsSupported()) return "No Vibration API in this browser";
   if (isFirefox()) return "Limited in Firefox; test on this phone";
-  if (isIOS()) return "iOS Safari does not support web vibration";
   if (isAndroid()) return "Haptics ready. Test on this phone.";
   return "Haptics ready";
 }
@@ -3319,12 +3335,33 @@ function isFirefox() {
   return typeof navigator !== "undefined" && /firefox|fennec|fxios/i.test(navigator.userAgent);
 }
 
+function isRecommendedAndroidControllerBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent;
+  return /android/i.test(userAgent)
+    && /chrome|chromium|edga|opr|opera|samsungbrowser/i.test(userAgent)
+    && !/firefox|fennec|wv/i.test(userAgent)
+    && !isInAppBrowser();
+}
+
+function isInAppBrowser() {
+  return typeof navigator !== "undefined" && /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|Twitter|LinkedInApp|Pinterest/i.test(navigator.userAgent);
+}
+
 function isAndroid() {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
 function isIOS() {
   return typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function controllerBrowserRecommendation() {
+  if (isRecommendedAndroidControllerBrowser()) return undefined;
+  if (isInAppBrowser()) return "Open this controller in a Chromium-based browser on Android for reliable motion steering and haptics. In-app browsers often block sensors.";
+  if (isIOS()) return "Chrome on iPhone still uses iOS browser limits. Steering can work, but web vibration is not supported; Android Chromium browsers give the full feedback experience.";
+  if (isAndroid()) return "A Chromium-based Android browser is recommended for the most reliable motion steering and haptic feedback.";
+  return "A Chromium-based Android browser is recommended for the best phone controller motion and haptic feedback.";
 }
 
 function driveHaptics(

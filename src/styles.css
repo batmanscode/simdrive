@@ -1125,6 +1125,44 @@ input {
   font-weight: 800;
 }
 
+.browser-notice {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.11);
+  border: 1px solid rgba(255, 209, 102, 0.32);
+  color: #fffaf0;
+}
+
+.setup > .browser-notice {
+  margin-top: 14px;
+}
+
+.browser-notice svg {
+  margin-top: 1px;
+  color: #ffd166;
+}
+
+.browser-notice div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.browser-notice strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.browser-notice span {
+  color: rgba(255, 250, 240, 0.72);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .feel-preview {
   min-height: 52px;
   display: grid;
