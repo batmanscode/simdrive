@@ -1,0 +1,17 @@
+{
+  "name": "Sim Drive",
+  "short_name": "Sim Drive",
+  "description": "Sim Drive is a multiplayer browser racing simulator game where phones become motion controllers with haptic and sound feedback.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#101214",
+  "theme_color": "#101214",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
