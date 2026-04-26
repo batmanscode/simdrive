@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -72,6 +72,7 @@ wss.on("connection", (ws) => {
   const client: Client = { id: id("c"), ws, role: "unknown" };
   clients.set(client.id, client);
   send(client, { type: "hello", clientId: client.id });
+  sendLiveStats(client);
 
   ws.on("message", (raw) => {
     try {
@@ -187,6 +188,7 @@ function handleMessage(client: Client, message: ClientMessage) {
     assignVip(room);
     send(client, { type: "joined_controller", roomCode: room.code, playerId: player.id, token: player.token, displayGroupId: player.displayGroupId });
     broadcastRoom(room);
+    broadcastLiveStats();
     return;
   }
 
@@ -652,11 +654,13 @@ function markDisconnected(client: Client) {
         room.controllerClients.delete(player.id);
         assignVip(room);
         broadcastRoom(room);
+        broadcastLiveStats();
       }
     }, DISCONNECT_GRACE_MS);
   }
   assignVip(room);
   broadcastRoom(room);
+  broadcastLiveStats();
 }
 
 function cleanRooms() {
@@ -695,6 +699,27 @@ function closeRoom(room: Room, message: string) {
     client.playerId = undefined;
   }
   rooms.delete(room.code);
+  broadcastLiveStats();
+}
+
+function liveStats(): LiveStats {
+  return {
+    activePlayers: [...rooms.values()].reduce((sum, room) => {
+      const connectedPlayers = [...room.players.values()].filter((player) => hasConnectedControllerForPlayer(room.code, player.id));
+      return sum + connectedPlayers.length;
+    }, 0)
+  };
+}
+
+function sendLiveStats(client: Client) {
+  send(client, { type: "live_stats", stats: liveStats() });
+}
+
+function broadcastLiveStats() {
+  const payload = JSON.stringify({ type: "live_stats", stats: liveStats() } satisfies ServerMessage);
+  for (const client of clients.values()) {
+    sendRaw(client, payload);
+  }
 }
 
 function hasConnectedDisplay(room: Room) {

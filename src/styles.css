@@ -98,6 +98,27 @@ h2 {
   color: rgba(255, 250, 240, 0.72);
 }
 
+.hero-live-stat {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(16, 18, 20, 0.38);
+  color: #fffaf0;
+  border: 1px solid rgba(255, 250, 240, 0.18);
+  font-size: 13px;
+  font-weight: 850;
+  backdrop-filter: blur(8px);
+}
+
+.hero-live-stat svg {
+  color: #35a7ff;
+}
+
 .hero-flow {
   max-width: 650px;
   display: grid;

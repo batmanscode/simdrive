@@ -130,6 +130,10 @@ export type RoomState = {
   results: RaceResult[];
 };
 
+export type LiveStats = {
+  activePlayers: number;
+};
+
 export type RaceSnapshot = {
   roomCode: string;
   phase: Phase;
@@ -158,6 +162,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: "hello"; clientId: string }
+  | { type: "live_stats"; stats: LiveStats }
   | { type: "joined_display"; roomCode: string; displayGroupId: string }
   | { type: "joined_controller"; roomCode: string; playerId: string; token: string; displayGroupId: string }
   | { type: "room_state"; state: RoomState }

@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_KEY = "sim-drive-steering-sensitivity-level";
@@ -45,6 +45,7 @@ function DisplayApp() {
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
   const themeClass = `display-theme theme-${resolvedTheme}`;
   const themeToggle = <ThemeToggle mode={themeMode} onChange={setThemeMode} />;
+  const activePlayers = game.liveStats.activePlayers;
 
   if (!game.room) {
     return (
@@ -75,6 +76,12 @@ function DisplayApp() {
               </form>
             </div>
             <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
+            {activePlayers > 0 && (
+              <div className="hero-live-stat" aria-live="polite">
+                <Users size={16} />
+                <span>{activePlayers} driver{activePlayers === 1 ? "" : "s"} online now</span>
+              </div>
+            )}
             <div className="hero-flow" aria-label="How Sim Drive works">
               <div>
                 <strong>Host screen</strong>
@@ -2720,6 +2727,7 @@ function useGameSocket() {
   const [displayGroupId, setDisplayGroupId] = useState<string>();
   const [playerId, setPlayerId] = useState<string>();
   const [joinedToken, setJoinedToken] = useState<string>();
+  const [liveStats, setLiveStats] = useState<LiveStats>({ activePlayers: 0 });
   const [feedback, setFeedback] = useState<CarState>();
   const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
   const [notice, setNotice] = useState<{ id: number; message: string }>();
@@ -2747,6 +2755,7 @@ function useGameSocket() {
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data) as ServerMessage;
         if (message.type === "hello") setClientId(message.clientId);
+        if (message.type === "live_stats") setLiveStats(message.stats);
         if (message.type === "joined_display") {
           setDisplayGroupId(message.displayGroupId);
           sessionStorage.setItem("sim-drive-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
@@ -2836,7 +2845,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, feedback, controllerCrashEvents, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
