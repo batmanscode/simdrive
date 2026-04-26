@@ -1,6 +1,6 @@
 # Performance And Engineering Notes
 
-This file tracks the practical constraints that matter when changing Drive Sim. Use it before adding tracks, race visuals, multiplayer behavior, phone feedback, or any high-frequency UI.
+This file tracks the practical constraints that matter when changing Sim Drive. Use it before adding tracks, race visuals, multiplayer behavior, phone feedback, or any high-frequency UI.
 
 ## Current Race Architecture
 

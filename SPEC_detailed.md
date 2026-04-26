@@ -1,12 +1,12 @@
-# Drive Sim - Product and Technical Spec
+# Sim Drive - Product and Technical Spec
 
 Status note: this is the broader product/technical target spec. `SPEC_detailed_live.md` tracks the current implementation, including deliberate first-pass deviations such as the custom WebSocket server and lightweight kinematic physics.
 
 ## 1. Summary
 
-Build `Drive Sim`, a browser-based party racing game at `drivesim.xyz` where computers/TVs act as race displays and phones act as motion/touch controllers. The game should feel close enough to a lightweight racing sim to be satisfying, while staying accessible, fast to join, and closer to Jackbox-style party flow than a hardcore simulator.
+Build `Sim Drive`, a browser-based party racing game at `simdrive.xyz` where computers/TVs act as race displays and phones act as motion/touch controllers. The game should feel close enough to a lightweight racing sim to be satisfying, while staying accessible, fast to join, and closer to Jackbox-style party flow than a hardcore simulator.
 
-Working references: `Phonesim`, `Simvibes`, Jackbox-style room joining, gamingcouch.com / couch multiplayer energy, remote couch multiplayer, and lightweight browser racing sims. Public branding can say Drive Sim is inspired by Jackbox-style party joining and couch games, but should not imply official affiliation.
+Working references: `Phonesim`, `Simvibes`, Jackbox-style room joining, gamingcouch.com / couch multiplayer energy, remote couch multiplayer, and lightweight browser racing sims. Public branding can say Sim Drive is inspired by Jackbox-style party joining and couch games, but should not imply official affiliation.
 
 This document is intended to be given to an AI coding agent or engineering team as a build spec. Treat explicit requirements as source of truth. Treat open questions as unresolved product decisions that should not block the first vertical slice unless they directly affect implementation.
 
@@ -89,7 +89,7 @@ The first controller player to complete join setup becomes the VIP. The VIP choo
 
 The landing page is minimal and game-first:
 
-- Brand/game name: `Drive Sim`.
+- Brand/game name: `Sim Drive`.
 - Short promise: phone-controlled browser racing.
 - Branding note: inspired by Jackbox-style room joining and couch games.
 - Primary actions: `Create Game` and `Join Game`.

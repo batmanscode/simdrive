@@ -9,12 +9,12 @@ import { sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
 import type { CarSetupId, CarState, CockpitStyle, InputFrame, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
-const STEERING_SENSITIVITY_KEY = "drive-sim-steering-sensitivity-level";
+const STEERING_SENSITIVITY_KEY = "sim-drive-steering-sensitivity-level";
 const STEERING_SENSITIVITY_DEFAULT = 6;
-const INVERT_MOTION_STEERING_KEY = "drive-sim-invert-motion-steering";
+const INVERT_MOTION_STEERING_KEY = "sim-drive-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
-const CONTROLLER_SESSION_KEY = "drive-sim-controller-session";
-const DISPLAY_THEME_KEY = "drive-sim-display-theme";
+const CONTROLLER_SESSION_KEY = "sim-drive-controller-session";
+const DISPLAY_THEME_KEY = "sim-drive-display-theme";
 
 type DisplayThemeMode = "system" | "light" | "dark";
 
@@ -37,7 +37,7 @@ function DisplayApp() {
         <section className="hero">
           <div className="hero-copy-wrap">
             <p className="eyebrow">Tiny sim-racing energy, no rig required.</p>
-            <h1>Drive Sim</h1>
+            <h1>Sim Drive</h1>
             <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
             <p className="hero-copy">Tilt your phone to steer, work the pedals, and really feel your car: engine sound, tire slip, curb rumble, and rain grip through sound and haptics.</p>
             <div className="hero-actions">
@@ -425,8 +425,8 @@ function ControllerApp() {
   const initialRoomCode = params.get("room")?.toUpperCase() ?? savedSession?.roomCode ?? "";
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [displayGroupId, setDisplayGroupId] = useState(params.get("group") ?? (initialRoomCode === savedSession?.roomCode ? savedSession.displayGroupId : ""));
-  const [name, setName] = useState(localStorage.getItem("drive-sim-name") ?? `Guest ${Math.floor(Math.random() * 90 + 10)}`);
-  const [color, setColor] = useState(localStorage.getItem("drive-sim-color") ?? COLORS[Math.floor(Math.random() * COLORS.length)]);
+  const [name, setName] = useState(localStorage.getItem("sim-drive-name") ?? `Guest ${Math.floor(Math.random() * 90 + 10)}`);
+  const [color, setColor] = useState(localStorage.getItem("sim-drive-color") ?? COLORS[Math.floor(Math.random() * COLORS.length)]);
   const [joinStatus, setJoinStatus] = useState("");
   const autoResumeAttemptedRef = useRef(false);
   const token = localStorage.getItem(controllerTokenKey(roomCode)) ?? (savedSession?.roomCode === roomCode ? savedSession.token : null);
@@ -466,13 +466,13 @@ function ControllerApp() {
   if (!game.playerId) {
     return (
       <main className="phone setup">
-        <h1>Drive Sim</h1>
+        <h1>Sim Drive</h1>
         {joinStatus && <small className="phone-note">{joinStatus}</small>}
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            localStorage.setItem("drive-sim-name", name);
-            localStorage.setItem("drive-sim-color", color);
+            localStorage.setItem("sim-drive-name", name);
+            localStorage.setItem("sim-drive-color", color);
             setJoinStatus(token ? "Reconnecting to your saved driver..." : "Joining controller...");
             game.send({ type: "set_profile", roomCode, displayGroupId, token: token ?? undefined, name, color });
           }}
@@ -517,12 +517,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus }: { room?: 
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
-  const [audioEnabled, setAudioEnabled] = useStoredBoolean("drive-sim-audio-enabled", true);
+  const [audioEnabled, setAudioEnabled] = useStoredBoolean("sim-drive-audio-enabled", true);
   const [audioStatus, setAudioStatus] = useState(audioEnabled ? "Audio on" : "Audio off");
   const [hapticStatus, setHapticStatus] = useState(hapticSupportMessage());
-  const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("drive-sim-haptics-enabled", true);
-  const [brakeStart, setBrakeStart] = useStoredNumber("drive-sim-brake-start", 0);
-  const [throttleStart, setThrottleStart] = useStoredNumber("drive-sim-throttle-start", 0);
+  const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("sim-drive-haptics-enabled", true);
+  const [brakeStart, setBrakeStart] = useStoredNumber("sim-drive-brake-start", 0);
+  const [throttleStart, setThrottleStart] = useStoredNumber("sim-drive-throttle-start", 0);
   const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
@@ -826,10 +826,10 @@ function RaceController({ send, feedback, room, playerId }: { send: ReturnType<t
   const touchSteerOverrideUntilRef = useRef(0);
   const neutralRef = useRef<number | undefined>(undefined);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
-  const brakeStart = readStoredNumber("drive-sim-brake-start", 0);
-  const throttleStart = readStoredNumber("drive-sim-throttle-start", 0);
-  const audioEnabled = readStoredBoolean("drive-sim-audio-enabled", true);
-  const hapticsEnabled = readStoredBoolean("drive-sim-haptics-enabled", true);
+  const brakeStart = readStoredNumber("sim-drive-brake-start", 0);
+  const throttleStart = readStoredNumber("sim-drive-throttle-start", 0);
+  const audioEnabled = readStoredBoolean("sim-drive-audio-enabled", true);
+  const hapticsEnabled = readStoredBoolean("sim-drive-haptics-enabled", true);
   const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
@@ -2104,7 +2104,7 @@ function useGameSocket() {
         if (message.type === "hello") setClientId(message.clientId);
         if (message.type === "joined_display") {
           setDisplayGroupId(message.displayGroupId);
-          sessionStorage.setItem("drive-sim-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
+          sessionStorage.setItem("sim-drive-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
         }
         if (message.type === "joined_controller") {
           setPlayerId(message.playerId);
@@ -2128,7 +2128,7 @@ function useGameSocket() {
         if (message.type === "controller_feedback") setFeedback(message.car);
         if (message.type === "room_closed") {
           console.warn(message.message);
-          sessionStorage.removeItem("drive-sim-display-session");
+          sessionStorage.removeItem("sim-drive-display-session");
           setRoom(undefined);
           setDisplayGroupId(undefined);
           setPlayerId(undefined);
@@ -2139,7 +2139,7 @@ function useGameSocket() {
         if (message.type === "error_notice") {
           console.warn(message.message);
           if (message.message === "Room not found.") {
-            sessionStorage.removeItem("drive-sim-display-session");
+            sessionStorage.removeItem("sim-drive-display-session");
           }
           setNotice({ id: Date.now(), message: message.message });
         }
@@ -2283,7 +2283,7 @@ type ControllerSession = {
 };
 
 function controllerTokenKey(roomCode: string) {
-  return `drive-sim-token-${roomCode}`;
+  return `sim-drive-token-${roomCode}`;
 }
 
 function readControllerSession(): ControllerSession | undefined {
@@ -2318,7 +2318,7 @@ function clearControllerSession(roomCode?: string) {
 
 function readDisplaySession() {
   try {
-    const value = sessionStorage.getItem("drive-sim-display-session");
+    const value = sessionStorage.getItem("sim-drive-display-session");
     if (!value) return undefined;
     const parsed = JSON.parse(value) as { roomCode?: string; displayGroupId?: string };
     if (!parsed.roomCode || !parsed.displayGroupId) return undefined;

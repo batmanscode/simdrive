@@ -1,4 +1,4 @@
-# Drive Sim - Live Implementation Notes
+# Sim Drive - Live Implementation Notes
 
 This file tracks the current build. `SPEC_rough.md` is unchanged and remains the original product idea. `SPEC_detailed.md` remains the broader target spec.
 

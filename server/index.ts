@@ -112,7 +112,7 @@ setInterval(() => {
 setInterval(cleanRooms, 5_000);
 
 server.listen(PORT, () => {
-  console.log(`Drive Sim server listening on http://localhost:${PORT}`);
+  console.log(`Sim Drive server listening on http://localhost:${PORT}`);
 });
 
 function handleMessage(client: Client, message: ClientMessage) {
