@@ -16,7 +16,7 @@ This file tracks the current build. `SPEC_rough.md` is unchanged and remains the
 - Controller sessions store the last room token locally and auto-resume the saved driver after phone refreshes or QR rescans when the room still exists. The setup screen shows reconnecting, reconnected, and error messages.
 - One-player practice works with one display and one phone/browser controller.
 - Up to 8 players per room are represented in server state.
-- Display groups support split-screen panes for up to 4 local players.
+- Display groups support split-screen panes for up to 4 local players, and new controller joins are capped at 4 players per display group so a shared-screen QR cannot overflow the visible split-screen panes.
 - First joined controller becomes VIP.
 - VIP options include track, lap count, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode. Warm-up/flying start is on by default; the first pass is untimed and each driver's timed lap 1 and total race timer start when they cross the line. Reset mode is off by default so normal crash-out remains the default.
 - Four original tracks are present: `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, and `Cloudline Ascent`.

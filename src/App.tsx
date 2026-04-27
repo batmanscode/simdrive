@@ -72,10 +72,10 @@ function DisplayApp() {
                 }}
               >
                 <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
-                <button type="submit">Join Game</button>
+                <button type="submit">Join Room on This Screen</button>
               </form>
             </div>
-            <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
+            <small className="hero-note">No install needed. Play solo, 4-way split-screen, 2x 4-way split screens or each player using their own screen :D</small>
             {activePlayers > 0 && (
               <div className="hero-live-stat" aria-live="polite">
                 <Users size={16} />
@@ -85,7 +85,7 @@ function DisplayApp() {
             <div className="hero-flow" aria-label="How Sim Drive works">
               <div>
                 <strong>Host screen</strong>
-                <span>Host on TV, laptop, projector.</span>
+                <span>Host on TV, laptop, projector, or screen share.</span>
               </div>
               <div>
                 <strong>Phone controllers</strong>
@@ -185,6 +185,7 @@ function LobbyDisplay({
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
   const readyCount = room.players.filter((player) => player.isReady || player.isVIP).length;
+  const localPlayerCount = room.players.filter((player) => player.displayGroupId === displayGroupId).length;
 
   return (
     <main className={`lobby ${themeClass}`}>
@@ -195,9 +196,10 @@ function LobbyDisplay({
           <QRCodeSVG value={controllerUrl} size={260} bgColor="#f5f1e8" fgColor="#101214" />
         </div>
         <div className="room-code">{room.roomCode}</div>
-        <p>Scan with your phone. Tilt to steer, then try not to bin it.</p>
+        <p>Scan with your phone. Tilt to steer.</p>
         <div className="join-card-stats">
-          <span>{room.players.length}/8 drivers</span>
+          <span>{localPlayerCount}/4 this screen</span>
+          <span>{room.players.length}/8 room</span>
           <span>{readyCount} ready</span>
         </div>
       </section>

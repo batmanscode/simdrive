@@ -17,6 +17,8 @@ const COUNTDOWN_MS = 5000;
 const DISCONNECT_GRACE_MS = 12_000;
 const NO_DISPLAY_GRACE_MS = 20_000;
 const RACE_DNF_GRACE_MS = DISCONNECT_GRACE_MS;
+const MAX_PLAYERS_PER_ROOM = 8;
+const MAX_PLAYERS_PER_DISPLAY_GROUP = 4;
 const CRASH_EVENT_TTL_MS = 1_600;
 const CRASH_EVENT_COOLDOWN_MS = 1_200;
 const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
@@ -168,8 +170,12 @@ function handleMessage(client: Client, message: ClientMessage) {
       return;
     }
     const existing = findPlayerByToken(room, message.token);
-    if (!existing && room.players.size >= 8) {
+    if (!existing && room.players.size >= MAX_PLAYERS_PER_ROOM) {
       send(client, { type: "error_notice", message: "Room is full." });
+      return;
+    }
+    if (!existing && playerCountInDisplayGroup(room, resolvedGroupId) >= MAX_PLAYERS_PER_DISPLAY_GROUP) {
+      send(client, { type: "error_notice", message: "This screen already has 4 drivers. Join the room on another computer for another screen." });
       return;
     }
     const player = existing ?? createPlayer(room, resolvedGroupId);
@@ -342,7 +348,7 @@ function createDisplayGroup(room: Room) {
 }
 
 function createPlayer(room: Room, displayGroupId: string): Player {
-  if (room.players.size >= 8) {
+  if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
     throw new Error("Room is full");
   }
   const player: Player = {
@@ -360,6 +366,10 @@ function createPlayer(room: Room, displayGroupId: string): Player {
   };
   room.players.set(player.id, player);
   return player;
+}
+
+function playerCountInDisplayGroup(room: Room, displayGroupId: string) {
+  return [...room.players.values()].filter((player) => player.displayGroupId === displayGroupId).length;
 }
 
 function tickRoom(room: Room, dt: number) {
