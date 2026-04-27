@@ -717,6 +717,11 @@ input {
   border: 1px solid var(--display-track-border);
 }
 
+.track-inspiration {
+  margin: 5px 0 7px;
+  font-weight: 750;
+}
+
 .grid-header span {
   display: block;
   font-size: 12px;

@@ -9,6 +9,9 @@ Things that need real-device playtesting before we trust the tuning.
 - Test on a phone controller in rain mode with gentle assist on.
 - Test grass/off-track recovery: it should punish mistakes without feeling like the car is stuck forever.
 - Test braking into the Sakura hairpin and Alpine chicane: braking should feel strong but not instant.
+- Test Fjord Loop manually for a full lap: watch for road disappearing into grass, grass stripe artifacts across the road, false tunnels/walls, or floating-sky gaps.
+- Test Cloudline Ascent manually for several representative sections and at least one long climb/descent: watch for the same terrain artifacts as Fjord, especially around stacked switchbacks.
+- Test uphill/downhill sections on Fjord and Cloudline: grade physics should feel like a hill effect without snapping the car to the wrong elevated road layer.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.
 - Test hard wall hits and hard car-to-car crashes: all displays should see a short fireball/smoke crash effect, and the crashing phone should get the strongest boom/vibration cue without changing collision physics.
 - Test motion steering from a secure phone URL. Android Chrome/Chromium may not deliver device orientation over plain LAN `http://` URLs.
@@ -35,6 +38,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test reset mode on: a crashed car should pause briefly, respawn near the last valid track point, and avoid instant re-crash during the brief invulnerable window.
 - Test after 5 seconds off-track: the phone should show `Reset to track`, and the button should disappear after use.
 - Test mid-race exit from the display using Esc and the `Exit Race` button; both should return the room to the lobby.
+- Test the recommended-browser notice on iOS, Android Chromium/Chrome/Samsung Internet, and at least one in-app browser path if available.
 
 ## Reconnect
 

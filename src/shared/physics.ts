@@ -14,12 +14,15 @@ export function createCar(player: Player, track: TrackDef, gridIndex: number, wa
   const row = Math.floor(gridIndex / 2);
   const lateral = side * 2.2;
   const rightHeading = spawn.heading + Math.PI / 2;
-  const spawnProgress = nearestTrackPoint(track, spawn).progress;
+  const spawnX = spawn.x + Math.sin(rightHeading) * lateral - Math.sin(spawn.heading) * row * 4;
+  const spawnZ = spawn.z + Math.cos(rightHeading) * lateral - Math.cos(spawn.heading) * row * 4;
+  const spawnNearest = nearestTrackPoint(track, { x: spawnX, y: spawn.y, z: spawnZ });
   return {
     playerId: player.id,
     carSetupId: player.carSetupId ?? DEFAULT_CAR_SETUP_ID,
-    x: spawn.x + Math.sin(rightHeading) * lateral - Math.sin(spawn.heading) * row * 4,
-    z: spawn.z + Math.cos(rightHeading) * lateral - Math.cos(spawn.heading) * row * 4,
+    x: spawnX,
+    y: spawnNearest.y,
+    z: spawnZ,
     velocityX: 0,
     velocityZ: 0,
     heading: spawn.heading,
@@ -31,7 +34,7 @@ export function createCar(player: Player, track: TrackDef, gridIndex: number, wa
     progress: 0,
     distanceThisLap: 0,
     nextCheckpoint: 0,
-    lastValidProgress: spawnProgress,
+    lastValidProgress: spawnNearest.progress,
     timedLapStarted: !warmupStart,
     timedRaceStartedAt: 0,
     currentLapStartedAt: 0,
@@ -57,12 +60,13 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     car.steer *= 0.92;
     car.velocityX *= Math.pow(0.5, dt);
     car.velocityZ *= Math.pow(0.5, dt);
+    car.y = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z }).y;
     car.speed = Math.hypot(car.velocityX, car.velocityZ);
     car.wheelDistance += car.speed * dt;
     return;
   }
 
-  const nearestBefore = nearestTrackPoint(track, { x: car.x, z: car.z });
+  const nearestBefore = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
   const surface = getSurface(track, nearestBefore.distance);
   if (car.speed > 0.01 && car.velocityX === 0 && car.velocityZ === 0) {
     car.velocityX = Math.sin(car.heading) * car.speed;
@@ -74,7 +78,9 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   const surfaceGrip = (surface === "road" ? 1 : surface === "curb" ? 0.84 : 0.42) * setup.multipliers.grip;
   const surfaceDrag = (surface === "road" ? 0.05 : surface === "curb" ? 0.12 : 0.55) * setup.multipliers.drag;
   const grip = surfaceGrip * rainGrip;
-  const maxSpeed = (settings.rain ? 44 : 50) * setup.multipliers.maxSpeed * (surface === "grass" ? 0.64 : 1);
+  const trackGrade = surface === "wall" ? 0 : clamp(nearestBefore.grade, -0.18, 0.18);
+  const downhillSpeedBonus = Math.max(0, -trackGrade) * 2.2;
+  const maxSpeed = (settings.rain ? 44 : 50) * setup.multipliers.maxSpeed * (surface === "grass" ? 0.64 : 1) * (1 + downhillSpeedBonus);
 
   car.steer = smooth(car.steer, clamp(input.steer, -1, 1), 1 - Math.pow(0.02, dt));
   car.throttle = clamp(input.throttle, 0, 1);
@@ -87,6 +93,15 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   const accel = 22.5 * setup.multipliers.acceleration * car.throttle * clamp(1 - Math.max(0, speed - maxSpeed) / Math.max(1, maxSpeed), 0, 1);
   car.velocityX += forwardX * accel * dt;
   car.velocityZ += forwardZ * accel * dt;
+
+  if (trackGrade !== 0) {
+    const trackForwardX = Math.sin(nearestBefore.heading);
+    const trackForwardZ = Math.cos(nearestBefore.heading);
+    const gradeGrip = surface === "grass" ? 0.62 : surface === "curb" ? 0.88 : 1;
+    const gradeAccel = -trackGrade * 42 * gradeGrip;
+    car.velocityX += trackForwardX * gradeAccel * dt;
+    car.velocityZ += trackForwardZ * gradeAccel * dt;
+  }
 
   speed = Math.hypot(car.velocityX, car.velocityZ);
   if (speed > 0.001) {
@@ -136,7 +151,8 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   car.speed = speed;
   car.wheelDistance += Math.max(0, car.velocityX * Math.sin(car.heading) + car.velocityZ * Math.cos(car.heading)) * dt;
 
-  const nearestAfter = nearestTrackPoint(track, { x: car.x, z: car.z });
+  const nearestAfter = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
+  car.y = nearestAfter.y;
   const totalLength = trackMetrics(track).totalLength;
   const previousProgress = car.progress;
   let progressDelta = nearestAfter.progress - car.progress;
@@ -188,6 +204,7 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     const normalZ = dz / dist;
     const outwardSpeed = car.velocityX * normalX + car.velocityZ * normalZ;
     car.x = snap.x + normalX * settledDistance;
+    car.y = snap.y;
     car.z = snap.z + normalZ * settledDistance;
     if (outwardSpeed > 0) {
       car.velocityX -= normalX * outwardSpeed * 0.65;
@@ -265,6 +282,7 @@ export function resetCarToTrack(car: CarState, track: TrackDef, raceTime: number
   const resetProgress = car.lastValidProgress || car.progress;
   const resetPoint = sampleTrack(track, resetProgress);
   car.x = resetPoint.x;
+  car.y = resetPoint.y;
   car.z = resetPoint.z;
   car.heading = resetPoint.heading;
   car.velocityX = Math.sin(resetPoint.heading) * 4;

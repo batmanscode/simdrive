@@ -1,6 +1,6 @@
 export type Phase = "lobby" | "countdown" | "racing" | "results";
 
-export type TrackId = "sakura" | "alpine";
+export type TrackId = "sakura" | "alpine" | "fjord" | "cloudline";
 
 export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
@@ -10,6 +10,7 @@ export type CockpitStyle = "none" | "hands" | "paws";
 
 export type Vec2 = {
   x: number;
+  y?: number;
   z: number;
 };
 
@@ -17,6 +18,7 @@ export type TrackDef = {
   id: TrackId;
   name: string;
   description: string;
+  inspiration?: string;
   targetLap: string;
   width: number;
   curbWidth: number;
@@ -66,6 +68,7 @@ export type CarState = {
   playerId: string;
   carSetupId: CarSetupId;
   x: number;
+  y: number;
   z: number;
   velocityX: number;
   velocityZ: number;
@@ -102,6 +105,7 @@ export type CrashEvent = {
   id: string;
   kind: "wall" | "car";
   x: number;
+  y?: number;
   z: number;
   createdAt: number;
   severity: number;

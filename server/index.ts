@@ -398,7 +398,7 @@ function tickRoom(room: Room, dt: number) {
       : { ...emptyInput, brake: 0.35 };
     stepCar(car, input, track, room.settings, dt, raceTime);
     if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= WALL_EXPLOSION_SPEED_THRESHOLD) {
-      addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId]);
+      addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId], car.y);
     }
     crashedBeforeContacts.set(car.playerId, car.crashed);
     updateResetAvailability(car, raceTime);
@@ -412,7 +412,8 @@ function tickRoom(room: Room, dt: number) {
       newlyCrashed.reduce((sum, car) => sum + car.x, 0) / newlyCrashed.length,
       newlyCrashed.reduce((sum, car) => sum + car.z, 0) / newlyCrashed.length,
       1,
-      newlyCrashed.map((car) => car.playerId)
+      newlyCrashed.map((car) => car.playerId),
+      newlyCrashed.reduce((sum, car) => sum + car.y, 0) / newlyCrashed.length
     );
   }
   if (room.settings.resetEnabled) {
@@ -556,7 +557,7 @@ function activeCrashEvents(room: Room) {
   return room.crashEvents;
 }
 
-function addCrashEvent(room: Room, kind: CrashEvent["kind"], x: number, z: number, severity: number, playerIds: string[]) {
+function addCrashEvent(room: Room, kind: CrashEvent["kind"], x: number, z: number, severity: number, playerIds: string[], y?: number) {
   const now = Date.now();
   const cooldownKeys = playerIds.map((playerId) => `${kind}:${playerId}`);
   if (cooldownKeys.every((key) => now - (room.crashEventCooldowns.get(key) ?? 0) < CRASH_EVENT_COOLDOWN_MS)) return;
@@ -565,6 +566,7 @@ function addCrashEvent(room: Room, kind: CrashEvent["kind"], x: number, z: numbe
     id: id("boom"),
     kind,
     x,
+    y,
     z,
     createdAt: now,
     severity: clamp(severity, 0.6, 1),

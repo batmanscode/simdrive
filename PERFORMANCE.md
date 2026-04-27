@@ -127,6 +127,9 @@ When adding a new track:
 Track visual guidance:
 
 - Curbs, road ribbons, runoff, racing line, and rubber detail should be generated from the track centerline.
+- Elevated tracks need generated support terrain, not only a floating road ribbon. Use narrow road/runoff/shoulder ribbons plus side terrain that cannot cross back over nearby same-height road sections.
+- For overlapping or stacked layouts, use height-aware nearest-track checks for physics, effects, prop placement, and terrain conflict detection.
+- Avoid wide all-in-one terrain aprons on elevated tracks. They can create grass shelves, sky gaps, false tunnels, or grass stripes where the terrain crosses another road section.
 - Repeated visual elements should be merged or instanced.
 - Avoid hundreds of individual board/tree/barrier meshes.
 - Prefer a small number of strong landmark props over many tiny props.
@@ -140,6 +143,18 @@ Track performance checklist:
 - Does it create long sightlines where many props are visible at once?
 - Does split-screen still feel stable with two local panes?
 - Does rain mode still feel stable?
+
+## Elevated Track Problems And Fixes
+
+The first elevated Fjord/Cloudline pass exposed problems that flat tracks did not have:
+
+- Road/grass layering could look like the road faded into grass because elevated road, runoff, shoulders, and terrain were only simple ribbons with very small vertical separation. The fix was to keep explicit road/runoff/shoulder height ordering and audit those offsets along each track.
+- Stacked or close-return sections could select the wrong road layer when nearest-track lookup only considered `x/z`. The fix was to make nearest-track selection height-aware when a `y` value is available, and to pass car/sample height through physics, skid marks, crash visuals, reset/spawn, and prop placement.
+- Fjord had a same-height curb self-intersection near the start/finish seam. The fix was to widen/smooth that closing corner and audit curb offset paths for same-height intersections.
+- Wide elevated terrain aprons created floating-road and grass-shelf artifacts. The fix was to replace the wide apron with a narrower generated terrain corridor: road/runoff/shoulder ribbons plus side terrain that slopes down to a base floor.
+- Fjord's lower outer terrain skirt crossed a nearby same-height road section, which looked like a grass wall or false tunnel. The fix was to detect those terrain panel conflicts and skip only the lower outer panels that would cross same-height road.
+
+Cloudline was checked with the same terrain, curb, and large-prop clearance audits and did not show the Fjord-style same-height terrain conflicts.
 
 ## Car And Cockpit Visual Rules
 
@@ -207,7 +222,8 @@ Manual checks:
 - One display, two local controllers, split-screen.
 - Two display devices with one controller each.
 - Rain on/off.
-- Sakura Sprint and Alpine Grand Prix.
+- Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- For Fjord Loop and Cloudline Ascent, check the full route for floating-road views, missing road, grass stripes over asphalt, false tunnels/walls, and terrain panels crossing same-height road sections.
 - Warm-up start on/off.
 - Reset mode on/off.
 - Phone refresh during race.
@@ -246,7 +262,7 @@ Tradeoff:
 
 ## Bundle Size Note
 
-`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build was about 1.16 MB minified and about 328 kB gzipped for the main JS asset.
+`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build was about 1.20 MB minified and about 338 kB gzipped for the main JS asset.
 
 This is not a build failure and is expected with the current architecture because React, Three.js, React Three Fiber, QR code rendering, icons, the display app, controller app, and race scene all ship in one client bundle.
 

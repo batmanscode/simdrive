@@ -18,7 +18,7 @@ This document is intended to be given to an AI coding agent or engineering team 
 - Support up to 8 active racers total per room.
 - Make the phone controller feel expressive through tilt steering, touch throttle/brake, vibration where supported, and strong audio feedback.
 - Give the user as much car/road feedback as possible within browser limits, especially through audio, haptics, visual controller feedback, and telemetry-driven effects.
-- Keep the first release small: one default F1-style open-wheel formula car, color choice, two tracks, basic lobby, race, and results.
+- Keep the first release small: one default F1-style open-wheel formula car, color choice, a small track set, basic lobby, race, and results.
 
 ## 3. Recommended Minimal Stack
 
@@ -206,9 +206,15 @@ The main race view should be first-person/cockpit-style, as if the player is ins
 
 ### Tracks
 
-MVP includes two original, unlicensed, real-inspired tracks. They should be inspired by fan-favorite Formula 1 circuit archetypes, but must not copy exact layouts, official circuit names, trademarks, logos, signage, or branded assets.
+MVP includes four real-inspired tracks. They should draw from fan-favorite Formula 1 circuit archetypes and public-road mountain archetypes. Real-world course characteristics can be used as references; avoid official trademarks, logos, signage, or branded assets unless those are intentionally licensed or cleared.
 
 Research signals point repeatedly to Spa-Francorchamps, Monza, Suzuka, Silverstone, Monaco, and Interlagos/Sao Paulo as strong inspiration pools. Use those as design inspiration only.
+
+Research references used for Track C and Track D:
+
+- Nürburgring official race tracks page: Nordschleife length/context: https://nuerburgring.de/info/nuerburgring/race-tracks?locale=en
+- Pikes Peak International Hill Climb official race page: course length, turns, and elevation climb: https://ppihc.org/about/
+- Norwegian Scenic Routes Geiranger-Trollstigen page: fjord/mountain scenery, hairpins, climbs, and descents: https://www.nasjonaleturistveger.no/en/routes/geiranger--trollstigen/
 
 Track A: `Sakura Sprint`
 
@@ -226,9 +232,27 @@ Track B: `Alpine Grand Prix`
 - Key features: uphill sweep, long straight, heavy braking chicane, fast multi-apex section, curb-heavy exit zones, a few risky wall-adjacent sections.
 - Target lap time: 75-110 seconds for an average player.
 
-Track design should be inspired by popular circuit archetypes, not copied from real F1 circuits unless licensing is explicitly handled. Track data should support:
+Track C: `Fjord Loop`
+
+- Long endurance loop.
+- Designed for a roughly 4-minute lap with sustained rhythm, wide elevation changes, and a mix of fast open road and tighter cliffside sections.
+- Inspired by the feel of Norway's Geiranger-Trollstigen scenery, Nordschleife-style endurance flow, and coastal mountain roads.
+- Key features: fjord-side water views, timber village scenery, ridge climbs, downhill braking zones, cliff markers, waterfalls, and generous off-track prop clearance.
+- Target lap time: about 4 minutes for an average player.
+
+Track D: `Cloudline Ascent`
+
+- Very long mountain-pass endurance track.
+- Designed for a roughly 12-minute lap with extended climbing, stacked switchbacks, exposed ridge straights, and a long downhill return.
+- Inspired by the feel of Pikes Peak's race-to-the-clouds climb, Stelvio-style switchback roads, and high alpine observatory routes.
+- Key features: large elevation gain, long descent, snowbanks, summit observatory scenery, high-altitude cloud wisps, sparse lower pines, and broader prop spacing for performance.
+- Target lap time: about 12 minutes for an average player.
+
+Track design can draw from real circuit and road archetypes. If protected names, logos, official signage, or branded assets are used, licensing/clearance should be explicit. Track data should support:
 
 - Centerline spline.
+- Sampled elevation and grade so uphill/downhill sections affect physics, camera height, car visuals, and track geometry together.
+- Generated terrain support for elevated tracks. Elevated roads should not rely on a single wide terrain apron; use supported shoulders/side terrain and conflict checks so nearby stacked sections do not create false tunnels, grass walls, grass stripes, or floating-road views.
 - Road width.
 - Start/finish line.
 - Checkpoints/sectors.
@@ -531,8 +555,8 @@ Anti-cheat for MVP:
 - Additional computers can join the same room as display clients.
 - Up to 8 players can join one room.
 - A display can render 1 to 4 local players in split-screen.
-- VIP can select one of two tracks, lap count, and rolling/warm-up option.
-- The two MVP tracks are `Sakura Sprint` and `Alpine Grand Prix`.
+- VIP can select a track, lap count, and rolling/warm-up option.
+- The current MVP track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, and `Cloudline Ascent`.
 - Race starts, runs, finishes, and shows leaderboard.
 - Phone steering, brake, and throttle control the car.
 - Audio feedback works on phones after user gesture.
