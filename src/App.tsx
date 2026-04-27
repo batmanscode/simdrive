@@ -1741,12 +1741,138 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
           </group>
         );
       })}
-      {track.id === "sakura" && <SakuraFeatureGrove track={track} rain={rain} />}
-      {track.id === "alpine" && <AlpineVistaPeak track={track} rain={rain} />}
+      {track.id === "sakura" && <SakuraSignatureProps track={track} rain={rain} />}
+      {track.id === "alpine" && <AlpineSignatureProps track={track} rain={rain} />}
       <TrackIdentityProps track={track} rain={rain} />
     </group>
   );
 });
+
+function SakuraSignatureProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return (
+    <group>
+      <SakuraToriiGate track={track} rain={rain} />
+      <SakuraBlossomTunnel track={track} rain={rain} />
+      <SakuraFeatureGrove track={track} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraToriiGate({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.13);
+    return { ...sample, heading: sample.heading };
+  }, [track]);
+  const span = track.width + track.curbWidth * 2 + 5.2;
+  const postX = span / 2 - 1.35;
+  const vermilion = rain ? "#a1322d" : "#bf332d";
+  const darkWood = rain ? "#2b2523" : "#201b19";
+
+  return (
+    <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
+      {[-1, 1].map((side) => (
+        <group key={`torii-post-${side}`} position={[side * postX, 0, 0]}>
+          <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
+            <boxGeometry args={[1.0, 0.32, 0.9]} />
+            <meshStandardMaterial color={rain ? "#8b8d86" : "#a29d8f"} roughness={0.84} />
+          </mesh>
+          <mesh position={[0, 2.35, 0]} castShadow>
+            <cylinderGeometry args={[0.26, 0.34, 4.7, 12]} />
+            <meshStandardMaterial color={vermilion} roughness={0.56} />
+          </mesh>
+          <mesh position={[0, 4.62, 0]} castShadow>
+            <boxGeometry args={[0.76, 0.36, 0.5]} />
+            <meshStandardMaterial color={darkWood} roughness={0.58} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 4.78, 0]} castShadow>
+        <boxGeometry args={[span, 0.42, 0.42]} />
+        <meshStandardMaterial color={vermilion} roughness={0.56} />
+      </mesh>
+      <mesh position={[0, 5.17, 0]} castShadow>
+        <boxGeometry args={[span + 1.9, 0.28, 0.64]} />
+        <meshStandardMaterial color={darkWood} roughness={0.54} />
+      </mesh>
+      <mesh position={[0, 4.1, 0.08]} castShadow>
+        <boxGeometry args={[span - 2.1, 0.28, 0.32]} />
+        <meshStandardMaterial color={vermilion} roughness={0.56} />
+      </mesh>
+      {[-3.2, 3.2].map((x) => (
+        <group key={`torii-lantern-${x}`} position={[x, 3.42, 0.1]}>
+          <mesh position={[0, 0.34, 0]} castShadow>
+            <cylinderGeometry args={[0.035, 0.035, 0.66, 8]} />
+            <meshStandardMaterial color={darkWood} roughness={0.6} />
+          </mesh>
+          <mesh castShadow>
+            <boxGeometry args={[0.42, 0.38, 0.34]} />
+            <meshStandardMaterial color={rain ? "#e8bca4" : "#ffd7ad"} emissive="#6b2518" emissiveIntensity={rain ? 0.55 : 0.34} roughness={0.62} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function SakuraBlossomTunnel({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const tunnel = useMemo(() => {
+    const metrics = trackMetrics(track);
+    const progresses = [0.23, 0.265, 0.3, 0.335, 0.37, 0.405, 0.44];
+    const trees = progresses.flatMap((progress, segment) => {
+      const sample = sampleTrack(track, metrics.totalLength * progress);
+      return [-1, 1].map((side) => {
+        const position = tracksidePropPosition(track, sample, side, 0.2 + seededUnit(segment * 17 + side) * 1.2, 1.5, 0.8);
+        return {
+          ...position,
+          side,
+          heading: sample.heading,
+          seed: 220 + segment * 9 + side
+        };
+      });
+    });
+    return { trees };
+  }, [track]);
+
+  return (
+    <group>
+      {tunnel.trees.map((tree) => (
+        <SakuraTunnelTree key={`sakura-tunnel-tree-${tree.seed}`} position={[tree.x, tree.y, tree.z]} side={tree.side} heading={tree.heading} seed={tree.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function SakuraTunnelTree({ position, side, heading, seed, rain }: { position: [number, number, number]; side: number; heading: number; seed: number; rain: boolean }) {
+  const blossom = rain ? "#d98ea5" : "#f2a8bd";
+  const blossomShade = rain ? "#c77d96" : "#ffc1cf";
+  const height = 3.35 + seededUnit(seed * 13) * 0.75;
+  const inward = -side;
+
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, height * 0.45, 0]} rotation={[0, 0, inward * 0.11]} castShadow>
+        <cylinderGeometry args={[0.15, 0.26, height, 7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.78} />
+      </mesh>
+      <mesh position={[inward * 0.74, height + 0.1, 0]} scale={[1.55, 0.9, 1.18]} castShadow>
+        <sphereGeometry args={[0.86, 14, 8]} />
+        <meshStandardMaterial color={blossom} roughness={0.86} />
+      </mesh>
+      <mesh position={[inward * 1.22, height - 0.25, 0.38]} scale={[1.18, 0.72, 0.94]} castShadow>
+        <sphereGeometry args={[0.78, 12, 8]} />
+        <meshStandardMaterial color={blossomShade} roughness={0.86} />
+      </mesh>
+      <mesh position={[inward * 1.08, height - 0.28, -0.42]} scale={[1.08, 0.68, 0.88]} castShadow>
+        <sphereGeometry args={[0.72, 12, 8]} />
+        <meshStandardMaterial color={blossom} roughness={0.86} />
+      </mesh>
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 23) * Math.PI]} scale={[1.75, 0.95, 1]} receiveShadow>
+        <circleGeometry args={[1, 18]} />
+        <meshBasicMaterial color={blossomShade} transparent opacity={rain ? 0.12 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
 
 function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean }) {
   const trees = useMemo(() => {
@@ -1769,6 +1895,17 @@ function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean })
   );
 }
 
+function AlpineSignatureProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return (
+    <group>
+      <AlpineVistaPeak track={track} rain={rain} />
+      <AlpineRockWall track={track} rain={rain} />
+      <AlpineChaletFeature track={track} rain={rain} />
+      <AlpineCableCarFeature track={track} rain={rain} />
+    </group>
+  );
+}
+
 function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
   const placement = useMemo(() => {
     const metrics = trackMetrics(track);
@@ -1779,22 +1916,205 @@ function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
 
   return (
     <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
-      <mesh position={[0, 4.9, 0]} scale={[1.15, 1, 0.86]}>
-        <coneGeometry args={[11.5, 15.5, 9]} />
-        <meshStandardMaterial color={rain ? "#848c88" : "#8d937f"} roughness={0.96} />
+      <AlpineNearPeak rain={rain} />
+    </group>
+  );
+}
+
+function AlpineNearPeak({ rain }: { rain: boolean }) {
+  const rock = rain ? "#7c8581" : "#858c7c";
+  const shadowRock = rain ? "#6d7672" : "#747d70";
+  const baseRock = rain ? "#5f6965" : "#66705f";
+  const snow = rain ? "#dce3e2" : "#f2f5f1";
+
+  return (
+    <group>
+      <mesh position={[0, 5.8, 0]} rotation={[0, 0.18, 0]} scale={[8.8, 11.6, 6.8]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 9]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
       </mesh>
-      <mesh position={[-6.8, 3.2, 4.2]} rotation={[0, -0.35, 0]} scale={[0.78, 0.72, 0.92]}>
-        <coneGeometry args={[8.4, 10.4, 8]} />
-        <meshStandardMaterial color={rain ? "#737c79" : "#7d8675"} roughness={0.98} />
+      <mesh position={[-4.8, 3.0, 3.0]} rotation={[0, -0.2, 0]} scale={[3.9, 6.0, 3.2]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
       </mesh>
-      <mesh position={[0, 12.4, 0]} scale={[0.92, 0.82, 0.7]}>
-        <coneGeometry args={[4.9, 4.5, 9]} />
-        <meshStandardMaterial color={rain ? "#e3e8e8" : "#f4f6f2"} roughness={0.82} />
+      <mesh position={[4.2, 2.65, -2.85]} rotation={[0, 0.4, 0]} scale={[3.55, 5.3, 2.9]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={rain ? "#737c79" : "#7c8576"} roughness={0.99} />
       </mesh>
-      <mesh position={[-6.8, 7.3, 4.2]} rotation={[0, -0.35, 0]} scale={[0.62, 0.58, 0.72]}>
-        <coneGeometry args={[3.5, 2.7, 8]} />
-        <meshStandardMaterial color={rain ? "#d9e0df" : "#eef1f2"} roughness={0.84} />
+      <mesh position={[0.1, 0.42, 0.15]} rotation={[0.02, 0.28, 0]} scale={[8.8, 0.72, 6.4]} receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
       </mesh>
+      <mesh position={[0.2, 10.25, -0.28]} rotation={[0, 0.18, 0]} scale={[2.9, 3.3, 2.15]} castShadow>
+        <coneGeometry args={[1, 1, 9]} />
+        <meshStandardMaterial color={snow} roughness={0.84} />
+      </mesh>
+      <mesh position={[-4.8, 5.35, 3.0]} rotation={[0, -0.2, 0]} scale={[1.28, 1.42, 1.02]} castShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineRockWall({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const rocks = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [0.34, 0.375, 0.41, 0.445, 0.48].map((progress, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * progress);
+      const side = -1;
+      const position = tracksidePropPosition(track, sample, side, -0.4 + seededUnit(index * 11) * 1.3, 3.4, 1.1);
+      return {
+        ...position,
+        heading: sample.heading + (seededUnit(index * 7) - 0.5) * 0.6,
+        seed: index
+      };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {rocks.map((rock) => (
+        <AlpineCliffRock key={`alpine-cliff-${rock.seed}`} position={[rock.x, rock.y, rock.z]} heading={rock.heading} seed={rock.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function AlpineCliffRock({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  const rock = rain ? "#68716d" : "#737b6e";
+  const snow = rain ? "#d9e1e0" : "#eef2ee";
+  const height = 2.8 + seededUnit(seed * 17) * 1.6;
+
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0.12, 0.2, 0.05]} rotation={[0.02, seededUnit(seed * 5) * 0.5, 0]} scale={[2.7, 0.34, 1.45]} receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#5e6764" : "#687164"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, height * 0.54, 0]} rotation={[0.12, seededUnit(seed * 3) * 0.4, -0.08]} scale={[2.55, height, 1.34]} castShadow receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rock} roughness={0.98} />
+      </mesh>
+      <mesh position={[1.75, height * 0.34, -0.45]} rotation={[-0.1, 0.42, 0.06]} scale={[1.6, height * 0.55, 1.1]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#5e6764" : "#697265"} roughness={0.99} />
+      </mesh>
+      <mesh position={[-1.6, height * 0.28, 0.35]} rotation={[0.02, -0.36, 0.1]} scale={[1.5, height * 0.45, 1.0]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#747d79" : "#7d8578"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0.18, height + 0.5, -0.04]} rotation={[0.02, 0.2, 0]} scale={[1.25, 0.34, 0.76]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineChaletFeature({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.72);
+    const position = tracksidePropPosition(track, sample, 1, 4.2, 4.3, 1.8);
+    return { ...position, heading: sample.heading - 0.62 };
+  }, [track]);
+
+  return <AlpineChalet position={[placement.x, placement.y, placement.z]} heading={placement.heading} rain={rain} />;
+}
+
+function AlpineChalet({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const timber = rain ? "#6f4a37" : "#87583d";
+  const roof = rain ? "#31383f" : "#30343a";
+  const snow = rain ? "#dce3e2" : "#f2f5f1";
+
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.34, 1.34, 1.34]}>
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <boxGeometry args={[3.5, 1.4, 2.35]} />
+        <meshStandardMaterial color={timber} roughness={0.78} />
+      </mesh>
+      <mesh position={[0, 1.63, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+        <coneGeometry args={[2.65, 1.25, 4]} />
+        <meshStandardMaterial color={roof} roughness={0.64} />
+      </mesh>
+      <mesh position={[0, 2.2, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1.0, 0.2, 0.7]} castShadow>
+        <coneGeometry args={[2.55, 0.45, 4]} />
+        <meshStandardMaterial color={snow} roughness={0.84} />
+      </mesh>
+      {[-1.0, 1.0].map((x) => (
+        <mesh key={`chalet-window-${x}`} position={[x, 0.88, -1.2]}>
+          <boxGeometry args={[0.62, 0.38, 0.05]} />
+          <meshStandardMaterial color={rain ? "#ffe0a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.58 : 0.3} roughness={0.48} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.28, -1.36]} castShadow>
+        <boxGeometry args={[4.2, 0.18, 0.34]} />
+        <meshStandardMaterial color={rain ? "#594032" : "#6b4a35"} roughness={0.76} />
+      </mesh>
+      {[-1.75, 0, 1.75].map((x) => (
+        <mesh key={`chalet-rail-${x}`} position={[x, 0.62, -1.42]} castShadow>
+          <boxGeometry args={[0.1, 0.68, 0.1]} />
+          <meshStandardMaterial color={rain ? "#4a362d" : "#54392d"} roughness={0.72} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function AlpineCableCarFeature({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.61);
+    const position = tracksidePropPosition(track, sample, -1, 6.5, 4.6, 2);
+    return { ...position, heading: sample.heading + 0.34 };
+  }, [track]);
+
+  return <AlpineCableCar position={[placement.x, placement.y, placement.z]} heading={placement.heading} rain={rain} />;
+}
+
+function AlpineCableCar({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const steel = rain ? "#3d4548" : "#343b3f";
+  const cabin = rain ? "#b83d43" : "#d64045";
+
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.16, 1.14, 1.16]}>
+      {[-6, 6].map((x) => (
+        <group key={`cable-tower-${x}`} position={[x, 0, 0]}>
+          <mesh position={[0, 2.15, 0]} castShadow>
+            <boxGeometry args={[0.28, 4.3, 0.28]} />
+            <meshStandardMaterial color={steel} roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 4.32, 0]} castShadow>
+            <boxGeometry args={[1.55, 0.18, 0.26]} />
+            <meshStandardMaterial color={steel} roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 0.1, 0]} receiveShadow>
+            <boxGeometry args={[0.85, 0.2, 0.85]} />
+            <meshStandardMaterial color={rain ? "#8b8d86" : "#a29d8f"} roughness={0.84} />
+          </mesh>
+        </group>
+      ))}
+      {[4.62, 4.86].map((y) => (
+        <mesh key={`cable-line-${y}`} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[13.6, 0.045, 0.045]} />
+          <meshStandardMaterial color={steel} roughness={0.42} metalness={0.2} />
+        </mesh>
+      ))}
+      {[-2.2, 2.7].map((x, index) => (
+        <group key={`cable-car-${index}`} position={[x, 3.68 - index * 0.12, 0]}>
+          <mesh position={[0, 0.5, 0]} castShadow>
+            <boxGeometry args={[0.045, 0.72, 0.045]} />
+            <meshStandardMaterial color={steel} roughness={0.48} metalness={0.12} />
+          </mesh>
+          <mesh castShadow>
+            <boxGeometry args={[1.34, 0.88, 0.88]} />
+            <meshStandardMaterial color={cabin} roughness={0.58} />
+          </mesh>
+          <mesh position={[0, 0.1, -0.41]}>
+            <boxGeometry args={[0.84, 0.38, 0.035]} />
+            <meshStandardMaterial color={rain ? "#d8eef4" : "#bfe8ff"} emissive="#18384b" emissiveIntensity={rain ? 0.3 : 0.18} roughness={0.42} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -1803,13 +2123,12 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
   const patches = useMemo(() => {
     const metrics = trackMetrics(track);
     return [
-      { progress: 0.18, side: 1, s: 1.25, extra: 2.4 },
-      { progress: 0.39, side: 1, s: 1.05, extra: 3.6 },
-      { progress: 0.58, side: -1, s: 0.95, extra: 2.8 },
-      { progress: 0.78, side: -1, s: 1.15, extra: 3.2 }
+      { progress: 0.2, side: 1, s: 0.82, extra: 2.9 },
+      { progress: 0.43, side: 1, s: 0.72, extra: 4.2 },
+      { progress: 0.72, side: -1, s: 0.78, extra: 3.4 }
     ].map((patch, index) => {
       const sample = sampleTrack(track, metrics.totalLength * patch.progress);
-      const position = tracksidePropPosition(track, sample, patch.side, patch.extra, patch.s * 4.8, 0.8);
+      const position = tracksidePropPosition(track, sample, patch.side, patch.extra, patch.s * 2.7, 0.8);
       return { ...patch, ...position, rotation: seededUnit(index * 13) * Math.PI };
     });
   }, [track]);
@@ -1817,9 +2136,9 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
   return (
     <group>
       {patches.map((patch, index) => (
-        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, patch.y + 0.01, patch.z]} rotation={[-Math.PI / 2, 0, patch.rotation]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
-          <circleGeometry args={[1, 22]} />
-          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
+        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, patch.y + 0.01, patch.z]} rotation={[-Math.PI / 2, 0, patch.rotation]} scale={[patch.s * 2.7, patch.s * 0.92, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.1 : 0.14} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
     </group>
@@ -1827,27 +2146,99 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
 }
 
 function AlpineBackdrop({ rain }: { rain: boolean }) {
-  const mountains = [
-    { x: -88, z: 128, h: 22, r: 18 },
-    { x: -48, z: 148, h: 29, r: 24 },
-    { x: 18, z: 158, h: 20, r: 18 },
-    { x: 108, z: 152, h: 31, r: 27 },
-    { x: 178, z: 70, h: 24, r: 22 }
+  const mountains: AlpineBackdropMountain[] = [
+    { x: -92, z: 128, h: 25, r: 19, kind: "jagged" },
+    { x: -46, z: 150, h: 32, r: 25, kind: "cone" },
+    { x: 18, z: 158, h: 22, r: 18, kind: "jagged" },
+    { x: 108, z: 152, h: 34, r: 28, kind: "cone" },
+    { x: 178, z: 70, h: 26, r: 22, kind: "cone" }
   ];
   return (
     <group>
       {mountains.map((mountain, index) => (
-        <group key={`mountain-${index}`} position={[mountain.x, mountain.h / 2 - 0.2, mountain.z]} rotation={[0, seededUnit(index * 17) * 0.8, 0]}>
-          <mesh>
-            <coneGeometry args={[mountain.r, mountain.h, 8]} />
-            <meshStandardMaterial color={rain ? "#707975" : "#7f8877"} roughness={0.98} />
-          </mesh>
-          <mesh position={[0, mountain.h * 0.28, 0]}>
-            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 8]} />
-            <meshStandardMaterial color={rain ? "#e5e8e8" : "#f4f6f2"} roughness={0.86} />
-          </mesh>
-        </group>
+        <AlpineBackdropPeak key={`mountain-${index}`} mountain={mountain} seed={index} rain={rain} />
       ))}
+    </group>
+  );
+}
+
+type AlpineBackdropMountain = { x: number; z: number; h: number; r: number; kind: "cone" | "jagged" };
+
+function AlpineBackdropPeak({ mountain, seed, rain }: { mountain: AlpineBackdropMountain; seed: number; rain: boolean }) {
+  const rock = rain ? "#707975" : "#7f8877";
+  const shadowRock = rain ? "#646d69" : "#737d6f";
+  const baseRock = rain ? "#59635f" : "#65705f";
+  const snow = rain ? "#e5e8e8" : "#f4f6f2";
+
+  if (mountain.kind === "cone") {
+    return (
+      <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
+        <mesh position={[0, mountain.h * 0.48, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.64, mountain.h * 0.96, mountain.r * 0.5]}>
+          <coneGeometry args={[1, 1, 9]} />
+          <meshStandardMaterial color={rock} roughness={0.98} />
+        </mesh>
+        <mesh position={[-mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.33, mountain.h * 0.56, mountain.r * 0.28]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={shadowRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[mountain.r * 0.33, mountain.h * 0.24, -mountain.r * 0.2]} rotation={[0, 0.36, 0]} scale={[mountain.r * 0.3, mountain.h * 0.48, mountain.r * 0.25]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={baseRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[0, 0.34, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.72, mountain.h * 0.055, mountain.r * 0.54]}>
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color={baseRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[0, mountain.h * 0.82, 0]} rotation={[0, 0.1, 0]} scale={[mountain.r * 0.22, mountain.h * 0.24, mountain.r * 0.18]}>
+          <coneGeometry args={[1, 1, 9]} />
+          <meshStandardMaterial color={snow} roughness={0.86} />
+        </mesh>
+        <mesh position={[-mountain.r * 0.34, mountain.h * 0.51, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.1, mountain.h * 0.1, mountain.r * 0.08]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={snow} roughness={0.86} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
+      <mesh position={[0, mountain.h * 0.37, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.72, mountain.h * 0.74, mountain.r * 0.55]}>
+        <coneGeometry args={[1, 1, 7]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, 0.44, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.74, mountain.h * 0.075, mountain.r * 0.55]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.34, 0.36, mountain.r * 0.2]} rotation={[-0.02, 0.38, 0.03]} scale={[mountain.r * 0.42, mountain.h * 0.055, mountain.r * 0.3]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[mountain.r * 0.35, 0.34, -mountain.r * 0.24]} rotation={[0.03, -0.26, -0.02]} scale={[mountain.r * 0.38, mountain.h * 0.05, mountain.r * 0.28]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, mountain.h * 0.45, 0]} rotation={[0.08, 0.22, -0.04]} scale={[mountain.r * 0.58, mountain.h * 0.45, mountain.r * 0.44]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rock} roughness={0.98} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.36, mountain.h * 0.33, mountain.r * 0.16]} rotation={[-0.06, -0.3, 0.08]} scale={[mountain.r * 0.38, mountain.h * 0.32, mountain.r * 0.33]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[mountain.r * 0.32, mountain.h * 0.27, -mountain.r * 0.22]} rotation={[0.02, 0.4, 0.08]} scale={[mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.3]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#78817d" : "#858e7f"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, mountain.h * 0.86, 0]} rotation={[0.06, 0.2, 0]} scale={[mountain.r * 0.22, mountain.h * 0.08, mountain.r * 0.18]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.36, mountain.h * 0.61, mountain.r * 0.16]} rotation={[0.04, -0.22, 0]} scale={[mountain.r * 0.14, mountain.h * 0.06, mountain.r * 0.12]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
     </group>
   );
 }
