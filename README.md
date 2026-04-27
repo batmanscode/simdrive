@@ -24,13 +24,16 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Each driver can choose a personal cockpit style: None, Hands, or Paws.
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's setup, and each driver's cockpit style.
 - Display landing/lobby/results screens support System, Light, and Dark themes.
+- The home screen shows a live active-driver count only when at least one driver is online.
 - One-player practice works.
-- Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, formula-style cars, countdown lights, and a short first-place banner.
+- Four tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, formula-style cars, countdown lights, and a short first-place banner.
 - Race view includes a minimap and live global leaderboard.
 - Results include podium-style placement, total time, and best lap.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, basic audio, and vibration where supported.
+- Controller setup/lobby screens show a recommended-browser notice when the phone is not on the preferred Android Chromium-style browser path.
 - Web vibration depends on browser support. Android Chromium/Samsung-style browsers are the main target; iOS Safari does not support it; Firefox Android may expose partial/no-op support.
-- Server owns room state, race phase, velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, optional crash/off-track reset, checkpoint-gated lap completion, directional collisions, DNF handling, and results.
+- Server owns room state, race phase, velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, elevation/grade effects, optional crash/off-track reset, checkpoint-gated lap completion, directional collisions, DNF handling, and results.
 - If every display/host browser disconnects, the room stays resumable for a 20-second grace window. If no display reconnects in that window, the room closes and controllers are sent back out of the game.
 - Manual phone playtest notes are tracked in `HUMAN_CHECKS.md`.
 - Product-facing feature copy is tracked in `FEATURES.md`.

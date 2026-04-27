@@ -8,6 +8,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - One display creates a room and shows a QR code for controllers.
 - Lobby display can close/reset the room, return everyone to the start, show race settings, and show drivers in the current lineup.
 - Display pages support System, Light, and Dark themes; System follows the device color-scheme setting.
+- Home screen shows a live active-driver count when active players are online, and hides it at zero.
 - Phone controllers auto-resume the last saved driver after refreshes or QR rescans when the room is still available.
 - One-player practice works for solo testing.
 - Up to 8 racers per room.
@@ -17,12 +18,13 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Each driver can choose a car setup: Balanced, High Grip, or High Speed. The lobby shows each driver's setup.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws.
 - Non-VIP players can see the chosen race settings and driver setups in the lobby.
-- Two tracks: Sakura Sprint and Alpine Grand Prix.
-- Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, formula-style cars, and per-driver cockpit Hands/Paws/None display cosmetics.
+- Four tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, formula-style cars, and per-driver cockpit Hands/Paws/None display cosmetics.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
+- Controller setup/lobby screens warn when the phone is not on the recommended Android Chromium-style browser path for best motion and haptic support.
 - Audio feedback includes engine speed/throttle, tire slip/off-road noise, brake tone, curb rumble, impact thuds, start/test cue, and countdown beeps.
 - Optional vibration feedback includes impacts, hard braking, curb rumble, grass/off-road rumble, and high-slip pulses on supported mobile browsers.
-- Server-authoritative racing with velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, lateral slip, tuned braking, aero drag, downforce-style speed-building grip, surface grip/drag, wet-weather grip and top-speed changes, collisions, optional crash/off-track reset, lap timing, best lap, DNF handling, and results.
+- Server-authoritative racing with velocity-based car movement, per-driver setup multipliers, warm-up/flying start timing, lateral slip, tuned braking, aero drag, downforce-style speed-building grip, elevation/grade acceleration effects, surface grip/drag, wet-weather grip and top-speed changes, collisions, optional crash/off-track reset, lap timing, best lap, DNF handling, and results.
 - In-race minimap, live global leaderboard, short first-place banner, countdown lights, and podium-style results.
 - Display/host refresh can resume the same room during the grace window.
 
@@ -34,6 +36,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Main controller pitch: phones become steering wheels and pedals with calibration, touch fallback, and landscape race mode.
 - Main race-info pitch: cockpit racing with minimap, live leaderboard, best laps, and results.
 - Display UI pitch: the shared screen can follow the room/device theme with light and dark display modes.
+- Track pitch: short party circuits plus long real-world-inspired mountain endurance routes.
 
 ## Planned Or Experimental
 
