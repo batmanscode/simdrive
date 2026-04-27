@@ -2732,7 +2732,7 @@ function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number
 }
 
 function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
-  const turn = clamp(steer, -1, 1) * 0.8;
+  const turn = -clamp(steer, -1, 1) * 0.8;
   const hands = useRef<THREE.Group>(null);
   const handTurn = useRef(turn);
   useFrame((_, delta) => {
@@ -2764,39 +2764,66 @@ function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) 
 }
 
 function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const x = side * 0.36;
+  const isPaws = style === "paws";
+  const x = side * (isPaws ? 0.39 : 0.402);
   const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
-  const pad = style === "paws" ? "#5c2b35" : "#1b1d23";
+  const fingerOffsets = [-0.066, -0.022, 0.022, 0.066];
   return (
-    <group position={[x, -0.02, 0.02]} rotation={[0, 0, side * -0.16]}>
-      <mesh scale={style === "paws" ? [1.12, 0.92, 0.68] : [1.0, 0.82, 0.58]}>
-        <sphereGeometry args={[style === "paws" ? 0.145 : 0.12, 18, 12]} />
+    <group position={[x, isPaws ? -0.018 : -0.004, isPaws ? -0.012 : -0.006]} rotation={[isPaws ? 0.16 : 0.1, side * (isPaws ? 0 : 0.04), side * (isPaws ? -0.28 : -0.22)]}>
+      <mesh position={isPaws ? [0, 0, 0] : [0, -0.056, -0.08]} scale={isPaws ? [1.38, 0.86, 0.72] : [1.12, 0.56, 0.38]}>
+        <sphereGeometry args={[isPaws ? 0.158 : 0.116, 20, 12]} />
         <meshStandardMaterial color={skin} roughness={0.76} />
       </mesh>
-      {style === "paws" ? (
+      {isPaws ? (
         <>
-          {[-0.09, -0.03, 0.03, 0.09].map((offset) => (
-            <mesh key={offset} position={[offset, 0.105 - Math.abs(offset) * 0.12, 0.055]} scale={[1, 0.78, 0.62]}>
-              <sphereGeometry args={[0.034, 10, 8]} />
-              <meshStandardMaterial color={pad} roughness={0.82} />
+          {[-0.076, 0, 0.076].map((offset) => (
+            <mesh key={`paw-back-groove-${offset}`} position={[offset, 0.044, -0.115]} rotation={[-0.12, 0, offset * -1.45]} scale={[1, 1.06, 1]}>
+              <boxGeometry args={[0.02, 0.145, 0.018]} />
+              <meshStandardMaterial color="#9f6748" roughness={0.86} />
             </mesh>
           ))}
-          <mesh position={[0, -0.025, 0.065]} scale={[1.25, 0.82, 0.6]}>
-            <sphereGeometry args={[0.06, 12, 8]} />
-            <meshStandardMaterial color={pad} roughness={0.82} />
-          </mesh>
+          {[-0.11, -0.037, 0.037, 0.11].map((offset) => (
+            <mesh key={`paw-knuckle-${offset}`} position={[offset, 0.12 - Math.abs(offset) * 0.04, -0.106]} scale={[1.1, 0.52, 0.34]}>
+              <sphereGeometry args={[0.026, 10, 6]} />
+              <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
+            </mesh>
+          ))}
+          {[-0.108, 0.108].map((offset) => (
+            <mesh key={`paw-side-${offset}`} position={[offset, -0.004, -0.034]} scale={[0.78, 0.58, 0.54]}>
+              <sphereGeometry args={[0.048, 10, 8]} />
+              <meshStandardMaterial color={skin} roughness={0.8} />
+            </mesh>
+          ))}
         </>
       ) : (
         <>
-          {[-0.06, -0.02, 0.02, 0.06].map((offset) => (
-            <mesh key={offset} position={[offset, 0.092, 0.035]} rotation={[0.45, 0, side * 0.08]}>
-              <cylinderGeometry args={[0.017, 0.021, 0.15, 8]} />
-              <meshStandardMaterial color="#20242d" roughness={0.62} />
-            </mesh>
-          ))}
-          <mesh position={[side * -0.1, -0.025, 0.045]} rotation={[0.15, 0, side * 0.78]}>
-            <boxGeometry args={[0.05, 0.16, 0.055]} />
-            <meshStandardMaterial color="#20242d" roughness={0.62} />
+          {fingerOffsets.map((offset, index) => {
+            const length = [0.106, 0.134, 0.126, 0.096][index];
+            const width = [0.019, 0.023, 0.022, 0.018][index];
+            return (
+              <group key={offset} position={[offset, 0.018 - Math.abs(offset) * 0.02, -0.11]} rotation={[0.08, side * 0.03, offset * -0.95]}>
+                <mesh position={[0, length * 0.1, 0]} scale={[1, 1, 0.72]}>
+                  <capsuleGeometry args={[width, length, 3, 9]} />
+                  <meshStandardMaterial color={skin} roughness={0.72} />
+                </mesh>
+                <mesh position={[0, -length * 0.48, -0.004]} scale={[1.16, 0.5, 0.32]}>
+                  <sphereGeometry args={[width * 1.08, 9, 6]} />
+                  <meshStandardMaterial color={skin} roughness={0.76} />
+                </mesh>
+                <mesh position={[0, length * 0.63, 0.01]} rotation={[0.68, 0, 0]} scale={[1, 0.72, 0.56]}>
+                  <capsuleGeometry args={[width * 0.88, 0.034, 3, 8]} />
+                  <meshStandardMaterial color={skin} roughness={0.74} />
+                </mesh>
+              </group>
+            );
+          })}
+          <mesh position={[side * -0.096, -0.004, -0.092]} rotation={[0.46, side * 0.18, side * 0.78]} scale={[1.08, 0.86, 0.62]}>
+            <capsuleGeometry args={[0.026, 0.098, 3, 9]} />
+            <meshStandardMaterial color={skin} roughness={0.72} />
+          </mesh>
+          <mesh position={[side * -0.068, -0.05, -0.092]} rotation={[0.08, 0, side * 0.42]} scale={[1.05, 0.48, 0.34]}>
+            <sphereGeometry args={[0.038, 10, 6]} />
+            <meshStandardMaterial color={skin} roughness={0.78} />
           </mesh>
         </>
       )}

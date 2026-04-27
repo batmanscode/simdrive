@@ -3,7 +3,8 @@
 - First-person camera: later, test a lower and more believable cockpit placement with stronger nose/front-wheel framing. Keep the current camera for now because it is readable and comfortable.
 - Track art: replace procedural track/car primitives with authored or generated GLB assets once the gameplay loop stabilizes.
 - Weather: add spray from other cars and stronger wet reflections after performance is measured on phones.
-- Cockpit cosmetics: later, consider optional forearms/sleeves for Hands/Paws if the cockpit needs more physicality, but keep them off for now to avoid cluttering the first-person view.
+- Cockpit cosmetics: later, consider optional forearms/wrists for Hands/Paws if the cockpit needs more physicality, but keep them off for now to avoid cluttering the first-person view.
+- Cockpit cosmetic materials: later, consider racing-glove styling, tiny cuff bands, or paw glove bands if the bare hand/paw materials feel too toy-like against the formula cockpit.
 - Reconnect escape hatch: add a deliberate "Join as new driver" action for cases where the same phone should stop reusing its saved driver token.
 - Steering reliability: if real-phone tests still show inverted or inconsistent motion steering, replace the current orientation-angle heuristic with a two-step calibration flow. Step 1 captures neutral center; step 2 asks the player to tilt right and stores the detected sign/direction per phone. This is more reliable than trusting `screen.orientation.angle`, which can vary by browser, device, landscape side, and refresh/orientation-lock behavior.
 - Steering debug mode: add a temporary/controller-hidden debug readout for `beta`, `gamma`, screen angle, chosen axis/sign, neutral value, final steer, and whether touch override is active. Use this only for diagnosis so we can prove what the browser is reporting before changing tuning.
