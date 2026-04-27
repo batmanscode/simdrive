@@ -30,8 +30,17 @@ type MotionCalibration = {
 };
 
 let latestMotionCalibration: MotionCalibration | undefined;
+let latestServerClockOffsetMs = 0;
 
 type DisplayThemeMode = "system" | "light" | "dark";
+
+function updateServerClock(serverNow: number) {
+  latestServerClockOffsetMs = serverNow - Date.now();
+}
+
+function currentServerTimeMs() {
+  return Date.now() + latestServerClockOffsetMs;
+}
 
 export function App() {
   const isController = location.pathname.startsWith("/controller");
@@ -54,7 +63,7 @@ function DisplayApp() {
           <div className="hero-copy-wrap">
             <p className="eyebrow">Real sim-racing energy, no rig required.</p>
             <h1>Sim Drive</h1>
-            <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
+            <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel. But also a party game lol.</p>
             <p className="hero-copy">
               Tilt to steer. Touch to throttle &amp; brake.
               <br />
@@ -64,6 +73,7 @@ function DisplayApp() {
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
               </button>
+              <span className="hero-action-or">or</span>
               <form
                 className="join-form"
                 onSubmit={(event) => {
@@ -72,10 +82,10 @@ function DisplayApp() {
                 }}
               >
                 <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
-                <button type="submit">Join Game</button>
+                <button type="submit">Join Room on This Screen</button>
               </form>
             </div>
-            <small className="hero-note">No install needed. One-player practice works, and room races support up to 8 drivers.</small>
+            <small className="hero-note">No install needed. Play solo, 4-way split-screen, two 4-way split screens, or everyone on their own screen :D</small>
             {activePlayers > 0 && (
               <div className="hero-live-stat" aria-live="polite">
                 <Users size={16} />
@@ -85,7 +95,7 @@ function DisplayApp() {
             <div className="hero-flow" aria-label="How Sim Drive works">
               <div>
                 <strong>Host screen</strong>
-                <span>Host on TV, laptop, projector.</span>
+                <span>Host on TV, laptop, projector, or screen share.</span>
               </div>
               <div>
                 <strong>Phone controllers</strong>
@@ -95,10 +105,14 @@ function DisplayApp() {
                 <strong>Race options</strong>
                 <span>Choose laps, track, rain, ghost cars, gentle assist, warm-up start, and reset rules.</span>
               </div>
+              <div>
+                <strong>Physics</strong>
+                <span>Dynamic traction, downforce, rain grip, slip, curbs, and crash-out contact.</span>
+              </div>
             </div>
             <div className="hero-pills" aria-label="Game features">
               <span><Smartphone size={16} /> Phone steering</span>
-              <span><Gauge size={16} /> Sim-like grip</span>
+              <span><Gauge size={16} /> Exploding cars</span>
               <span><Gamepad2 size={16} /> Sound + haptics</span>
               <span><Users size={16} /> 1-8 drivers</span>
             </div>
@@ -185,19 +199,22 @@ function LobbyDisplay({
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
   const readyCount = room.players.filter((player) => player.isReady || player.isVIP).length;
+  const localPlayerCount = room.players.filter((player) => player.displayGroupId === displayGroupId).length;
 
   return (
     <main className={`lobby ${themeClass}`}>
       {themeToggle}
       <section className="join-card">
-        <div className="join-label">Join this race</div>
+        <div className="join-label">Join this screen</div>
         <div className="qr-wrap">
           <QRCodeSVG value={controllerUrl} size={260} bgColor="#f5f1e8" fgColor="#101214" />
         </div>
         <div className="room-code">{room.roomCode}</div>
-        <p>Scan with your phone. Tilt to steer, then try not to bin it.</p>
+        <p>Scan with your phone. Tilt to steer.</p>
+        <small className="screen-note">Your friends can have their own view. Tell them to join on their computer with your room code.</small>
         <div className="join-card-stats">
-          <span>{room.players.length}/8 drivers</span>
+          <span>{localPlayerCount}/4 this screen</span>
+          <span>{room.players.length}/8 room</span>
           <span>{readyCount} ready</span>
         </div>
       </section>
@@ -275,7 +292,7 @@ function PlayerGrid({ room }: { room: RoomState }) {
 function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const localPlayers = room.players.filter((player) => player.displayGroupId === displayGroupId);
   const panes = (localPlayers.length ? localPlayers : room.players).slice(0, 4);
-  const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000)) : 0;
+  const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - currentServerTimeMs()) / 1000)) : 0;
   const className = `race-grid panes-${Math.max(1, panes.length)}`;
   const paneCount = Math.max(1, panes.length);
 
@@ -550,7 +567,7 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} room={game.room} playerId={game.playerId} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} />;
   }
 
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} />;
@@ -955,7 +972,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, crashEvents, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; room: RoomState; playerId: string }) {
+function RaceController({ send, feedback, crashEvents, countdownMark, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string }) {
   const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
@@ -974,6 +991,7 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
   const pedalsRef = useRef(pedals);
   const feedbackRef = useRef(feedback);
   const crashEventsRef = useRef(crashEvents);
+  const countdownMarkRef = useRef(countdownMark);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
@@ -1065,6 +1083,10 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
   }, [crashEvents]);
 
   useEffect(() => {
+    countdownMarkRef.current = countdownMark;
+  }, [countdownMark]);
+
+  useEffect(() => {
     roomRef.current = room;
   }, [room]);
 
@@ -1081,7 +1103,7 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
-      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current);
+      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current, countdownMarkRef.current);
       driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef, crashEventsRef.current, lastCrashHapticIdRef);
     }, 33);
     return () => {
@@ -2710,7 +2732,7 @@ function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number
 }
 
 function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
-  const turn = clamp(steer, -1, 1) * 0.8;
+  const turn = -clamp(steer, -1, 1) * 0.8;
   const hands = useRef<THREE.Group>(null);
   const handTurn = useRef(turn);
   useFrame((_, delta) => {
@@ -2742,39 +2764,66 @@ function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) 
 }
 
 function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const x = side * 0.36;
+  const isPaws = style === "paws";
+  const x = side * (isPaws ? 0.39 : 0.402);
   const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
-  const pad = style === "paws" ? "#5c2b35" : "#1b1d23";
+  const fingerOffsets = [-0.066, -0.022, 0.022, 0.066];
   return (
-    <group position={[x, -0.02, 0.02]} rotation={[0, 0, side * -0.16]}>
-      <mesh scale={style === "paws" ? [1.12, 0.92, 0.68] : [1.0, 0.82, 0.58]}>
-        <sphereGeometry args={[style === "paws" ? 0.145 : 0.12, 18, 12]} />
+    <group position={[x, isPaws ? -0.018 : -0.004, isPaws ? -0.012 : -0.006]} rotation={[isPaws ? 0.16 : 0.1, side * (isPaws ? 0 : 0.04), side * (isPaws ? -0.28 : -0.22)]}>
+      <mesh position={isPaws ? [0, 0, 0] : [0, -0.056, -0.08]} scale={isPaws ? [1.38, 0.86, 0.72] : [1.12, 0.56, 0.38]}>
+        <sphereGeometry args={[isPaws ? 0.158 : 0.116, 20, 12]} />
         <meshStandardMaterial color={skin} roughness={0.76} />
       </mesh>
-      {style === "paws" ? (
+      {isPaws ? (
         <>
-          {[-0.09, -0.03, 0.03, 0.09].map((offset) => (
-            <mesh key={offset} position={[offset, 0.105 - Math.abs(offset) * 0.12, 0.055]} scale={[1, 0.78, 0.62]}>
-              <sphereGeometry args={[0.034, 10, 8]} />
-              <meshStandardMaterial color={pad} roughness={0.82} />
+          {[-0.076, 0, 0.076].map((offset) => (
+            <mesh key={`paw-back-groove-${offset}`} position={[offset, 0.044, -0.115]} rotation={[-0.12, 0, offset * -1.45]} scale={[1, 1.06, 1]}>
+              <boxGeometry args={[0.02, 0.145, 0.018]} />
+              <meshStandardMaterial color="#9f6748" roughness={0.86} />
             </mesh>
           ))}
-          <mesh position={[0, -0.025, 0.065]} scale={[1.25, 0.82, 0.6]}>
-            <sphereGeometry args={[0.06, 12, 8]} />
-            <meshStandardMaterial color={pad} roughness={0.82} />
-          </mesh>
+          {[-0.11, -0.037, 0.037, 0.11].map((offset) => (
+            <mesh key={`paw-knuckle-${offset}`} position={[offset, 0.12 - Math.abs(offset) * 0.04, -0.106]} scale={[1.1, 0.52, 0.34]}>
+              <sphereGeometry args={[0.026, 10, 6]} />
+              <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
+            </mesh>
+          ))}
+          {[-0.108, 0.108].map((offset) => (
+            <mesh key={`paw-side-${offset}`} position={[offset, -0.004, -0.034]} scale={[0.78, 0.58, 0.54]}>
+              <sphereGeometry args={[0.048, 10, 8]} />
+              <meshStandardMaterial color={skin} roughness={0.8} />
+            </mesh>
+          ))}
         </>
       ) : (
         <>
-          {[-0.06, -0.02, 0.02, 0.06].map((offset) => (
-            <mesh key={offset} position={[offset, 0.092, 0.035]} rotation={[0.45, 0, side * 0.08]}>
-              <cylinderGeometry args={[0.017, 0.021, 0.15, 8]} />
-              <meshStandardMaterial color="#20242d" roughness={0.62} />
-            </mesh>
-          ))}
-          <mesh position={[side * -0.1, -0.025, 0.045]} rotation={[0.15, 0, side * 0.78]}>
-            <boxGeometry args={[0.05, 0.16, 0.055]} />
-            <meshStandardMaterial color="#20242d" roughness={0.62} />
+          {fingerOffsets.map((offset, index) => {
+            const length = [0.106, 0.134, 0.126, 0.096][index];
+            const width = [0.019, 0.023, 0.022, 0.018][index];
+            return (
+              <group key={offset} position={[offset, 0.018 - Math.abs(offset) * 0.02, -0.11]} rotation={[0.08, side * 0.03, offset * -0.95]}>
+                <mesh position={[0, length * 0.1, 0]} scale={[1, 1, 0.72]}>
+                  <capsuleGeometry args={[width, length, 3, 9]} />
+                  <meshStandardMaterial color={skin} roughness={0.72} />
+                </mesh>
+                <mesh position={[0, -length * 0.48, -0.004]} scale={[1.16, 0.5, 0.32]}>
+                  <sphereGeometry args={[width * 1.08, 9, 6]} />
+                  <meshStandardMaterial color={skin} roughness={0.76} />
+                </mesh>
+                <mesh position={[0, length * 0.63, 0.01]} rotation={[0.68, 0, 0]} scale={[1, 0.72, 0.56]}>
+                  <capsuleGeometry args={[width * 0.88, 0.034, 3, 8]} />
+                  <meshStandardMaterial color={skin} roughness={0.74} />
+                </mesh>
+              </group>
+            );
+          })}
+          <mesh position={[side * -0.096, -0.004, -0.092]} rotation={[0.46, side * 0.18, side * 0.78]} scale={[1.08, 0.86, 0.62]}>
+            <capsuleGeometry args={[0.026, 0.098, 3, 9]} />
+            <meshStandardMaterial color={skin} roughness={0.72} />
+          </mesh>
+          <mesh position={[side * -0.068, -0.05, -0.092]} rotation={[0.08, 0, side * 0.42]} scale={[1.05, 0.48, 0.34]}>
+            <sphereGeometry args={[0.038, 10, 6]} />
+            <meshStandardMaterial color={skin} roughness={0.78} />
           </mesh>
         </>
       )}
@@ -3183,6 +3232,7 @@ function useGameSocket() {
   const [liveStats, setLiveStats] = useState<LiveStats>({ activePlayers: 0 });
   const [feedback, setFeedback] = useState<CarState>();
   const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
+  const [controllerCountdownMark, setControllerCountdownMark] = useState<number>();
   const [notice, setNotice] = useState<{ id: number; message: string }>();
   const [isConnected, setIsConnected] = useState(false);
 
@@ -3207,6 +3257,7 @@ function useGameSocket() {
       };
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data) as ServerMessage;
+        if ("serverNow" in message) updateServerClock(message.serverNow);
         if (message.type === "hello") setClientId(message.clientId);
         if (message.type === "live_stats") setLiveStats(message.stats);
         if (message.type === "joined_display") {
@@ -3236,6 +3287,8 @@ function useGameSocket() {
         if (message.type === "controller_feedback") {
           setFeedback(message.car);
           setControllerCrashEvents(message.crashEvents ?? []);
+          setControllerCountdownMark(message.countdownMark);
+          setRoom((current) => current ? { ...current, phase: message.roomPhase } : current);
         }
         if (message.type === "room_closed") {
           console.warn(message.message);
@@ -3246,6 +3299,7 @@ function useGameSocket() {
           setJoinedToken(undefined);
           setFeedback(undefined);
           setControllerCrashEvents([]);
+          setControllerCountdownMark(undefined);
           setNotice({ id: Date.now(), message: message.message });
         }
         if (message.type === "error_notice") {
@@ -3269,6 +3323,7 @@ function useGameSocket() {
         setJoinedToken(undefined);
         setFeedback(undefined);
         setControllerCrashEvents([]);
+        setControllerCountdownMark(undefined);
         setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
         const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
         reconnectAttemptRef.current += 1;
@@ -3298,7 +3353,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, controllerCountdownMark, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
@@ -3664,7 +3719,7 @@ function createControllerAudio(): ControllerAudio {
   };
 }
 
-function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[]) {
+function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[], countdownMark?: number) {
   if (!audio || audio.context.state !== "running") return;
   if (room.phase !== "countdown" && room.phase !== "racing") {
     silenceControllerAudio(audio);
@@ -3706,7 +3761,7 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
     playCue(audio, "explosion", crashEvent.severity);
   }
 
-  updateCountdownAudio(audio, room);
+  updateCountdownAudio(audio, room, countdownMark);
 }
 
 function silenceControllerAudio(audio: ControllerAudio | null) {
@@ -3719,16 +3774,23 @@ function silenceControllerAudio(audio: ControllerAudio | null) {
   audio.lastCountdownMark = undefined;
 }
 
-function updateCountdownAudio(audio: ControllerAudio, room: RoomState) {
-  if (room.phase !== "countdown" || !room.countdownEndsAt) {
-    audio.lastCountdownMark = undefined;
+function updateCountdownAudio(audio: ControllerAudio, room: RoomState, countdownMark?: number) {
+  if (room.phase === "countdown" && room.countdownEndsAt) {
+    const remaining = Math.max(0, room.countdownEndsAt - currentServerTimeMs());
+    const mark = countdownMark ?? clamp(Math.ceil(remaining / 1000), 1, 5);
+    if (mark < 1 || audio.lastCountdownMark === mark) return;
+    audio.lastCountdownMark = mark;
+    playCue(audio, "countdown");
     return;
   }
-  const remaining = Math.max(0, room.countdownEndsAt - Date.now());
-  const mark = remaining > 220 ? Math.ceil(remaining / 1000) : "go";
-  if (audio.lastCountdownMark === mark) return;
-  audio.lastCountdownMark = mark;
-  playCue(audio, mark === "go" ? "go" : "countdown");
+  if (room.phase === "racing") {
+    if (audio.lastCountdownMark !== undefined && audio.lastCountdownMark !== "go") {
+      audio.lastCountdownMark = "go";
+      playCue(audio, "go");
+    }
+    return;
+  }
+  audio.lastCountdownMark = undefined;
 }
 
 function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1) {
@@ -3737,15 +3799,15 @@ function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "
   const gain = context.createGain();
   const now = context.currentTime;
 
-  osc.type = kind === "impact" || kind === "explosion" ? "square" : "sine";
-  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
+  osc.type = kind === "impact" || kind === "explosion" ? "square" : kind === "go" ? "triangle" : "sine";
+  osc.frequency.value = kind === "go" ? 760 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
+  gain.gain.exponentialRampToValueAtTime(kind === "go" ? 0.22 : kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.44 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
   osc.connect(gain);
   gain.connect(audio.masterGain);
   osc.start(now);
-  osc.stop(now + (kind === "explosion" ? 0.52 : 0.38));
+  osc.stop(now + (kind === "go" ? 0.48 : kind === "explosion" ? 0.52 : 0.38));
 }
 
 function createNoiseBuffer(context: AudioContext) {

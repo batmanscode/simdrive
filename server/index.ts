@@ -17,6 +17,8 @@ const COUNTDOWN_MS = 5000;
 const DISCONNECT_GRACE_MS = 12_000;
 const NO_DISPLAY_GRACE_MS = 20_000;
 const RACE_DNF_GRACE_MS = DISCONNECT_GRACE_MS;
+const MAX_PLAYERS_PER_ROOM = 8;
+const MAX_PLAYERS_PER_DISPLAY_GROUP = 4;
 const CRASH_EVENT_TTL_MS = 1_600;
 const CRASH_EVENT_COOLDOWN_MS = 1_200;
 const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
@@ -71,7 +73,7 @@ app.get(/.*/, (_req, res) => {
 wss.on("connection", (ws) => {
   const client: Client = { id: id("c"), ws, role: "unknown" };
   clients.set(client.id, client);
-  send(client, { type: "hello", clientId: client.id });
+  send(client, { type: "hello", clientId: client.id, serverNow: Date.now() });
   sendLiveStats(client);
 
   ws.on("message", (raw) => {
@@ -123,7 +125,7 @@ server.listen(PORT, () => {
 
 function handleMessage(client: Client, message: ClientMessage) {
   if (message.type === "ping") {
-    send(client, { type: "pong", at: message.at });
+    send(client, { type: "pong", at: message.at, serverNow: Date.now() });
     return;
   }
 
@@ -168,8 +170,12 @@ function handleMessage(client: Client, message: ClientMessage) {
       return;
     }
     const existing = findPlayerByToken(room, message.token);
-    if (!existing && room.players.size >= 8) {
+    if (!existing && room.players.size >= MAX_PLAYERS_PER_ROOM) {
       send(client, { type: "error_notice", message: "Room is full." });
+      return;
+    }
+    if (!existing && playerCountInDisplayGroup(room, resolvedGroupId) >= MAX_PLAYERS_PER_DISPLAY_GROUP) {
+      send(client, { type: "error_notice", message: "This screen already has 4 drivers. Join the room on another computer for another screen." });
       return;
     }
     const player = existing ?? createPlayer(room, resolvedGroupId);
@@ -342,7 +348,7 @@ function createDisplayGroup(room: Room) {
 }
 
 function createPlayer(room: Room, displayGroupId: string): Player {
-  if (room.players.size >= 8) {
+  if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
     throw new Error("Room is full");
   }
   const player: Player = {
@@ -360,6 +366,10 @@ function createPlayer(room: Room, displayGroupId: string): Player {
   };
   room.players.set(player.id, player);
   return player;
+}
+
+function playerCountInDisplayGroup(room: Room, displayGroupId: string) {
+  return [...room.players.values()].filter((player) => player.displayGroupId === displayGroupId).length;
 }
 
 function tickRoom(room: Room, dt: number) {
@@ -596,7 +606,7 @@ function broadcastRealtime(room: Room) {
 }
 
 function broadcastRaceSnapshot(room: Room) {
-  const payload = JSON.stringify({ type: "race_snapshot", snapshot: raceSnapshot(room) } satisfies ServerMessage);
+  const payload = JSON.stringify({ type: "race_snapshot", snapshot: raceSnapshot(room), serverNow: Date.now() } satisfies ServerMessage);
   for (const client of clients.values()) {
     if (client.roomCode === room.code && client.role === "display") {
       sendRaw(client, payload, true);
@@ -605,7 +615,7 @@ function broadcastRaceSnapshot(room: Room) {
 }
 
 function broadcastRoom(room: Room) {
-  const payload = JSON.stringify({ type: "room_state", state: roomState(room) } satisfies ServerMessage);
+  const payload = JSON.stringify({ type: "room_state", state: roomState(room), serverNow: Date.now() } satisfies ServerMessage);
   for (const client of clients.values()) {
     if (client.roomCode === room.code) {
       sendRaw(client, payload);
@@ -615,6 +625,9 @@ function broadcastRoom(room: Room) {
 
 function sendControllerFeedback(room: Room) {
   const raceTime = room.raceStartedAt ? (Date.now() - room.raceStartedAt) / 1000 : 0;
+  const countdownMark = room.phase === "countdown" && room.countdownEndsAt
+    ? clamp(Math.ceil((room.countdownEndsAt - Date.now()) / 1000), 1, 5)
+    : undefined;
   for (const client of clients.values()) {
     if (client.roomCode !== room.code || client.role !== "controller" || !client.playerId) continue;
     if (room.controllerClients.get(client.playerId) !== client.id) continue;
@@ -623,7 +636,9 @@ function sendControllerFeedback(room: Room) {
       car: room.cars.get(client.playerId),
       roomPhase: room.phase,
       raceTime,
-      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!))
+      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!)),
+      countdownMark,
+      serverNow: Date.now()
     });
   }
 }

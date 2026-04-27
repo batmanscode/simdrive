@@ -165,13 +165,13 @@ export type ClientMessage =
   | { type: "ping"; at: number };
 
 export type ServerMessage =
-  | { type: "hello"; clientId: string }
+  | { type: "hello"; clientId: string; serverNow: number }
   | { type: "live_stats"; stats: LiveStats }
   | { type: "joined_display"; roomCode: string; displayGroupId: string }
   | { type: "joined_controller"; roomCode: string; playerId: string; token: string; displayGroupId: string }
-  | { type: "room_state"; state: RoomState }
-  | { type: "race_snapshot"; snapshot: RaceSnapshot }
-  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number; crashEvents?: CrashEvent[] }
+  | { type: "room_state"; state: RoomState; serverNow: number }
+  | { type: "race_snapshot"; snapshot: RaceSnapshot; serverNow: number }
+  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number; crashEvents?: CrashEvent[]; countdownMark?: number; serverNow: number }
   | { type: "room_closed"; message: string }
   | { type: "error_notice"; message: string }
-  | { type: "pong"; at: number };
+  | { type: "pong"; at: number; serverNow: number };
