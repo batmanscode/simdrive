@@ -28,6 +28,7 @@ button {
 }
 
 .landing {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -36,6 +37,29 @@ button {
     linear-gradient(115deg, rgba(6, 24, 44, 0.82) 0%, rgba(21, 92, 135, 0.66) 56%, rgba(232, 79, 95, 0.2) 100%),
     url("https://images.unsplash.com/photo-1521410195597-69e4d41477b3?auto=format&fit=crop&w=1800&q=80") center / cover;
   color: #fffaf0;
+}
+
+.landing-about-link {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 2;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.34);
+  color: rgba(255, 250, 240, 0.88);
+  border: 1px solid rgba(255, 250, 240, 0.18);
+  font-size: 13px;
+  font-weight: 850;
+  backdrop-filter: blur(8px);
+}
+
+.landing-about-link svg {
+  color: #ffd166;
 }
 
 .hero {
@@ -90,12 +114,6 @@ h2 {
   font-size: 18px;
   line-height: 1.35;
   font-weight: 850;
-}
-
-.hero-note {
-  display: block;
-  margin-top: 12px;
-  color: rgba(255, 250, 240, 0.72);
 }
 
 .hero-live-stat {
@@ -228,6 +246,12 @@ h2 {
   color: white;
 }
 
+.hero-note {
+  display: block;
+  margin-top: 12px;
+  color: rgba(255, 250, 240, 0.72);
+}
+
 .join-form {
   gap: 8px;
 }
@@ -245,6 +269,79 @@ input {
 .join-form input {
   width: 120px;
   text-align: center;
+}
+
+.about-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 18, 20, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.about-modal {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 32px;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #101214;
+  border: 1px solid rgba(16, 18, 20, 0.12);
+  box-shadow: 0 24px 90px rgba(16, 18, 20, 0.42);
+}
+
+.about-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #101214;
+  color: #fffaf0;
+  font-weight: 850;
+}
+
+.about-eyebrow {
+  margin-bottom: 10px;
+  color: rgba(16, 18, 20, 0.58);
+}
+
+.about-modal h2 {
+  max-width: 560px;
+  margin-bottom: 18px;
+  padding-right: 80px;
+  font-size: 34px;
+  line-height: 1.04;
+}
+
+.about-body {
+  display: grid;
+  gap: 14px;
+}
+
+.about-body p {
+  margin: 0;
+  color: rgba(16, 18, 20, 0.76);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.about-body a {
+  color: #0b6f9d;
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.about-body .about-signoff {
+  color: #101214;
+  font-weight: 900;
 }
 
 .display-theme {
@@ -1627,6 +1724,20 @@ input {
 
   .hero-flow {
     grid-template-columns: 1fr;
+  }
+
+  .about-backdrop {
+    padding: 12px;
+  }
+
+  .about-modal {
+    max-height: calc(100vh - 24px);
+    padding: 58px 18px 22px;
+  }
+
+  .about-modal h2 {
+    padding-right: 0;
+    font-size: 28px;
   }
 
   .lobby {
