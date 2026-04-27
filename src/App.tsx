@@ -50,6 +50,7 @@ export function App() {
 function DisplayApp() {
   const game = useGameSocket();
   const [joinCode, setJoinCode] = useState("");
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [themeMode, setThemeMode] = useStoredDisplayTheme();
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
   const themeClass = `display-theme theme-${resolvedTheme}`;
@@ -59,6 +60,9 @@ function DisplayApp() {
   if (!game.room) {
     return (
       <main className={`landing ${themeClass}`}>
+        <button className="landing-about-link" type="button" onClick={() => setIsAboutOpen(true)}>
+          <Info size={15} /> About
+        </button>
         <section className="hero">
           <div className="hero-copy-wrap">
             <p className="eyebrow">Real sim-racing energy, no rig required.</p>
@@ -119,6 +123,7 @@ function DisplayApp() {
           </div>
           <HeroShowcase />
         </section>
+        {isAboutOpen && <HomeAboutModal onClose={() => setIsAboutOpen(false)} />}
       </main>
     );
   }
@@ -132,6 +137,71 @@ function DisplayApp() {
   }
 
   return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
+}
+
+function HomeAboutModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="about-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <button className="about-close" type="button" onClick={onClose}>
+          Close
+        </button>
+        {/* Sim Drive about story: personal background and inspiration for the home page overlay. */}
+        <p className="eyebrow about-eyebrow">inspiration</p>
+        <h2 id="about-title">made for fun</h2>
+        <div className="about-body">
+          <p>
+            Multiplayer games were a big part of growing up, not just digital games, but board and card games too.
+          </p>
+          <p>
+            We used to meet up at someone's house and play, from Halo to COD, then PUBG, then Among Us, Codenames, and my current favourites and inspo for Sim Drive:{" "}
+            <a href="https://www.jackboxgames.com/" target="_blank" rel="noreferrer">
+              Jackbox Games
+            </a>{" "}
+            and{" "}
+            <a href="https://gamingcouch.com/" target="_blank" rel="noreferrer">
+              Gaming Couch
+            </a>
+            .
+          </p>
+          <p>
+            As we got older and moved away, online "party games" became much more of a thing for us, and even when we met in person, if it wasn't a board game, we'd still play a party game.
+          </p>
+          <p>
+            Jackbox has been a staple for us, and the much more recent Gaming Couch is looking to take its place.
+          </p>
+          <p>
+            This game carries my love for these games that gave me and my friends so much laughter, joy, yelling, and hoarse throats.
+          </p>
+          <p>
+            Some of the games I enjoyed the most were racing games in my early years, and currently it's Mario Kart.
+          </p>
+          <p>
+            When the PS3 came out, it had this Sixaxis controller that was fucking awesome sounding, but so few games took advantage of it. And now that our phones are awesome, I thought I could make my own dreams come true and give my crew a new game to have fun with :D
+          </p>
+          <p>
+            I hope you enjoy this. It's my first game, and it's made with love &lt;3
+          </p>
+          <p className="about-signoff">And tokens, lol.</p>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function ThemeToggle({ mode, onChange }: { mode: DisplayThemeMode; onChange: (mode: DisplayThemeMode) => void }) {
