@@ -19,6 +19,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test race countdown while the phone is still portrait: the phone should ask to turn sideways instead of saving a portrait steering center.
 - Test race countdown while holding the phone straight in landscape: the phone should briefly show `Hold steady, centering :D`.
 - Test race start without pressing `Calibrate`: holding the phone straight during the countdown should keep steering centered after the race controller appears.
+- Test race-start audio with phone audio enabled: countdown should play distinct 5/4/3/2/1 beeps without skipping late marks, and the louder `GO` cue should happen only at or just after the race starts.
 - Rotate or orientation-lock the phone as the race starts: steering should briefly center itself instead of latching a hard left/right input.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.
@@ -29,7 +30,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test cockpit/nose view: front wing, nose, tyres, cockpit shapes, and the None/Hands/Paws per-driver cockpit styles should read clearly without blocking the road.
 - Test lobby readability: QR code, room code, race settings, selected track, driver lineup, driver setups, and cockpit styles should be obvious at a glance.
 - Test warm-up/flying start: first pass should show `Warm-up`, timed lap 1 and total race time should begin at the line, and hard car-to-car contact during warm-up should not crash players out.
-- Test race presentation: countdown lights, first-place banner, live leaderboard, minimap, and podium results should feel useful without obstructing driving.
+- Test race presentation: countdown lights, first-place banner, live leaderboard, top-left minimap, and podium results should feel useful without obstructing driving.
 - Test haptics on Android Chrome/Chromium and Samsung Internet if available. If a supported browser reports a requested pulse but the phone does not buzz, check Silent mode, Do Not Disturb, power saving, and Android/Samsung touch vibration or system haptics before treating it as an app bug.
 - Test haptics on Firefox Android if available, but treat failure as likely browser support rather than an app bug unless the test pulse reports a clear app-side error.
 - Test whether normal fast cornering produces enough tire sound/slip feedback; current web haptics mostly pulse for slip/curbs/grass/braking/impacts, not continuous true g-force.

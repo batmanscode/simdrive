@@ -73,7 +73,7 @@ app.get(/.*/, (_req, res) => {
 wss.on("connection", (ws) => {
   const client: Client = { id: id("c"), ws, role: "unknown" };
   clients.set(client.id, client);
-  send(client, { type: "hello", clientId: client.id });
+  send(client, { type: "hello", clientId: client.id, serverNow: Date.now() });
   sendLiveStats(client);
 
   ws.on("message", (raw) => {
@@ -125,7 +125,7 @@ server.listen(PORT, () => {
 
 function handleMessage(client: Client, message: ClientMessage) {
   if (message.type === "ping") {
-    send(client, { type: "pong", at: message.at });
+    send(client, { type: "pong", at: message.at, serverNow: Date.now() });
     return;
   }
 
@@ -606,7 +606,7 @@ function broadcastRealtime(room: Room) {
 }
 
 function broadcastRaceSnapshot(room: Room) {
-  const payload = JSON.stringify({ type: "race_snapshot", snapshot: raceSnapshot(room) } satisfies ServerMessage);
+  const payload = JSON.stringify({ type: "race_snapshot", snapshot: raceSnapshot(room), serverNow: Date.now() } satisfies ServerMessage);
   for (const client of clients.values()) {
     if (client.roomCode === room.code && client.role === "display") {
       sendRaw(client, payload, true);
@@ -615,7 +615,7 @@ function broadcastRaceSnapshot(room: Room) {
 }
 
 function broadcastRoom(room: Room) {
-  const payload = JSON.stringify({ type: "room_state", state: roomState(room) } satisfies ServerMessage);
+  const payload = JSON.stringify({ type: "room_state", state: roomState(room), serverNow: Date.now() } satisfies ServerMessage);
   for (const client of clients.values()) {
     if (client.roomCode === room.code) {
       sendRaw(client, payload);
@@ -625,6 +625,9 @@ function broadcastRoom(room: Room) {
 
 function sendControllerFeedback(room: Room) {
   const raceTime = room.raceStartedAt ? (Date.now() - room.raceStartedAt) / 1000 : 0;
+  const countdownMark = room.phase === "countdown" && room.countdownEndsAt
+    ? clamp(Math.ceil((room.countdownEndsAt - Date.now()) / 1000), 1, 5)
+    : undefined;
   for (const client of clients.values()) {
     if (client.roomCode !== room.code || client.role !== "controller" || !client.playerId) continue;
     if (room.controllerClients.get(client.playerId) !== client.id) continue;
@@ -633,7 +636,9 @@ function sendControllerFeedback(room: Room) {
       car: room.cars.get(client.playerId),
       roomPhase: room.phase,
       raceTime,
-      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!))
+      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!)),
+      countdownMark,
+      serverNow: Date.now()
     });
   }
 }

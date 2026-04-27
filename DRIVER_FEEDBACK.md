@@ -17,7 +17,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 
 - Start/test cue: short confirmation tone when audio is enabled or tested.
 - Audio test also triggers a small on-screen pulse preview on the phone controller.
-- Countdown: 5/4/3/2/1/go beeps after audio is unlocked.
+- Countdown: server-marked 5/4/3/2/1 beeps after audio is unlocked, followed by a louder/lower `GO` cue only after the server reports the race phase has started.
 - Engine: persistent tone follows car speed and throttle.
 - Tire: filtered noise follows slip, grass/off-road driving, and curb contact.
 - Brake: tone fades in during braking at speed.

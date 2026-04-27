@@ -30,8 +30,17 @@ type MotionCalibration = {
 };
 
 let latestMotionCalibration: MotionCalibration | undefined;
+let latestServerClockOffsetMs = 0;
 
 type DisplayThemeMode = "system" | "light" | "dark";
+
+function updateServerClock(serverNow: number) {
+  latestServerClockOffsetMs = serverNow - Date.now();
+}
+
+function currentServerTimeMs() {
+  return Date.now() + latestServerClockOffsetMs;
+}
 
 export function App() {
   const isController = location.pathname.startsWith("/controller");
@@ -283,7 +292,7 @@ function PlayerGrid({ room }: { room: RoomState }) {
 function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
   const localPlayers = room.players.filter((player) => player.displayGroupId === displayGroupId);
   const panes = (localPlayers.length ? localPlayers : room.players).slice(0, 4);
-  const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000)) : 0;
+  const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - currentServerTimeMs()) / 1000)) : 0;
   const className = `race-grid panes-${Math.max(1, panes.length)}`;
   const paneCount = Math.max(1, panes.length);
 
@@ -558,7 +567,7 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} room={game.room} playerId={game.playerId} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} />;
   }
 
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} />;
@@ -963,7 +972,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, crashEvents, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; room: RoomState; playerId: string }) {
+function RaceController({ send, feedback, crashEvents, countdownMark, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string }) {
   const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
@@ -982,6 +991,7 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
   const pedalsRef = useRef(pedals);
   const feedbackRef = useRef(feedback);
   const crashEventsRef = useRef(crashEvents);
+  const countdownMarkRef = useRef(countdownMark);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
@@ -1073,6 +1083,10 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
   }, [crashEvents]);
 
   useEffect(() => {
+    countdownMarkRef.current = countdownMark;
+  }, [countdownMark]);
+
+  useEffect(() => {
     roomRef.current = room;
   }, [room]);
 
@@ -1089,7 +1103,7 @@ function RaceController({ send, feedback, crashEvents, room, playerId }: { send:
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
-      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current);
+      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current, countdownMarkRef.current);
       driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef, crashEventsRef.current, lastCrashHapticIdRef);
     }, 33);
     return () => {
@@ -3191,6 +3205,7 @@ function useGameSocket() {
   const [liveStats, setLiveStats] = useState<LiveStats>({ activePlayers: 0 });
   const [feedback, setFeedback] = useState<CarState>();
   const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
+  const [controllerCountdownMark, setControllerCountdownMark] = useState<number>();
   const [notice, setNotice] = useState<{ id: number; message: string }>();
   const [isConnected, setIsConnected] = useState(false);
 
@@ -3215,6 +3230,7 @@ function useGameSocket() {
       };
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data) as ServerMessage;
+        if ("serverNow" in message) updateServerClock(message.serverNow);
         if (message.type === "hello") setClientId(message.clientId);
         if (message.type === "live_stats") setLiveStats(message.stats);
         if (message.type === "joined_display") {
@@ -3244,6 +3260,8 @@ function useGameSocket() {
         if (message.type === "controller_feedback") {
           setFeedback(message.car);
           setControllerCrashEvents(message.crashEvents ?? []);
+          setControllerCountdownMark(message.countdownMark);
+          setRoom((current) => current ? { ...current, phase: message.roomPhase } : current);
         }
         if (message.type === "room_closed") {
           console.warn(message.message);
@@ -3254,6 +3272,7 @@ function useGameSocket() {
           setJoinedToken(undefined);
           setFeedback(undefined);
           setControllerCrashEvents([]);
+          setControllerCountdownMark(undefined);
           setNotice({ id: Date.now(), message: message.message });
         }
         if (message.type === "error_notice") {
@@ -3277,6 +3296,7 @@ function useGameSocket() {
         setJoinedToken(undefined);
         setFeedback(undefined);
         setControllerCrashEvents([]);
+        setControllerCountdownMark(undefined);
         setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
         const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
         reconnectAttemptRef.current += 1;
@@ -3306,7 +3326,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, controllerCountdownMark, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
@@ -3672,7 +3692,7 @@ function createControllerAudio(): ControllerAudio {
   };
 }
 
-function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[]) {
+function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[], countdownMark?: number) {
   if (!audio || audio.context.state !== "running") return;
   if (room.phase !== "countdown" && room.phase !== "racing") {
     silenceControllerAudio(audio);
@@ -3714,7 +3734,7 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
     playCue(audio, "explosion", crashEvent.severity);
   }
 
-  updateCountdownAudio(audio, room);
+  updateCountdownAudio(audio, room, countdownMark);
 }
 
 function silenceControllerAudio(audio: ControllerAudio | null) {
@@ -3727,16 +3747,23 @@ function silenceControllerAudio(audio: ControllerAudio | null) {
   audio.lastCountdownMark = undefined;
 }
 
-function updateCountdownAudio(audio: ControllerAudio, room: RoomState) {
-  if (room.phase !== "countdown" || !room.countdownEndsAt) {
-    audio.lastCountdownMark = undefined;
+function updateCountdownAudio(audio: ControllerAudio, room: RoomState, countdownMark?: number) {
+  if (room.phase === "countdown" && room.countdownEndsAt) {
+    const remaining = Math.max(0, room.countdownEndsAt - currentServerTimeMs());
+    const mark = countdownMark ?? clamp(Math.ceil(remaining / 1000), 1, 5);
+    if (mark < 1 || audio.lastCountdownMark === mark) return;
+    audio.lastCountdownMark = mark;
+    playCue(audio, "countdown");
     return;
   }
-  const remaining = Math.max(0, room.countdownEndsAt - Date.now());
-  const mark = remaining > 220 ? Math.ceil(remaining / 1000) : "go";
-  if (audio.lastCountdownMark === mark) return;
-  audio.lastCountdownMark = mark;
-  playCue(audio, mark === "go" ? "go" : "countdown");
+  if (room.phase === "racing") {
+    if (audio.lastCountdownMark !== undefined && audio.lastCountdownMark !== "go") {
+      audio.lastCountdownMark = "go";
+      playCue(audio, "go");
+    }
+    return;
+  }
+  audio.lastCountdownMark = undefined;
 }
 
 function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1) {
@@ -3745,15 +3772,15 @@ function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "
   const gain = context.createGain();
   const now = context.currentTime;
 
-  osc.type = kind === "impact" || kind === "explosion" ? "square" : "sine";
-  osc.frequency.value = kind === "go" ? 880 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
+  osc.type = kind === "impact" || kind === "explosion" ? "square" : kind === "go" ? "triangle" : "sine";
+  osc.frequency.value = kind === "go" ? 760 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.34 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
+  gain.gain.exponentialRampToValueAtTime(kind === "go" ? 0.22 : kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.44 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
   osc.connect(gain);
   gain.connect(audio.masterGain);
   osc.start(now);
-  osc.stop(now + (kind === "explosion" ? 0.52 : 0.38));
+  osc.stop(now + (kind === "go" ? 0.48 : kind === "explosion" ? 0.52 : 0.38));
 }
 
 function createNoiseBuffer(context: AudioContext) {
