@@ -54,7 +54,7 @@ function DisplayApp() {
           <div className="hero-copy-wrap">
             <p className="eyebrow">Real sim-racing energy, no rig required.</p>
             <h1>Sim Drive</h1>
-            <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel.</p>
+            <p className="hero-kicker">The closest thing to pro sim racing that runs in a browser and uses your phone as the wheel. But also a party game lol.</p>
             <p className="hero-copy">
               Tilt to steer. Touch to throttle &amp; brake.
               <br />
@@ -64,6 +64,7 @@ function DisplayApp() {
               <button className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
               </button>
+              <span className="hero-action-or">or</span>
               <form
                 className="join-form"
                 onSubmit={(event) => {
@@ -75,7 +76,7 @@ function DisplayApp() {
                 <button type="submit">Join Room on This Screen</button>
               </form>
             </div>
-            <small className="hero-note">No install needed. Play solo, 4-way split-screen, 2x 4-way split screens or each player using their own screen :D</small>
+            <small className="hero-note">No install needed. Play solo, 4-way split-screen, two 4-way split screens, or everyone on their own screen :D</small>
             {activePlayers > 0 && (
               <div className="hero-live-stat" aria-live="polite">
                 <Users size={16} />
@@ -95,10 +96,14 @@ function DisplayApp() {
                 <strong>Race options</strong>
                 <span>Choose laps, track, rain, ghost cars, gentle assist, warm-up start, and reset rules.</span>
               </div>
+              <div>
+                <strong>Physics</strong>
+                <span>Dynamic traction, downforce, rain grip, slip, curbs, and crash-out contact.</span>
+              </div>
             </div>
             <div className="hero-pills" aria-label="Game features">
               <span><Smartphone size={16} /> Phone steering</span>
-              <span><Gauge size={16} /> Sim-like grip</span>
+              <span><Gauge size={16} /> Exploding cars</span>
               <span><Gamepad2 size={16} /> Sound + haptics</span>
               <span><Users size={16} /> 1-8 drivers</span>
             </div>
@@ -191,12 +196,13 @@ function LobbyDisplay({
     <main className={`lobby ${themeClass}`}>
       {themeToggle}
       <section className="join-card">
-        <div className="join-label">Join this race</div>
+        <div className="join-label">Join this screen</div>
         <div className="qr-wrap">
           <QRCodeSVG value={controllerUrl} size={260} bgColor="#f5f1e8" fgColor="#101214" />
         </div>
         <div className="room-code">{room.roomCode}</div>
         <p>Scan with your phone. Tilt to steer.</p>
+        <small className="screen-note">Your friends can have their own view. Tell them to join on their computer with your room code.</small>
         <div className="join-card-stats">
           <span>{localPlayerCount}/4 this screen</span>
           <span>{room.players.length}/8 room</span>

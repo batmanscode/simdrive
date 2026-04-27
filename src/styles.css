@@ -122,7 +122,7 @@ h2 {
 .hero-flow {
   max-width: 650px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 18px;
 }
@@ -191,6 +191,13 @@ h2 {
 .hero-actions {
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.hero-action-or {
+  color: rgba(255, 250, 240, 0.62);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .primary,
@@ -602,6 +609,13 @@ input {
   color: var(--display-chip-text);
   font-size: 13px;
   font-weight: 900;
+}
+
+.screen-note {
+  display: block;
+  margin-top: 8px;
+  color: var(--display-muted);
+  line-height: 1.35;
 }
 
 .lobby-main {

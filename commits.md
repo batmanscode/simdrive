@@ -1,8 +1,10 @@
-    Clarify screen-based multiplayer joining
+Polish home and lobby multiplayer copy
 
-    - rename display join CTA to "Join Room on This Screen"
-    - explain solo, split-screen, two-screen, and own-screen play from the home page
-    - remove the lobby "bin it" joke from QR instructions
-    - show per-screen and room-wide driver counts in the lobby
-    - enforce the 4-driver cap per display group on the server
-    - update live spec notes for the per-screen controller cap
+- add an "or" separator between creating a room and joining one
+- refine the hero promise with a lighter party-game tone
+- clarify solo, split-screen, two-screen, and own-screen play in the home note
+- add a Physics card for traction, downforce, rain grip, slip, curbs, and crash-out contact
+- change the feature pill from sim-like grip to exploding cars
+- label the lobby QR panel as "Join this screen"
+- add lobby guidance for friends joining from their own computer
+- document future lobby and home-page polish ideas
