@@ -170,11 +170,11 @@ function HomeAboutModal({ onClose }: { onClose: () => void }) {
           </p>
           <p>
             We used to meet up at someone's house and play, from Halo to COD, then PUBG, then Among Us, Codenames, and my current favourites and inspo for Sim Drive:{" "}
-            <a href="https://www.jackboxgames.com/" target="_blank" rel="noreferrer">
+            <a href="https://www.jackboxgames.com/?utm_source=simdrive.xyz" target="_blank" rel="noreferrer">
               Jackbox Games
             </a>{" "}
             and{" "}
-            <a href="https://gamingcouch.com/" target="_blank" rel="noreferrer">
+            <a href="https://gamingcouch.com/?utm_source=simdrive.xyz" target="_blank" rel="noreferrer">
               Gaming Couch
             </a>
             .
