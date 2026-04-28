@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Info, Moon, Play, RotateCcw, Smartphone, Sun, Trophy, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Monitor, Moon, Play, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import * as THREE from "three";
@@ -1387,9 +1387,13 @@ type DevAsset = {
   group: string;
   name: string;
   note?: string;
+  pivot?: [number, number, number];
   zoom?: number;
   render: (rain: boolean) => ReactNode;
 };
+
+type DevThemeMode = "system" | "dark" | "light";
+type DevAssetViewMode = "grid" | "focus";
 
 const DEV_ASSET_CAR: CarState = {
   playerId: "dev-preview",
@@ -1423,7 +1427,7 @@ const DEV_ASSET_CAR: CarState = {
 };
 
 const DEV_ASSETS: DevAsset[] = [
-  { group: "Generic Track", name: "TrackStartGantryModel", note: "Start grid, gantry, lights", zoom: 1.28, render: () => <TrackStartGantryModel track={TRACKS.sakura} /> },
+  { group: "Generic Track", name: "TrackStartGantryModel", note: "Start grid, gantry, lights", pivot: [0, 0, -1.3], zoom: 1.28, render: () => <TrackStartGantryModel track={TRACKS.sakura} /> },
   { group: "Generic Track", name: "RoadsideBoardModel", note: "The pale blank boards seen along routes", render: (rain) => <RoadsideBoardModel rain={rain} /> },
   { group: "Generic Track", name: "BrakingBoardModel", note: "Striped braking marker", render: () => <BrakingBoardModel /> },
   { group: "Generic Track", name: "TrackBarrierModel", note: "Low roadside barrier", render: (rain) => <TrackBarrierModel rain={rain} /> },
@@ -1567,13 +1571,35 @@ function CloudlineBackdropPreview({ rain }: { rain: boolean }) {
 function DevAssetGallery() {
   const [rain, setRain] = useState(false);
   const [spin, setSpin] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
+  const [themeMode, setThemeMode] = useState<DevThemeMode>("system");
+  const [viewMode, setViewMode] = useState<DevAssetViewMode>("grid");
+  const [search, setSearch] = useState("");
+  const [selectedAssetKey, setSelectedAssetKey] = useState<string | undefined>();
+  const systemDark = usePrefersDarkMode();
+  const darkMode = themeMode === "system" ? systemDark : themeMode === "dark";
   const groups = useMemo(() => [...Array.from(new Set(DEV_ASSETS.map((asset) => asset.group))), "All"], []);
   const [activeGroup, setActiveGroup] = useState("Generic Track");
-  const assets = activeGroup === "All" ? DEV_ASSETS : DEV_ASSETS.filter((asset) => asset.group === activeGroup);
-  const columns = Math.min(4, Math.ceil(Math.sqrt(assets.length)));
-  const rows = Math.max(1, Math.ceil(assets.length / columns));
-  const boardHeight = Math.min(920, Math.max(520, rows * 155));
+  const normalizedSearch = search.trim().toLowerCase();
+  const assets = useMemo(() => (
+    (activeGroup === "All" ? DEV_ASSETS : DEV_ASSETS.filter((asset) => asset.group === activeGroup)).filter((asset) => (
+      !normalizedSearch
+      || asset.name.toLowerCase().includes(normalizedSearch)
+      || asset.group.toLowerCase().includes(normalizedSearch)
+      || asset.note?.toLowerCase().includes(normalizedSearch)
+    ))
+  ), [activeGroup, normalizedSearch]);
+  const selectedAsset = assets.find((asset) => devAssetKey(asset) === selectedAssetKey) ?? assets[0];
+  const canvasAssets = viewMode === "focus" && selectedAsset ? [selectedAsset] : assets;
+  const columns = viewMode === "focus" ? 1 : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(canvasAssets.length))));
+  const rows = Math.max(1, Math.ceil(canvasAssets.length / columns));
+  const boardHeight = viewMode === "focus" ? 620 : Math.min(920, Math.max(520, rows * 155));
+
+  useEffect(() => {
+    if (selectedAssetKey && !assets.some((asset) => devAssetKey(asset) === selectedAssetKey)) {
+      setSelectedAssetKey(undefined);
+      setViewMode("grid");
+    }
+  }, [assets, selectedAssetKey]);
 
   return (
     <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
@@ -1585,9 +1611,7 @@ function DevAssetGallery() {
         </div>
         <div className="dev-assets-controls">
           <a href="/">Back to app</a>
-          <button type="button" className={darkMode ? "active" : undefined} onClick={() => setDarkMode((value) => !value)}>
-            {darkMode ? <Moon size={16} /> : <Sun size={16} />} {darkMode ? "Dark" : "Light"}
-          </button>
+          <DevThemeControl mode={themeMode} onChange={setThemeMode} />
           <button type="button" className={rain ? "active" : undefined} onClick={() => setRain((value) => !value)}>
             Rain
           </button>
@@ -1596,6 +1620,31 @@ function DevAssetGallery() {
           </button>
         </div>
       </header>
+      <section className="dev-assets-tools" aria-label="Asset viewer tools">
+        <label className="dev-assets-search">
+          <Search size={16} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search assets" />
+        </label>
+        <div className="dev-assets-view-toggle" role="group" aria-label="Canvas view mode">
+          <button type="button" className={viewMode === "grid" ? "active" : undefined} onClick={() => setViewMode("grid")}>
+            <Grid2X2 size={16} /> Grid
+          </button>
+          <button
+            type="button"
+            className={viewMode === "focus" ? "active" : undefined}
+            disabled={!selectedAsset}
+            onClick={() => {
+              if (selectedAsset) {
+                setSelectedAssetKey(devAssetKey(selectedAsset));
+                setViewMode("focus");
+              }
+            }}
+          >
+            <Maximize2 size={16} /> Focus
+          </button>
+        </div>
+        <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset card to focus it"}</span>
+      </section>
       <nav className="dev-assets-tabs" aria-label="Asset groups">
         {groups.map((group) => (
           <button key={group} type="button" className={group === activeGroup ? "active" : undefined} onClick={() => setActiveGroup(group)}>
@@ -1603,25 +1652,85 @@ function DevAssetGallery() {
           </button>
         ))}
       </nav>
-      <section className="dev-assets-board" aria-label="Procedural assets">
-        <div className="dev-assets-board-canvas" style={{ height: `${boardHeight}px` }}>
-          <DevAssetCanvas assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
-        </div>
-        <div className="dev-assets-index" style={{ "--dev-asset-columns": columns } as CSSProperties}>
-          {assets.map((asset, index) => (
-            <article className="dev-asset-meta" key={`${asset.group}-${asset.name}`}>
-              <small>{asset.group}</small>
-              <div className="dev-asset-title">
-                <span>#{index + 1}</span>
-                <strong>{asset.name}</strong>
+      <section className="dev-assets-board" style={{ "--dev-board-height": `${boardHeight}px` } as CSSProperties} aria-label="Procedural assets">
+        <div className="dev-assets-workspace">
+          <div className="dev-assets-board-canvas">
+            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+            {canvasAssets.length === 0 && (
+              <div className="dev-assets-empty">No assets match {search.trim() ? `"${search.trim()}"` : "the current filters"}.</div>
+            )}
+          </div>
+          <aside className="dev-assets-index-panel" aria-label="Asset index">
+            <div className="dev-assets-index-header">
+              <strong>{viewMode === "focus" && selectedAsset ? selectedAsset.name : activeGroup}</strong>
+              <span>{assets.length} assets</span>
+            </div>
+            {assets.length === 0 ? (
+              <p className="dev-assets-no-results">Try another group or search term.</p>
+            ) : (
+              <div className="dev-assets-index">
+                {assets.map((asset, index) => (
+                  <button
+                    type="button"
+                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
+                    key={`${asset.group}-${asset.name}`}
+                    onClick={() => {
+                      setSelectedAssetKey(devAssetKey(asset));
+                      setViewMode("focus");
+                    }}
+                  >
+                    <small>{asset.group}</small>
+                    <div className="dev-asset-title">
+                      <span>#{index + 1}</span>
+                      <strong>{asset.name}</strong>
+                    </div>
+                    {asset.note && <span>{asset.note}</span>}
+                  </button>
+                ))}
               </div>
-              {asset.note && <span>{asset.note}</span>}
-            </article>
-          ))}
+            )}
+          </aside>
         </div>
       </section>
     </main>
   );
+}
+
+function usePrefersDarkMode() {
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    const update = () => setPrefersDark(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return prefersDark;
+}
+
+function DevThemeControl({ mode, onChange }: { mode: DevThemeMode; onChange: (mode: DevThemeMode) => void }) {
+  const options: Array<{ mode: DevThemeMode; label: string; icon: ReactNode }> = [
+    { mode: "system", label: "System", icon: <Monitor size={16} /> },
+    { mode: "dark", label: "Dark", icon: <Moon size={16} /> },
+    { mode: "light", label: "Light", icon: <Sun size={16} /> }
+  ];
+
+  return (
+    <div className="dev-theme-control" role="group" aria-label="Viewer theme">
+      {options.map((option) => (
+        <button key={option.mode} type="button" className={mode === option.mode ? "active" : undefined} onClick={() => onChange(option.mode)}>
+          {option.icon} {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function devAssetKey(asset: DevAsset | undefined) {
+  return asset ? `${asset.group}:${asset.name}` : "";
 }
 
 function DevAssetCanvas({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
@@ -1684,17 +1793,30 @@ function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAss
   const contentRef = useRef<THREE.Group>(null);
 
   useLayoutEffect(() => {
+    const spinGroup = spinRef.current;
     const content = contentRef.current;
     if (!content) return;
+    const savedSpinRotation = spinGroup?.rotation.clone();
+    if (spinGroup) {
+      spinGroup.rotation.set(0, 0, 0);
+      spinGroup.updateWorldMatrix(true, true);
+    }
     content.position.set(0, 0, 0);
     content.scale.setScalar(1);
     content.updateWorldMatrix(true, true);
     const box = new THREE.Box3().setFromObject(content);
-    if (box.isEmpty()) return;
+    if (box.isEmpty()) {
+      if (spinGroup && savedSpinRotation) {
+        spinGroup.rotation.copy(savedSpinRotation);
+        spinGroup.updateWorldMatrix(true, true);
+      }
+      return;
+    }
 
     const center = box.getCenter(new THREE.Vector3());
     content.parent?.worldToLocal(center);
-    content.position.sub(center);
+    const pivot = asset.pivot ? new THREE.Vector3(...asset.pivot) : center;
+    content.position.sub(pivot);
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z, 1);
     const scale = Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1)));
@@ -1706,6 +1828,10 @@ function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAss
       const bottom = new THREE.Vector3(0, centeredBox.min.y, 0);
       content.parent?.worldToLocal(bottom);
       content.position.y -= bottom.y;
+    }
+    if (spinGroup && savedSpinRotation) {
+      spinGroup.rotation.copy(savedSpinRotation);
+      spinGroup.updateWorldMatrix(true, true);
     }
   }, [asset, rain]);
 

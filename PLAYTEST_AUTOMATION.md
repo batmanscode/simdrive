@@ -59,7 +59,11 @@ Then visit `http://127.0.0.1:5173/dev-assets`.
 
 - The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, and vehicle/cockpit props.
 - It uses one WebGL canvas for the visible set so the `All` view can show every asset without hitting browser context limits.
-- Use the dark/light toggle and rain toggle to check theme contrast and wet-material variants.
+- The theme control defaults to `System`, which follows `prefers-color-scheme`; switch to explicit dark or light only when comparing a specific mode.
+- Use search for quick identification, the side index for crisp component names, and focus mode for inspecting one asset at a larger scale.
+- Use the dark/light/system theme control and rain toggle to check contrast and wet-material variants.
+- When validating the spin toggle, take several screenshots across the rotation, for example immediately, then roughly 900 ms, 1800 ms, and 2700 ms later. This catches assets with bad origins that orbit around a wide radius instead of rotating in place.
+- For long asymmetric previews such as the start gantry plus grid boxes, verify both spin and rain toggles. If rain changes make the asset jump while spin is paused, the gallery centering or explicit preview pivot likely needs adjustment.
 - The `/dev-assets` route is gated by Vite's `import.meta.env.DEV`; production builds should fall through to the normal app instead of the gallery.
 - Do not save gallery screenshots to the repo by default. Render assets on demand so the repo does not fill with generated images; use `playtest:capture` only when route context or before/after visual evidence is needed.
 
