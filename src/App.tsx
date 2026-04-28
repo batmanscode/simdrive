@@ -1440,7 +1440,7 @@ const DEV_ASSETS: DevAsset[] = [
   { group: "Sakura", name: "SakuraGroundAccents", render: (rain) => <SakuraGroundAccentsPreview rain={rain} /> },
   { group: "Sakura", name: "SakuraTree", render: (rain) => <SakuraTree position={[0, 0, 0]} seed={5} rain={rain} /> },
   { group: "Sakura", name: "SakuraLantern", render: (rain) => <SakuraLantern position={[0, 0, 0]} heading={0} rain={rain} /> },
-  { group: "Sakura", name: "SakuraBanner", render: (rain) => <SakuraBanner position={[0, 0.86, 0]} heading={0} rain={rain} /> },
+  { group: "Sakura", name: "SakuraBanner", render: (rain) => <SakuraBanner position={[0, 1.24, 0]} heading={0} rain={rain} /> },
   { group: "Alpine", name: "AlpineNearPeak", zoom: 1.22, render: (rain) => <AlpineNearPeak rain={rain} /> },
   { group: "Alpine", name: "AlpineBackdropPeak cone", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 28, r: 22, kind: "cone" }} seed={3} rain={rain} /> },
   { group: "Alpine", name: "AlpineBackdropPeak jagged", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 26, r: 22, kind: "jagged" }} seed={4} rain={rain} /> },
@@ -2940,14 +2940,25 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
     <group>
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
-        const radius = index % 3 === 1 ? 0.55 : index % 4 === 2 ? 0.95 : 2.1;
-        const position = tracksidePropPosition(track, sample, side, 1.8 + seededUnit(index * 5) * 2.4, radius, 0.8);
-        const x = position.x;
-        const y = position.y;
-        const z = position.z;
-        if (index % 3 === 1) return <SakuraLantern key={`sakura-lantern-${index}`} position={[x, y, z]} heading={sample.heading} rain={rain} />;
-        if (index % 4 === 2) return <SakuraBanner key={`sakura-banner-${index}`} position={[x, y + 0.86, z]} heading={sample.heading - side * 0.28} rain={rain} />;
-        return <SakuraTree key={`sakura-tree-${index}`} position={[x, y, z]} seed={index} rain={rain} />;
+        const propOffset = 1.8 + seededUnit(index * 5) * 2.4;
+        if (index % 3 === 1) {
+          const position = tracksidePropPosition(track, sample, side, propOffset, 0.55, 0.8);
+          return <SakuraLantern key={`sakura-lantern-${index}`} position={[position.x, position.y, position.z]} heading={sample.heading} rain={rain} />;
+        }
+        if (index % 4 === 2) {
+          const bannerSide = Math.floor(index / 4) % 2 === 0 ? -1 : 1;
+          const position = tracksidePropPosition(track, sample, bannerSide, 0.3 + seededUnit(index * 5) * 0.75, 1.85, 0.8);
+          return (
+            <SakuraBanner
+              key={`sakura-banner-${index}`}
+              position={[position.x, position.y + 1.24, position.z]}
+              heading={sample.heading - bannerSide * (Math.PI / 2 - 0.18)}
+              rain={rain}
+            />
+          );
+        }
+        const position = tracksidePropPosition(track, sample, side, propOffset, 2.1, 0.8);
+        return <SakuraTree key={`sakura-tree-${index}`} position={[position.x, position.y, position.z]} seed={index} rain={rain} />;
       })}
     </group>
   );
@@ -2999,18 +3010,74 @@ function SakuraLantern({ position, heading, rain }: { position: [number, number,
 }
 
 function SakuraBanner({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const texture = useMemo(() => createSakuraBannerTexture(rain), [rain]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
   return (
     <group position={position} rotation={[0, heading, 0]}>
       <mesh castShadow>
-        <boxGeometry args={[1.5, 0.62, 0.08]} />
-        <meshStandardMaterial color={rain ? "#cf8fa0" : "#f2a8bd"} roughness={0.72} />
+        <boxGeometry args={[3.8, 1.06, 0.1]} />
+        <meshStandardMaterial color={rain ? "#c7798b" : "#ef92a8"} roughness={0.72} />
       </mesh>
-      <mesh position={[0, -0.56, 0]}>
-        <boxGeometry args={[0.08, 1.1, 0.08]} />
-        <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+      <mesh position={[0, 0, 0.061]}>
+        <planeGeometry args={[3.48, 0.74]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {[-1.48, 1.48].map((x) => (
+        <mesh key={x} position={[x, -0.8, -0.01]} castShadow>
+          <boxGeometry args={[0.11, 1.48, 0.11]} />
+          <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.42, 0.064]}>
+        <boxGeometry args={[3.3, 0.05, 0.018]} />
+        <meshStandardMaterial color={rain ? "#b64058" : "#d84763"} roughness={0.46} />
+      </mesh>
+      <mesh position={[0, -0.42, 0.064]}>
+        <boxGeometry args={[3.3, 0.05, 0.018]} />
+        <meshStandardMaterial color={rain ? "#343237" : "#27242b"} roughness={0.5} />
       </mesh>
     </group>
   );
+}
+
+function createSakuraBannerTexture(rain: boolean) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1152;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = rain ? "#e9b2bd" : "#ffe4ec";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = rain ? "#f4d4d9" : "#fff6f2";
+    context.fillRect(42, 38, canvas.width - 84, canvas.height - 76);
+    context.strokeStyle = rain ? "#9d5267" : "#d84763";
+    context.lineWidth = 16;
+    context.strokeRect(28, 24, canvas.width - 56, canvas.height - 48);
+    context.fillStyle = rain ? "#9d5267" : "#d84763";
+    context.fillRect(68, 62, 86, 14);
+    context.fillRect(canvas.width - 154, canvas.height - 76, 86, 14);
+    context.fillStyle = "#26212a";
+    context.font = "900 112px Inter, Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("try not to lose", canvas.width / 2, canvas.height / 2 + 6);
+    context.fillStyle = rain ? "rgba(157, 82, 103, 0.28)" : "rgba(216, 71, 99, 0.22)";
+    for (const [x, y, radius] of [
+      [188, 172, 8],
+      [844, 88, 7],
+      [886, 112, 5],
+      [144, 94, 5]
+    ]) {
+      context.beginPath();
+      context.ellipse(x, y, radius, radius * 0.56, -0.45, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
 }
 
 function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
