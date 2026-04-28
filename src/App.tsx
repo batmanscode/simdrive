@@ -1,4 +1,4 @@
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Monitor, Moon, Play, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -1593,6 +1593,10 @@ function DevAssetGallery() {
   const columns = viewMode === "focus" ? 1 : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(canvasAssets.length))));
   const rows = Math.max(1, Math.ceil(canvasAssets.length / columns));
   const boardHeight = viewMode === "focus" ? 620 : Math.min(920, Math.max(520, rows * 155));
+  const focusAsset = useCallback((asset: DevAsset) => {
+    setSelectedAssetKey(devAssetKey(asset));
+    setViewMode("focus");
+  }, []);
 
   useEffect(() => {
     if (selectedAssetKey && !assets.some((asset) => devAssetKey(asset) === selectedAssetKey)) {
@@ -1643,7 +1647,7 @@ function DevAssetGallery() {
             <Maximize2 size={16} /> Focus
           </button>
         </div>
-        <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset card to focus it"}</span>
+        <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset or card to focus it"}</span>
       </section>
       <nav className="dev-assets-tabs" aria-label="Asset groups">
         {groups.map((group) => (
@@ -1655,7 +1659,7 @@ function DevAssetGallery() {
       <section className="dev-assets-board" style={{ "--dev-board-height": `${boardHeight}px` } as CSSProperties} aria-label="Procedural assets">
         <div className="dev-assets-workspace">
           <div className="dev-assets-board-canvas">
-            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} onAssetClick={focusAsset} />
             {canvasAssets.length === 0 && (
               <div className="dev-assets-empty">No assets match {search.trim() ? `"${search.trim()}"` : "the current filters"}.</div>
             )}
@@ -1674,10 +1678,7 @@ function DevAssetGallery() {
                     type="button"
                     className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
                     key={`${asset.group}-${asset.name}`}
-                    onClick={() => {
-                      setSelectedAssetKey(devAssetKey(asset));
-                      setViewMode("focus");
-                    }}
+                    onClick={() => focusAsset(asset)}
                   >
                     <small>{asset.group}</small>
                     <div className="dev-asset-title">
@@ -1733,7 +1734,23 @@ function devAssetKey(asset: DevAsset | undefined) {
   return asset ? `${asset.group}:${asset.name}` : "";
 }
 
-function DevAssetCanvas({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+function DevAssetCanvas({
+  assets,
+  columns,
+  rows,
+  rain,
+  spin,
+  darkMode,
+  onAssetClick
+}: {
+  assets: DevAsset[];
+  columns: number;
+  rows: number;
+  rain: boolean;
+  spin: boolean;
+  darkMode: boolean;
+  onAssetClick: (asset: DevAsset) => void;
+}) {
   const background = darkMode ? (rain ? "#20272d" : "#1c2630") : (rain ? "#9eabb2" : "#d8eaf3");
   const sky = darkMode ? (rain ? "#4f5961" : "#6d8899") : (rain ? "#c9d1d7" : "#eef8ff");
   const ground = darkMode ? (rain ? "#151a1d" : "#1a211d") : (rain ? "#3d4741" : "#596c4e");
@@ -1743,12 +1760,28 @@ function DevAssetCanvas({ assets, columns, rows, rain, spin, darkMode }: { asset
       <ambientLight intensity={darkMode ? (rain ? 0.86 : 0.94) : (rain ? 0.72 : 0.86)} />
       <hemisphereLight args={[sky, ground, darkMode ? 0.64 : rain ? 0.5 : 0.42]} />
       <directionalLight position={[8, 10, 6]} intensity={darkMode ? 1.55 : rain ? 0.95 : 1.45} />
-      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} onAssetClick={onAssetClick} />
     </Canvas>
   );
 }
 
-function DevAssetGroupScene({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+function DevAssetGroupScene({
+  assets,
+  columns,
+  rows,
+  rain,
+  spin,
+  darkMode,
+  onAssetClick
+}: {
+  assets: DevAsset[];
+  columns: number;
+  rows: number;
+  rain: boolean;
+  spin: boolean;
+  darkMode: boolean;
+  onAssetClick: (asset: DevAsset) => void;
+}) {
   const { camera, size } = useThree();
   const cellSize = 8.8;
   const width = Math.max(columns, 1) * cellSize;
@@ -1781,6 +1814,7 @@ function DevAssetGroupScene({ assets, columns, rows, rain, spin, darkMode }: { a
             spin={spin}
             darkMode={darkMode}
             position={[col * cellSize, 0, row * cellSize]}
+            onAssetClick={onAssetClick}
           />
         );
       })}
@@ -1788,9 +1822,24 @@ function DevAssetGroupScene({ assets, columns, rows, rain, spin, darkMode }: { a
   );
 }
 
-function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAsset; rain: boolean; spin: boolean; darkMode: boolean; position: [number, number, number] }) {
+function DevAssetCell({
+  asset,
+  rain,
+  spin,
+  darkMode,
+  position,
+  onAssetClick
+}: {
+  asset: DevAsset;
+  rain: boolean;
+  spin: boolean;
+  darkMode: boolean;
+  position: [number, number, number];
+  onAssetClick: (asset: DevAsset) => void;
+}) {
   const spinRef = useRef<THREE.Group>(null);
   const contentRef = useRef<THREE.Group>(null);
+  const { gl } = useThree();
 
   useLayoutEffect(() => {
     const spinGroup = spinRef.current;
@@ -1839,8 +1888,26 @@ function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAss
     if (spin && spinRef.current) spinRef.current.rotation.y += delta * 0.32;
   });
 
+  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    onAssetClick(asset);
+  }, [asset, onAssetClick]);
+
+  const handlePointerOver = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    gl.domElement.style.cursor = "pointer";
+  }, [gl]);
+
+  const handlePointerOut = useCallback(() => {
+    gl.domElement.style.cursor = "";
+  }, [gl]);
+
+  useEffect(() => () => {
+    gl.domElement.style.cursor = "";
+  }, [gl]);
+
   return (
-    <group position={position}>
+    <group position={position} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
       <mesh position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[3.25, 32]} />
         <meshBasicMaterial color={darkMode ? "#111820" : rain ? "#4e565b" : "#c7d8de"} transparent opacity={darkMode ? 0.62 : 0.32} depthWrite={false} />
