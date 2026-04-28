@@ -12,5 +12,6 @@
 - Lobby polish: the lobby already has the data for same-screen player count, total room players, and ready players. Later, consider tightening the stat labels or adding clearer per-screen context if multi-screen sessions confuse users.
 - Multi-screen identity: later, consider showing subtle per-display context in the lobby/player list so players can understand which drivers are attached to this screen without adding a heavy reassignment UI.
 - Home page visual: later, replace the mock race illustration with a stronger generated or captured gameplay-style image once the racing visuals are representative enough.
+- Trackside boards: later, vary the roadside board artwork/copy so the new `simdrive.xyz` signs are not identical on every route placement.
 - Lower-priority room management: display reassignment UI, admin controls for moving players, complex multi-device account recovery, and choosing from a list of disconnected players. These are not needed until multi-display or larger casual sessions become common.
 - Scaling: add a headless load test that creates rooms, fake displays, and fake controllers, sends 30 Hz inputs, and measures tick delay, memory, CPU, and network throughput before estimating production capacity.

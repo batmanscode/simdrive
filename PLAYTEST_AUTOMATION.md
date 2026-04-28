@@ -60,7 +60,9 @@ Then visit `http://127.0.0.1:5173/dev-assets`.
 - The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, and vehicle/cockpit props.
 - It uses one WebGL canvas for the visible set so the `All` view can show every asset without hitting browser context limits.
 - The theme control defaults to `System`, which follows `prefers-color-scheme`; switch to explicit dark or light only when comparing a specific mode.
-- Use search for quick identification, the side index for crisp component names, and focus mode for inspecting one asset at a larger scale.
+- Use search for quick identification, click either the rendered asset or the side index card to focus it, and use the side index for crisp component names.
+- Use `Fit` for normalized previews and `World` to compare relative asset scale.
+- In focus mode, use the zoom buttons, trackpad pinch/ctrl-wheel zoom, or mobile pinch to inspect details; drag the focused canvas to pan while zoomed.
 - Use the dark/light/system theme control and rain toggle to check contrast and wet-material variants.
 - When validating the spin toggle, take several screenshots across the rotation, for example immediately, then roughly 900 ms, 1800 ms, and 2700 ms later. This catches assets with bad origins that orbit around a wide radius instead of rotating in place.
 - For long asymmetric previews such as the start gantry plus grid boxes, verify both spin and rain toggles. If rain changes make the asset jump while spin is paused, the gallery centering or explicit preview pivot likely needs adjustment.
