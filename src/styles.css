@@ -1793,6 +1793,7 @@ input {
 .dev-assets-controls button,
 .dev-assets-tabs button,
 .dev-assets-view-toggle button,
+.dev-assets-scale-toggle button,
 .dev-theme-control button {
   min-height: 38px;
   display: inline-flex;
@@ -1811,6 +1812,7 @@ input {
 .dev-assets-controls button.active,
 .dev-assets-tabs button.active,
 .dev-assets-view-toggle button.active,
+.dev-assets-scale-toggle button.active,
 .dev-theme-control button.active {
   background: var(--dev-control-active);
   color: var(--dev-control-active-text);
@@ -1841,7 +1843,7 @@ input {
   max-width: 1480px;
   margin: 0 auto 14px;
   display: grid;
-  grid-template-columns: minmax(240px, 420px) auto minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 420px) auto auto minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
@@ -1881,7 +1883,17 @@ input {
   border: 1px solid var(--dev-card-border);
 }
 
-.dev-assets-view-toggle button {
+.dev-assets-scale-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--dev-card);
+  border: 1px solid var(--dev-card-border);
+}
+
+.dev-assets-view-toggle button,
+.dev-assets-scale-toggle button {
   border-color: transparent;
   background: transparent;
 }
@@ -1991,6 +2003,7 @@ input {
 
 .dev-asset-meta {
   min-height: 88px;
+  scroll-margin: 58px 0 10px;
   display: grid;
   align-content: start;
   text-align: left;

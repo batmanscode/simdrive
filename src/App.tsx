@@ -1692,15 +1692,15 @@ function DevAssetGallery() {
             ) : (
               <div className="dev-assets-index">
                 {assets.map((asset, index) => (
-	                  <button
-	                    type="button"
-	                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
-	                    key={`${asset.group}-${asset.name}`}
-	                    ref={(node) => {
-	                      assetCardRefs.current[devAssetKey(asset)] = node;
-	                    }}
-	                    onClick={() => focusAsset(asset)}
-	                  >
+                  <button
+                    type="button"
+                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
+                    key={`${asset.group}-${asset.name}`}
+                    ref={(node) => {
+                      assetCardRefs.current[devAssetKey(asset)] = node;
+                    }}
+                    onClick={() => focusAsset(asset)}
+                  >
                     <small>{asset.group}</small>
                     <div className="dev-asset-title">
                       <span>#{index + 1}</span>
