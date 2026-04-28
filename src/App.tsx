@@ -1394,6 +1394,7 @@ type DevAsset = {
 
 type DevThemeMode = "system" | "dark" | "light";
 type DevAssetViewMode = "grid" | "focus";
+type DevAssetScaleMode = "fit" | "world";
 
 const DEV_ASSET_CAR: CarState = {
   playerId: "dev-preview",
@@ -1573,8 +1574,10 @@ function DevAssetGallery() {
   const [spin, setSpin] = useState(false);
   const [themeMode, setThemeMode] = useState<DevThemeMode>("system");
   const [viewMode, setViewMode] = useState<DevAssetViewMode>("grid");
+  const [scaleMode, setScaleMode] = useState<DevAssetScaleMode>("fit");
   const [search, setSearch] = useState("");
   const [selectedAssetKey, setSelectedAssetKey] = useState<string | undefined>();
+  const assetCardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const systemDark = usePrefersDarkMode();
   const darkMode = themeMode === "system" ? systemDark : themeMode === "dark";
   const groups = useMemo(() => [...Array.from(new Set(DEV_ASSETS.map((asset) => asset.group))), "All"], []);
@@ -1593,6 +1596,7 @@ function DevAssetGallery() {
   const columns = viewMode === "focus" ? 1 : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(canvasAssets.length))));
   const rows = Math.max(1, Math.ceil(canvasAssets.length / columns));
   const boardHeight = viewMode === "focus" ? 620 : Math.min(920, Math.max(520, rows * 155));
+  const activeAssetKey = selectedAsset ? devAssetKey(selectedAsset) : "";
   const focusAsset = useCallback((asset: DevAsset) => {
     setSelectedAssetKey(devAssetKey(asset));
     setViewMode("focus");
@@ -1604,6 +1608,12 @@ function DevAssetGallery() {
       setViewMode("grid");
     }
   }, [assets, selectedAssetKey]);
+
+  useLayoutEffect(() => {
+    if (!selectedAssetKey) return;
+    const activeCard = assetCardRefs.current[activeAssetKey];
+    activeCard?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeAssetKey, selectedAssetKey, viewMode]);
 
   return (
     <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
@@ -1647,6 +1657,14 @@ function DevAssetGallery() {
             <Maximize2 size={16} /> Focus
           </button>
         </div>
+        <div className="dev-assets-scale-toggle" role="group" aria-label="Asset scale mode">
+          <button type="button" className={scaleMode === "fit" ? "active" : undefined} onClick={() => setScaleMode("fit")}>
+            Fit
+          </button>
+          <button type="button" className={scaleMode === "world" ? "active" : undefined} onClick={() => setScaleMode("world")}>
+            World
+          </button>
+        </div>
         <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset or card to focus it"}</span>
       </section>
       <nav className="dev-assets-tabs" aria-label="Asset groups">
@@ -1659,7 +1677,7 @@ function DevAssetGallery() {
       <section className="dev-assets-board" style={{ "--dev-board-height": `${boardHeight}px` } as CSSProperties} aria-label="Procedural assets">
         <div className="dev-assets-workspace">
           <div className="dev-assets-board-canvas">
-            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} onAssetClick={focusAsset} />
+            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} scaleMode={scaleMode} onAssetClick={focusAsset} />
             {canvasAssets.length === 0 && (
               <div className="dev-assets-empty">No assets match {search.trim() ? `"${search.trim()}"` : "the current filters"}.</div>
             )}
@@ -1674,12 +1692,15 @@ function DevAssetGallery() {
             ) : (
               <div className="dev-assets-index">
                 {assets.map((asset, index) => (
-                  <button
-                    type="button"
-                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
-                    key={`${asset.group}-${asset.name}`}
-                    onClick={() => focusAsset(asset)}
-                  >
+	                  <button
+	                    type="button"
+	                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
+	                    key={`${asset.group}-${asset.name}`}
+	                    ref={(node) => {
+	                      assetCardRefs.current[devAssetKey(asset)] = node;
+	                    }}
+	                    onClick={() => focusAsset(asset)}
+	                  >
                     <small>{asset.group}</small>
                     <div className="dev-asset-title">
                       <span>#{index + 1}</span>
@@ -1741,6 +1762,7 @@ function DevAssetCanvas({
   rain,
   spin,
   darkMode,
+  scaleMode,
   onAssetClick
 }: {
   assets: DevAsset[];
@@ -1749,6 +1771,7 @@ function DevAssetCanvas({
   rain: boolean;
   spin: boolean;
   darkMode: boolean;
+  scaleMode: DevAssetScaleMode;
   onAssetClick: (asset: DevAsset) => void;
 }) {
   const background = darkMode ? (rain ? "#20272d" : "#1c2630") : (rain ? "#9eabb2" : "#d8eaf3");
@@ -1760,7 +1783,7 @@ function DevAssetCanvas({
       <ambientLight intensity={darkMode ? (rain ? 0.86 : 0.94) : (rain ? 0.72 : 0.86)} />
       <hemisphereLight args={[sky, ground, darkMode ? 0.64 : rain ? 0.5 : 0.42]} />
       <directionalLight position={[8, 10, 6]} intensity={darkMode ? 1.55 : rain ? 0.95 : 1.45} />
-      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} onAssetClick={onAssetClick} />
+      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} scaleMode={scaleMode} onAssetClick={onAssetClick} />
     </Canvas>
   );
 }
@@ -1772,6 +1795,7 @@ function DevAssetGroupScene({
   rain,
   spin,
   darkMode,
+  scaleMode,
   onAssetClick
 }: {
   assets: DevAsset[];
@@ -1780,10 +1804,12 @@ function DevAssetGroupScene({
   rain: boolean;
   spin: boolean;
   darkMode: boolean;
+  scaleMode: DevAssetScaleMode;
   onAssetClick: (asset: DevAsset) => void;
 }) {
   const { camera, size } = useThree();
-  const cellSize = 8.8;
+  const groupRef = useRef<THREE.Group>(null);
+  const cellSize = scaleMode === "world" ? 30 : 8.8;
   const width = Math.max(columns, 1) * cellSize;
   const depth = Math.max(rows, 1) * cellSize;
   const centerX = ((columns - 1) * cellSize) / 2;
@@ -1791,18 +1817,40 @@ function DevAssetGroupScene({
 
   useLayoutEffect(() => {
     const orthographicCamera = camera as THREE.OrthographicCamera;
-    const worldWidth = width + 5;
-    const worldHeight = depth * 0.88 + 11;
-    orthographicCamera.position.set(centerX, Math.max(18, rows * 2.2 + 14), centerZ + Math.max(24, rows * 4.3 + 16));
-    orthographicCamera.lookAt(centerX, 1.2, centerZ);
+    let targetX = centerX;
+    let targetY = 1.2;
+    let targetZ = centerZ;
+    let worldWidth = width + 5;
+    let worldHeight = depth * 0.88 + 11;
+    let cameraY = Math.max(18, rows * 2.2 + 14);
+    let cameraZ = centerZ + Math.max(24, rows * 4.3 + 16);
+
+    if (scaleMode === "world" && groupRef.current) {
+      groupRef.current.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(groupRef.current);
+      if (!box.isEmpty()) {
+        const boxCenter = box.getCenter(new THREE.Vector3());
+        const boxSize = box.getSize(new THREE.Vector3());
+        targetX = boxCenter.x;
+        targetY = Math.max(1.2, boxCenter.y * 0.56);
+        targetZ = boxCenter.z;
+        worldWidth = Math.max(width * 0.48, boxSize.x + 8);
+        worldHeight = Math.max(18, boxSize.z * 0.88 + boxSize.y * 1.1 + 8);
+        cameraY = Math.max(20, boxSize.y * 1.2 + rows * 1.2 + 16);
+        cameraZ = boxCenter.z + Math.max(28, boxSize.z * 0.92 + boxSize.y * 0.45 + rows * 2.4 + 16);
+      }
+    }
+
+    orthographicCamera.position.set(targetX, cameraY, cameraZ);
+    orthographicCamera.lookAt(targetX, targetY, targetZ);
     orthographicCamera.zoom = Math.min(size.width / worldWidth, size.height / worldHeight);
     orthographicCamera.near = 0.1;
     orthographicCamera.far = 1000;
     orthographicCamera.updateProjectionMatrix();
-  }, [camera, centerX, centerZ, depth, rows, size.height, size.width, width]);
+  }, [assets, camera, centerX, centerZ, depth, rain, rows, scaleMode, size.height, size.width, width]);
 
   return (
-    <group>
+    <group ref={groupRef}>
       {assets.map((asset, index) => {
         const col = index % columns;
         const row = Math.floor(index / columns);
@@ -1813,6 +1861,7 @@ function DevAssetGroupScene({
             rain={rain}
             spin={spin}
             darkMode={darkMode}
+            scaleMode={scaleMode}
             position={[col * cellSize, 0, row * cellSize]}
             onAssetClick={onAssetClick}
           />
@@ -1827,6 +1876,7 @@ function DevAssetCell({
   rain,
   spin,
   darkMode,
+  scaleMode,
   position,
   onAssetClick
 }: {
@@ -1834,6 +1884,7 @@ function DevAssetCell({
   rain: boolean;
   spin: boolean;
   darkMode: boolean;
+  scaleMode: DevAssetScaleMode;
   position: [number, number, number];
   onAssetClick: (asset: DevAsset) => void;
 }) {
@@ -1868,7 +1919,7 @@ function DevAssetCell({
     content.position.sub(pivot);
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z, 1);
-    const scale = Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1)));
+    const scale = scaleMode === "fit" ? Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1))) : 1;
     content.scale.setScalar(scale);
     content.updateWorldMatrix(true, true);
 
@@ -1882,7 +1933,7 @@ function DevAssetCell({
       spinGroup.rotation.copy(savedSpinRotation);
       spinGroup.updateWorldMatrix(true, true);
     }
-  }, [asset, rain]);
+  }, [asset, rain, scaleMode]);
 
   useFrame((_, delta) => {
     if (spin && spinRef.current) spinRef.current.rotation.y += delta * 0.32;
@@ -2190,18 +2241,62 @@ function TrackStartGantryModel({ track }: { track: TrackDef }) {
 }
 
 function RoadsideBoardModel({ rain }: { rain: boolean }) {
+  const texture = useMemo(() => createRoadsideBoardTexture(rain), [rain]);
+  useEffect(() => () => texture.dispose(), [texture]);
+
   return (
     <>
       <mesh castShadow>
-        <boxGeometry args={[1.4, 1.1, 0.12]} />
+        <boxGeometry args={[1.9, 1.16, 0.12]} />
         <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
       </mesh>
-      <mesh position={[0, -0.72, 0]}>
-        <boxGeometry args={[0.12, 1.1, 0.12]} />
-        <meshStandardMaterial color="#22262c" roughness={0.5} />
+      <mesh position={[0, 0, 0.071]}>
+        <planeGeometry args={[1.72, 0.86]} />
+        <meshBasicMaterial map={texture} toneMapped={false} transparent />
+      </mesh>
+      {[-0.52, 0.52].map((x) => (
+        <mesh key={x} position={[x, -0.82, 0]}>
+          <boxGeometry args={[0.1, 1.18, 0.1]} />
+          <meshStandardMaterial color="#22262c" roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.47, 0.073]}>
+        <boxGeometry args={[1.68, 0.035, 0.018]} />
+        <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, -0.47, 0.073]}>
+        <boxGeometry args={[1.68, 0.035, 0.018]} />
+        <meshStandardMaterial color="#e84f5f" roughness={0.42} />
       </mesh>
     </>
   );
+}
+
+function createRoadsideBoardTexture(rain: boolean) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = rain ? "#d6dde0" : "#f7f3e8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = rain ? "#8a9498" : "#c6beb0";
+    context.lineWidth = 18;
+    context.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+    context.fillStyle = "#35a7ff";
+    context.fillRect(38, 38, canvas.width - 76, 18);
+    context.fillStyle = "#e84f5f";
+    context.fillRect(38, canvas.height - 56, canvas.width - 76, 18);
+    context.fillStyle = "#12161b";
+    context.font = "800 52px Inter, Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("simdrive.xyz", canvas.width / 2, canvas.height / 2 + 2);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 2;
+  return texture;
 }
 
 function BrakingBoardModel() {
@@ -2219,7 +2314,7 @@ function BrakingBoardModel() {
       ))}
       <mesh position={[0, -0.76, 0]}>
         <boxGeometry args={[0.1, 1.1, 0.1]} />
-        <meshStandardMaterial color="#22262c" roughness={0.52} />
+        <meshStandardMaterial color="#22262c" roughness={0.5} />
       </mesh>
     </>
   );
@@ -2246,12 +2341,12 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
   return (
     <>
       <mesh castShadow>
-        <planeGeometry args={[4.2, 1.35]} />
+        <planeGeometry args={[5.25, 1.68]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
-      {[-1.65, 1.65].map((x) => (
-        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
-          <boxGeometry args={[0.12, 2.1, 0.12]} />
+      {[-2.1, 2.1].map((x) => (
+        <mesh key={x} position={[x, -1.22, -0.04]} castShadow>
+          <boxGeometry args={[0.14, 2.44, 0.14]} />
           <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
         </mesh>
       ))}
@@ -2291,10 +2386,11 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
       </group>
       {boards.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
-        const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 2.3);
-        const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 2.3);
+        const offset = track.width / 2 + track.curbWidth + track.wallMargin * 0.7 + 2.0;
+        const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * offset;
+        const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * offset;
         return (
-          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.55, z]} rotation={[0, sample.heading + (side < 0 ? 0.18 : -0.18), 0]}>
+          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.62, z]} rotation={[0, sample.heading - side * (Math.PI / 2 - 0.18), 0]}>
             <RoadsideBoardModel rain={rain} />
           </group>
         );
