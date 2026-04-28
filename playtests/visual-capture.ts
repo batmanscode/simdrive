@@ -19,6 +19,7 @@ try {
   const timeoutMs = readNumberArg(args, "--timeout-ms", "120000", { integer: true, min: 1 });
   const width = readNumberArg(args, "--width", "1440", { integer: true, min: 1 });
   const height = readNumberArg(args, "--height", "900", { integer: true, min: 1 });
+  const speedScale = readNumberArg(args, "--speed-scale", "1", { min: 0.2, max: 3 });
   const outDir = readArg(args, "--out-dir", "playtest-captures")!;
   const headed = hasFlag(args, "--headed");
   const targets = parseTargets(args);
@@ -49,6 +50,7 @@ try {
     roomCode,
     displayGroupId: displaySession.displayGroupId,
     trackId,
+    speedScale,
     name: `${trackId} visual`,
     color: "#ff8f3d"
   });

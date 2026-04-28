@@ -27,6 +27,8 @@ Reusable playtest scripts live under `playtests/`.
 - `npm run playtest:lap -- --track alpine` runs a pure WebSocket full-lap completion check. It creates a room through the server protocol, joins a controller, drives one lap, and prints JSON with finish state, surfaces, max center distance, progress marks, and results.
 - `npm run playtest:lap -- --track sakura --json` does the same with quieter output.
 - `npm run playtest:capture -- --track alpine --target 0.24:vista` runs one browser visual capture. It creates the display in Playwright, drives to the target progress, briefly brakes, saves a screenshot under `playtest-captures/`, and prints JSON. Target values are `0-1` fractions or `1-100` percents, optionally followed by `:label`.
+- Add `--speed-scale 1.55` when a very long track needs a faster automation pass. The default is `1`, so existing Sakura/Alpine behavior is unchanged.
+- Add `--progress-log-ms 30000` to `playtest:lap` for long maps. It writes progress heartbeats to stderr so long runs do not sit silent for many minutes.
 - At startup, `playtest:capture` deletes and recreates its output folder. By default that is `playtest-captures/`, so the repo only keeps the latest visual capture run.
 - Local capture output folders are ignored by git so screenshots do not pollute the worktree.
 - `npm run typecheck:playtests` checks the playtest scripts only; the main `npm run typecheck` includes this.
@@ -43,7 +45,7 @@ The visual capture script requires Playwright. Use it without adding Playwright 
 npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track alpine --target 0.24:vista'
 ```
 
-For Alpine and other longer maps, prefer one `playtest:capture` target per command. That matched the most stable pattern from this run.
+For Alpine, prefer one `playtest:capture` target per command. Fjord and Cloudline later completed multi-target visual runs in one browser process, so this seems map/environment dependent rather than a universal rule.
 
 ## Server Choice
 
@@ -83,7 +85,9 @@ The practical controller loop:
 - Lower desired speed for sharp curves, then brake if current speed exceeds desired speed.
 - Use `highGrip`, `ghostMode: true`, and `stabilityAssist: true` for visual map checks. This reduces unrelated driving failures.
 
-This is good enough for Sakura. Alpine needs slower target speeds and more conservative braking because it has longer fast sections and a heavier chicane. For Alpine, a desired-speed range around `4.6` to `14.5` with stronger braking on future heading deltas completed the lap reliably.
+This is good enough for Sakura, Alpine, and Fjord at the default speed scale. Alpine needs conservative braking because it has longer fast sections and a heavier chicane. For Alpine, a desired-speed range around `4.6` to `14.5` with stronger braking on future heading deltas completed the lap reliably.
+
+Cloudline is too long for the default review speed. Use `--speed-scale 1.55 --progress-log-ms 30000` for Cloudline completion and visual checks; that kept the lap stable while finishing in about 11 minutes.
 
 ## Screenshot Notes
 
@@ -107,8 +111,18 @@ Workaround:
 - Keep the automated driver slow for review laps.
 - During a screenshot capture, briefly send `brake: 1`, `throttle: 0`, `steer: 0` so the car does not jump far down the lap while the screenshot is being taken.
 - For visual inspection, prefer a few targeted captures over trying to capture every milestone in one run.
-- For long-map visual inspection, one screenshot per browser process was the most stable pattern in this run.
+- For Alpine visual inspection, one screenshot per browser process was the most stable pattern in that run.
+- Fjord and Cloudline both completed multi-target browser capture runs in the later long-map check, with no console errors.
 - A visual capture target should fail if the race ends, crashes, or DNFs before reaching the requested progress. Do not accept an end-of-race screenshot as a successful target capture.
+
+Target selection:
+
+- Pick screenshots by what needs judgment, not by a fixed interval.
+- Use start/early if the track's first impression changed.
+- Use approach targets shortly before signature landmarks; the cockpit camera usually reads an upcoming feature better than a target placed exactly on top of it.
+- Add one mid/late section when checking scenery repetition, sparse areas, or special route moments.
+- Add finish approach when route closure or late-lap scenery changed.
+- Keep long-map visual sets to roughly `4-6` screenshots unless there is a specific issue to chase. Screenshots slow the automation and can destabilize long browser runs.
 
 ## Map Peculiarities
 
@@ -130,6 +144,26 @@ Alpine:
 - Keep Alpine's skyline mixed rather than all jagged or all cone. The current direction is cone-dominant for a few large peaks, with some jagged peaks left for variety.
 - The mixed cone/jagged mountains read better than all-jagged.
 - The cable-car and chalet landmarks were enlarged and moved closer/earlier on the lap so they read as stronger signature moments without adding more rocks.
+
+Fjord:
+
+- The default driver finished cleanly. The line stayed on `road`/brief `curb` only in the latest pass.
+- Multi-target browser capture stayed stable for waterfall/lookout/village/finish and for the earlier approach set.
+- Water, distant peaks, road ribbon, and minimap readability are good.
+- After the scenery pass, the village is larger and closer, with dock/sign detail, and the lookout has a clearer turnout/rail shape.
+- The waterfall was strengthened with a broader rock face and larger water/mist planes, but should stay off-road enough that it remains a scenic cue rather than the dominant object.
+- The late dark overhead section is treated as Fjord's tunnel/underpass moment. Do not remove it as an artifact unless it blocks visibility or clips through the car.
+- Small cliff rails help the road edge read more like a fjord route. Avoid adding many more generic rocks; the map benefits from clean water/road views.
+
+Cloudline:
+
+- Use `--speed-scale 1.55 --progress-log-ms 30000` for full-lap checks. The default driver is stable but too slow/silent for practical Cloudline completion.
+- The latest faster full-lap pass finished cleanly with road-only samples.
+- Multi-target browser capture was stable at early climb, switchbacks, summit, descent, and finish.
+- The vertical route and minimap read clearly. The road feels huge and playable.
+- After the scenery pass, the summit observatory is closer/larger and has stronger marker poles/radio detail.
+- Sparse snow poles and cliff breaks help interrupt the flat snow/cloud shelf without cluttering the whole map.
+- The late lap remains intentionally clean. Add only high-signal ridge details if it needs more identity later.
 
 ## Current Baselines
 
@@ -156,6 +190,28 @@ Alpine:
 - Latest visual recheck: mixed-mountains, rockwall, stronger cable, stronger chalet, and finish captures had no browser console errors.
 - Visual notes: cable car, chalet, bridge, and rock-wall section are readable; keep the mountain skyline mixed cone/jagged and grounded with low foothill bases.
 
+Fjord:
+
+- Command: `npm run playtest:lap -- --track fjord --timeout-ms 420000 --json`
+- Latest recorded result: finished, no crash, no DNF.
+- Latest recorded finish time: about `411.027s`.
+- Latest recorded max center distance: `6.63`.
+- Surfaces sampled by the generic script: `road` with a tiny amount of `curb`.
+- Latest visual command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track fjord --targets 0.145:waterfall-approach,0.445:lookout-approach,0.675:village-approach,0.91:tunnel-finish --out-dir playtest-captures-fjord-refresh --timeout-ms 540000'`
+- Latest visual recheck: waterfall approach, lookout approach, village approach, and tunnel/finish captures had no browser console errors.
+- Visual notes: water and route read cleanly; village/lookout are more readable; waterfall is visible but intentionally secondary; late tunnel/underpass view is expected.
+
+Cloudline:
+
+- Command: `npm run playtest:lap -- --track cloudline --timeout-ms 1800000 --speed-scale 1.55 --progress-log-ms 30000 --json`
+- Latest recorded result: finished, no crash, no DNF.
+- Latest recorded finish time: about `650.925s`.
+- Latest recorded max center distance: `5.73`.
+- Surfaces sampled by the faster script: `road` only.
+- Latest visual command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track cloudline --targets 0.12:early-climb,0.32:switchbacks,0.52:summit,0.70:descent,0.94:finish --out-dir playtest-captures-cloudline-refresh --timeout-ms 900000 --speed-scale 1.55'`
+- Latest visual recheck: early climb, switchbacks, summit, descent, and finish captures had no browser console errors. A follow-up summit-only capture also had no console errors after moving the observatory closer.
+- Visual notes: huge ascent/descent reads clearly; summit landmark reads a bit stronger; ridge details are intentionally sparse.
+
 ## Limits
 
 - This is not manual phone handling validation.
@@ -175,3 +231,5 @@ Alpine:
 8. Run targeted browser visual captures at start, feature sections, mid-lap, late-lap, and finish approach.
 9. Record console errors from those visual captures.
 10. Stop the dev server when done so no background sessions remain.
+
+For Cloudline, run the completion and visual commands with `--speed-scale 1.55`; add `--progress-log-ms 30000` to the completion command so progress is visible during the long pass.

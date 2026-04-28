@@ -42,6 +42,7 @@ type RaceDriverOptions = {
   carSetupId?: CarSetupId;
   cockpitStyle?: CockpitStyle;
   inputHz?: number;
+  speedScale?: number;
 };
 
 export type DisplayRoom = {
@@ -219,7 +220,8 @@ export class RaceDriver {
       rain: options.rain ?? false,
       carSetupId: options.carSetupId ?? "highGrip",
       cockpitStyle: options.cockpitStyle ?? "hands",
-      inputHz: options.inputHz ?? 30
+      inputHz: options.inputHz ?? 30,
+      speedScale: options.speedScale ?? 1
     };
   }
 
@@ -363,7 +365,7 @@ export class RaceDriver {
 
   private sendInput() {
     if (!this.latestCar || this.phase !== "racing" || this.latestCar.finished || this.latestCar.crashed || this.latestCar.dnf) return;
-    const input = this.holding ? { steer: 0, throttle: 0, brake: 1 } : driverInput(this.track, this.latestCar);
+    const input = this.holding ? { steer: 0, throttle: 0, brake: 1 } : driverInput(this.track, this.latestCar, this.options.speedScale);
     this.send({ type: "input_frame", input: { seq: this.seq += 1, ...input } });
   }
 
@@ -372,7 +374,7 @@ export class RaceDriver {
   }
 }
 
-function driverInput(track: TrackDef, car: CarState): Input {
+function driverInput(track: TrackDef, car: CarState, speedScale = 1): Input {
   const nearest = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
   const speed = car.speed;
   const lookahead = clamp(10 + speed * 0.68, 9, 25);
@@ -389,7 +391,8 @@ function driverInput(track: TrackDef, car: CarState): Input {
     Math.abs(angleDelta(target.heading, future.heading)) * 0.9,
     Math.abs(angleDelta(target.heading, far.heading)) * 0.65
   );
-  const desiredSpeed = curve > 1.08 ? 4.6 : curve > 0.82 ? 5.8 : curve > 0.58 ? 7.2 : curve > 0.36 ? 9.2 : curve > 0.22 ? 11.5 : 14.5;
+  const baseDesiredSpeed = curve > 1.08 ? 4.6 : curve > 0.82 ? 5.8 : curve > 0.58 ? 7.2 : curve > 0.36 ? 9.2 : curve > 0.22 ? 11.5 : 14.5;
+  const desiredSpeed = clamp(baseDesiredSpeed * speedScale, 3.8, 28);
   const brake = speed > desiredSpeed + 0.55 ? clamp((speed - desiredSpeed) / 5.4, 0, 0.95) : 0;
   return {
     steer: clamp(headingError * 2.75 - lateral * 0.14, -1, 1),

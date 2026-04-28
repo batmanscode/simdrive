@@ -2418,13 +2418,13 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const samples = useMemo(() => sampleTrackVisuals(track, 115), [track]);
   const scenicAnchors = useMemo(() => {
     const metrics = trackMetrics(track);
-    const waterfallSample = sampleTrack(track, metrics.totalLength * 0.18);
-    const villageSample = sampleTrack(track, metrics.totalLength * 0.72);
-    const lookoutSample = sampleTrack(track, metrics.totalLength * 0.48);
+    const waterfallSample = sampleTrack(track, metrics.totalLength * 0.165);
+    const villageSample = sampleTrack(track, metrics.totalLength * 0.69);
+    const lookoutSample = sampleTrack(track, metrics.totalLength * 0.455);
     return {
-      waterfall: { ...tracksidePropPosition(track, waterfallSample, -1, 16, 5.5, 2), heading: waterfallSample.heading + 0.35 },
-      village: { ...tracksidePropPosition(track, villageSample, 1, 10, 5, 2), heading: villageSample.heading - 0.35 },
-      lookout: { ...tracksidePropPosition(track, lookoutSample, 1, 8, 3, 1.2), heading: lookoutSample.heading - 0.7 }
+      waterfall: { ...tracksidePropPosition(track, waterfallSample, -1, 11, 6.8, 2.4), heading: waterfallSample.heading + 0.25 },
+      village: { ...tracksidePropPosition(track, villageSample, 1, 2.8, 7.4, 2.2), heading: villageSample.heading - 0.28 },
+      lookout: { ...tracksidePropPosition(track, lookoutSample, 1, 0.8, 6.0, 1.4), heading: lookoutSample.heading - 0.62 }
     };
   }, [track]);
 
@@ -2435,6 +2435,7 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       <FjordWaterfall position={[scenicAnchors.waterfall.x, scenicAnchors.waterfall.y, scenicAnchors.waterfall.z]} heading={scenicAnchors.waterfall.heading} rain={rain} />
       <FjordVillage position={[scenicAnchors.village.x, scenicAnchors.village.y, scenicAnchors.village.z]} heading={scenicAnchors.village.heading} rain={rain} />
       <FjordLookout position={[scenicAnchors.lookout.x, scenicAnchors.lookout.y, scenicAnchors.lookout.z]} heading={scenicAnchors.lookout.heading} rain={rain} />
+      <FjordScenicMarkers track={track} rain={rain} />
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (index % 4 === 0) {
@@ -2491,17 +2492,93 @@ function FjordBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolean })
 function FjordWaterfall({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, 7.5, 0]} scale={[1.2, 1, 0.65]} castShadow>
-        <coneGeometry args={[6.2, 16, 7]} />
+      <mesh position={[0, 5.7, 0]} rotation={[0.04, 0, 0.02]} scale={[4.8, 6.0, 0.86]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
       </mesh>
-      <mesh position={[0, 6.2, -1.05]} rotation={[0, 0, 0.08]}>
-        <planeGeometry args={[1.25, 10.8]} />
-        <meshBasicMaterial color={rain ? "#d8eef4" : "#e7fbff"} transparent opacity={rain ? 0.42 : 0.5} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[-3.5, 3.55, -0.42]} rotation={[0.08, -0.18, 0.04]} scale={[2.2, 3.2, 0.98]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
       </mesh>
-      <mesh position={[0, 0.12, -1.25]} rotation={[-Math.PI / 2, 0, 0]} scale={[2.8, 1.25, 1]}>
-        <circleGeometry args={[1, 22]} />
-        <meshBasicMaterial color="#cfefff" transparent opacity={rain ? 0.18 : 0.28} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[3.55, 3.85, -0.28]} rotation={[0.08, 0.22, -0.03]} scale={[2.35, 3.45, 1.0]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
+      </mesh>
+      {[-5.2, 5.4].map((x, index) => (
+        <mesh key={`fjord-fall-rock-${index}`} position={[x * 0.68, 1.35, -1.02]} rotation={[0.15, 0.18 * (index === 0 ? -1 : 1), 0.06]} scale={[1.8, 0.68, 0.96]} castShadow>
+          <dodecahedronGeometry args={[1.1, 0]} />
+          <meshStandardMaterial color={rain ? "#5f6967" : "#646d61"} roughness={0.96} />
+        </mesh>
+      ))}
+      <mesh position={[0, 4.78, -1.22]} rotation={[0, 0, 0.08]}>
+        <planeGeometry args={[1.85, 8.8]} />
+        <meshBasicMaterial color={rain ? "#d8eef4" : "#e7fbff"} transparent opacity={rain ? 0.52 : 0.62} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {[-1.35, 1.45].map((x, index) => (
+        <mesh key={`fjord-fall-stream-${index}`} position={[x * 0.62, 4.1, -1.36]} rotation={[0, 0, index === 0 ? -0.05 : 0.04]}>
+          <planeGeometry args={[0.34, 6.9]} />
+          <meshBasicMaterial color="#f3feff" transparent opacity={rain ? 0.36 : 0.46} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.12, -1.76]} rotation={[-Math.PI / 2, 0, 0]} scale={[3.4, 1.5, 1]}>
+        <circleGeometry args={[1, 26]} />
+        <meshBasicMaterial color="#cfefff" transparent opacity={rain ? 0.2 : 0.34} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {[-2.2, 0.2, 2.5].map((x, index) => (
+        <mesh key={`fjord-fall-mist-${index}`} position={[x * 0.72, 0.5 + index * 0.05, -2.0 - index * 0.15]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.36 - index * 0.16, 0.45, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color="#f1fbff" transparent opacity={rain ? 0.12 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FjordScenicMarkers({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const markers = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [
+      { progress: 0.135, side: -1, length: 9.5 },
+      { progress: 0.445, side: 1, length: 11.5 },
+      { progress: 0.685, side: 1, length: 10.5 }
+    ].map((marker, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * marker.progress);
+      const position = tracksidePropPosition(track, sample, marker.side, 0.3, 0.4, 0.8);
+      return { ...marker, ...position, heading: sample.heading, seed: index };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {markers.map((marker) => (
+        <FjordCliffRail key={`fjord-rail-${marker.seed}`} position={[marker.x, marker.y, marker.z]} heading={marker.heading} length={marker.length} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function FjordCliffRail({ position, heading, length, rain }: { position: [number, number, number]; heading: number; length: number; rain: boolean }) {
+  const postCount = Math.max(3, Math.round(length / 2.6));
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {Array.from({ length: postCount }).map((_, index) => {
+        const z = -length / 2 + (length / Math.max(1, postCount - 1)) * index;
+        return (
+          <mesh key={`fjord-rail-post-${index}`} position={[0, 0.62, z]} castShadow>
+            <boxGeometry args={[0.16, 1.22, 0.16]} />
+            <meshStandardMaterial color={rain ? "#273037" : "#303636"} roughness={0.68} />
+          </mesh>
+        );
+      })}
+      {[0.58, 1.04].map((y) => (
+        <mesh key={`fjord-rail-bar-${y}`} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[0.16, 0.12, length]} />
+          <meshStandardMaterial color={rain ? "#273037" : "#303636"} roughness={0.68} />
+        </mesh>
+      ))}
+      <mesh position={[0.42, 0.07, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.7, length + 0.8]} />
+        <meshStandardMaterial color={rain ? "#77817d" : "#8f9488"} roughness={0.92} />
       </mesh>
     </group>
   );
@@ -2509,26 +2586,40 @@ function FjordWaterfall({ position, heading, rain }: { position: [number, number
 
 function FjordVillage({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
-      {[-2.2, 0.4, 2.8].map((x, index) => (
-        <group key={`fjord-cabin-${index}`} position={[x, 0, index % 2 === 0 ? 0.8 : -0.75]} rotation={[0, (index - 1) * 0.16, 0]}>
-          <mesh position={[0, 0.58, 0]} castShadow>
-            <boxGeometry args={[1.55, 1.12, 1.28]} />
+    <group position={position} rotation={[0, heading, 0]} scale={[1.5, 1.5, 1.5]}>
+      {[-3.8, -1.25, 1.35, 3.9].map((x, index) => (
+        <group key={`fjord-cabin-${index}`} position={[x, 0, index % 2 === 0 ? 0.85 : -0.78]} rotation={[0, (index - 1.5) * 0.13, 0]}>
+          <mesh position={[0, 0.68, 0]} castShadow>
+            <boxGeometry args={[1.8, 1.28, 1.44]} />
             <meshStandardMaterial color={rain ? "#8d4c42" : "#a4473e"} roughness={0.72} />
           </mesh>
-          <mesh position={[0, 1.28, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <coneGeometry args={[1.22, 0.8, 4]} />
+          <mesh position={[0, 1.5, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+            <coneGeometry args={[1.48, 0.95, 4]} />
             <meshStandardMaterial color={rain ? "#303941" : "#2d3339"} roughness={0.62} />
           </mesh>
-          <mesh position={[0, 0.78, -0.66]}>
-            <boxGeometry args={[0.58, 0.32, 0.035]} />
+          <mesh position={[0, 0.86, -0.74]}>
+            <boxGeometry args={[0.7, 0.38, 0.04]} />
             <meshStandardMaterial color={rain ? "#ffe1a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.55 : 0.28} roughness={0.48} />
           </mesh>
         </group>
       ))}
-      <mesh position={[0.2, 0.06, -2.1]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6.6, 0.75]} />
+      <mesh position={[0.1, 0.06, -2.35]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[9.2, 0.82]} />
         <meshStandardMaterial color={rain ? "#463a2e" : "#5b4936"} roughness={0.78} />
+      </mesh>
+      {[-3.2, -1.05, 1.1, 3.25].map((x) => (
+        <mesh key={`fjord-dock-post-${x}`} position={[x, 0.46, -3.08]} castShadow>
+          <boxGeometry args={[0.14, 0.86, 0.14]} />
+          <meshStandardMaterial color={rain ? "#3d342c" : "#5b4936"} roughness={0.74} />
+        </mesh>
+      ))}
+      <mesh position={[4.95, 0.74, -1.65]} rotation={[0, -0.25, 0]} castShadow>
+        <boxGeometry args={[0.14, 1.24, 0.14]} />
+        <meshStandardMaterial color="#2f3438" roughness={0.6} />
+      </mesh>
+      <mesh position={[4.95, 1.22, -1.65]} rotation={[0, -0.25, 0]}>
+        <boxGeometry args={[1.0, 0.42, 0.06]} />
+        <meshStandardMaterial color={rain ? "#fff4d7" : "#fff7df"} roughness={0.56} />
       </mesh>
     </group>
   );
@@ -2536,20 +2627,32 @@ function FjordVillage({ position, heading, rain }: { position: [number, number, 
 
 function FjordLookout({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[2.1, 7]} />
+    <group position={position} rotation={[0, heading, 0]} scale={[1.16, 1.16, 1.16]}>
+      <mesh position={[0, 0.2, 0]} receiveShadow>
+        <cylinderGeometry args={[3.9, 4.5, 0.36, 7]} />
         <meshStandardMaterial color={rain ? "#8a8e87" : "#a6a897"} roughness={0.86} />
       </mesh>
-      {[-1.4, 0, 1.4].map((x) => (
-        <mesh key={x} position={[x, 0.68, -1.05]}>
-          <boxGeometry args={[0.08, 1.2, 0.08]} />
+      {[-2.65, -1.3, 0, 1.3, 2.65].map((x) => (
+        <mesh key={x} position={[x, 0.88, -2.2]}>
+          <boxGeometry args={[0.1, 1.4, 0.1]} />
           <meshStandardMaterial color="#2f3438" roughness={0.6} />
         </mesh>
       ))}
-      <mesh position={[0, 1.18, -1.05]}>
-        <boxGeometry args={[3.2, 0.12, 0.08]} />
+      <mesh position={[0, 1.45, -2.2]}>
+        <boxGeometry args={[5.7, 0.14, 0.1]} />
         <meshStandardMaterial color="#2f3438" roughness={0.6} />
+      </mesh>
+      <mesh position={[-2.55, 1.0, 1.15]} castShadow>
+        <boxGeometry args={[0.14, 1.8, 0.14]} />
+        <meshStandardMaterial color="#303636" roughness={0.65} />
+      </mesh>
+      <mesh position={[-2.1, 1.62, 1.16]} rotation={[0, 0, 0.08]}>
+        <boxGeometry args={[0.95, 0.5, 0.05]} />
+        <meshStandardMaterial color={rain ? "#df484e" : "#d53d45"} roughness={0.48} />
+      </mesh>
+      <mesh position={[1.85, 0.48, 1.2]} rotation={[-Math.PI / 2, 0, -0.2]}>
+        <planeGeometry args={[2.4, 1.2]} />
+        <meshStandardMaterial color={rain ? "#6e7773" : "#7f887a"} roughness={0.88} />
       </mesh>
     </group>
   );
@@ -2575,7 +2678,7 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const samples = useMemo(() => sampleTrackVisuals(track, 230), [track]);
   const summit = useMemo(() => {
     const highest = trackMetrics(track).samples.reduce((best, sample) => (sample.y > best.y ? sample : best));
-    return { ...tracksidePropPosition(track, highest, 1, 18, 7, 2.5), heading: highest.heading - 0.42 };
+    return { ...tracksidePropPosition(track, highest, 1, 3.2, 6.5, 2.8), heading: highest.heading - 0.35 };
   }, [track]);
 
   return (
@@ -2583,6 +2686,7 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       <CloudlineBackdrop bounds={bounds} rain={rain} />
       <CloudlineSummit position={[summit.x, summit.y, summit.z]} heading={summit.heading} rain={rain} />
       <CloudWisps bounds={bounds} rain={rain} />
+      <CloudlineRidgeDetails track={track} rain={rain} />
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (sample.y < 230 && index % 3 !== 1) {
@@ -2627,28 +2731,130 @@ function CloudlineBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolea
 
 function CloudlineSummit({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
+    <group position={position} rotation={[0, heading, 0]} scale={[1.55, 1.55, 1.55]}>
       <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[6.4, 32]} />
+        <circleGeometry args={[8.4, 32]} />
         <meshStandardMaterial color={rain ? "#cfd8d7" : "#eef1f2"} roughness={0.88} />
       </mesh>
-      <mesh position={[0, 1.05, 0]} castShadow>
-        <cylinderGeometry args={[2.3, 2.6, 1.9, 18]} />
+      <mesh position={[0, 1.34, 0]} castShadow>
+        <cylinderGeometry args={[3.1, 3.55, 2.45, 18]} />
         <meshStandardMaterial color={rain ? "#c3c9c8" : "#e3e2d8"} roughness={0.72} />
       </mesh>
-      <mesh position={[0, 2.2, 0]} castShadow>
-        <sphereGeometry args={[1.75, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      <mesh position={[0, 2.86, 0]} castShadow>
+        <sphereGeometry args={[2.32, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial color={rain ? "#8fa8b0" : "#9cc4d2"} roughness={0.42} metalness={0.12} />
       </mesh>
-      <mesh position={[3.2, 3.35, -0.4]} rotation={[0, 0, 0.08]} castShadow>
-        <cylinderGeometry args={[0.12, 0.16, 6.2, 8]} />
+      <mesh position={[4.65, 5.05, -0.55]} rotation={[0, 0, 0.08]} castShadow>
+        <cylinderGeometry args={[0.14, 0.19, 9.2, 8]} />
         <meshStandardMaterial color="#2c3137" roughness={0.52} />
       </mesh>
       {[0, 1, 2].map((level) => (
-        <mesh key={level} position={[3.2, 1.25 + level * 1.45, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.72 + level * 0.15, 0.025, 8, 28]} />
+        <mesh key={level} position={[4.65, 1.7 + level * 1.92, -0.55]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.88 + level * 0.2, 0.03, 8, 28]} />
           <meshStandardMaterial color={rain ? "#dfe6e6" : "#f8f5e8"} roughness={0.5} metalness={0.08} />
         </mesh>
+      ))}
+      {[-6.5, 6.5].map((x) => (
+        <group key={`cloudline-summit-marker-${x}`} position={[x, 0, 4.5]}>
+          <mesh position={[0, 1.6, 0]} castShadow>
+            <boxGeometry args={[0.16, 3.2, 0.16]} />
+            <meshStandardMaterial color="#2c3137" roughness={0.55} />
+          </mesh>
+          <mesh position={[0, 3.25, 0]} castShadow>
+            <boxGeometry args={[0.52, 0.52, 0.52]} />
+            <meshStandardMaterial color={rain ? "#f0f2f0" : "#fff7df"} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineRidgeDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const details = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [
+      { progress: 0.18, side: -1, kind: "poles" as const },
+      { progress: 0.29, side: 1, kind: "cliff" as const },
+      { progress: 0.43, side: -1, kind: "poles" as const },
+      { progress: 0.515, side: -1, kind: "summit" as const },
+      { progress: 0.61, side: 1, kind: "cliff" as const },
+      { progress: 0.72, side: -1, kind: "poles" as const },
+      { progress: 0.84, side: 1, kind: "cliff" as const }
+    ].map((detail, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * detail.progress);
+      const radius = detail.kind === "cliff" ? 5.2 : detail.kind === "summit" ? 1.2 : 0.5;
+      const extra = detail.kind === "cliff" ? 3.8 : 1.2;
+      const position = tracksidePropPosition(track, sample, detail.side, extra, radius, 1.2);
+      return { ...detail, ...position, heading: sample.heading, seed: index };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {details.map((detail) => {
+        if (detail.kind === "cliff") {
+          return <CloudlineCliffBreak key={`cloudline-cliff-${detail.seed}`} position={[detail.x, detail.y, detail.z]} heading={detail.heading} seed={detail.seed} rain={rain} />;
+        }
+        if (detail.kind === "summit") {
+          return <CloudlineSummitPoles key="cloudline-summit-poles" position={[detail.x, detail.y, detail.z]} heading={detail.heading} rain={rain} />;
+        }
+        return <CloudlineSnowPoles key={`cloudline-poles-${detail.seed}`} position={[detail.x, detail.y, detail.z]} heading={detail.heading} seed={detail.seed} rain={rain} />;
+      })}
+    </group>
+  );
+}
+
+function CloudlineSnowPoles({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {[-3.2, -1.1, 1.15, 3.25].map((z, index) => (
+        <group key={`cloudline-snow-pole-${index}`} position={[seed % 2 === 0 ? 0 : 0.35, 0, z]}>
+          <mesh position={[0, 1.15, 0]} castShadow>
+            <boxGeometry args={[0.12, 2.3, 0.12]} />
+            <meshStandardMaterial color={rain ? "#e3e8e8" : "#f4f0dd"} roughness={0.54} />
+          </mesh>
+          <mesh position={[0, 1.82, 0.01]}>
+            <boxGeometry args={[0.14, 0.28, 0.14]} />
+            <meshStandardMaterial color="#d53d45" roughness={0.44} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineCliffBreak({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading + seededUnit(seed * 13) * 0.18 - 0.09, 0]}>
+      {[-3.8, 0, 3.7].map((z, index) => (
+        <mesh key={`cloudline-cliff-rock-${index}`} position={[0.25 * (index - 1), 0.72, z]} rotation={[0.08, seededUnit(seed * (index + 5)) * 0.5, 0.04]} scale={[3.2 - index * 0.25, 0.82, 1.42 + index * 0.18]} castShadow>
+          <dodecahedronGeometry args={[1.25, 0]} />
+          <meshStandardMaterial color={rain ? "#687273" : "#727d76"} roughness={0.98} />
+        </mesh>
+      ))}
+      <mesh position={[0, 1.38, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[5.8, 8.8]} />
+        <meshStandardMaterial color={rain ? "#d6dfdf" : "#f1f4f3"} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+function CloudlineSummitPoles({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {[-1.8, 0, 1.8].map((z, index) => (
+        <group key={`cloudline-summit-pole-${index}`} position={[0, 0, z]}>
+          <mesh position={[0, 1.75, 0]} castShadow>
+            <boxGeometry args={[0.16, 3.5, 0.16]} />
+            <meshStandardMaterial color="#2c3137" roughness={0.54} />
+          </mesh>
+          <mesh position={[0.38, 3.0, 0]} rotation={[0, 0, index % 2 === 0 ? 0.05 : -0.05]}>
+            <boxGeometry args={[0.76, 0.36, 0.05]} />
+            <meshStandardMaterial color={rain ? "#f2eee0" : "#fff7df"} roughness={0.52} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
