@@ -47,6 +47,22 @@ npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright
 
 For Alpine, prefer one `playtest:capture` target per command. Fjord and Cloudline later completed multi-target visual runs in one browser process, so this seems map/environment dependent rather than a universal rule.
 
+## Dev Asset Gallery
+
+When identifying scenery or car parts from screenshots, open the dev-only asset gallery first:
+
+```bash
+npm run dev
+```
+
+Then visit `http://127.0.0.1:5173/dev-assets`.
+
+- The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, and vehicle/cockpit props.
+- It uses one WebGL canvas for the visible set so the `All` view can show every asset without hitting browser context limits.
+- Use the dark/light toggle and rain toggle to check theme contrast and wet-material variants.
+- The `/dev-assets` route is gated by Vite's `import.meta.env.DEV`; production builds should fall through to the normal app instead of the gallery.
+- Do not save gallery screenshots to the repo by default. Render assets on demand so the repo does not fill with generated images; use `playtest:capture` only when route context or before/after visual evidence is needed.
+
 ## Server Choice
 
 Best path found:

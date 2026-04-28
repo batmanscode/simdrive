@@ -1715,6 +1715,188 @@ input {
   background: #fffaf0;
 }
 
+.dev-assets {
+  --dev-bg: #eef0e8;
+  --dev-text: #171a1f;
+  --dev-muted: #5c6470;
+  --dev-accent: #9a3412;
+  --dev-card: #ffffff;
+  --dev-card-border: rgba(23, 26, 31, 0.1);
+  --dev-control: #ffffff;
+  --dev-control-text: #24282f;
+  --dev-control-border: rgba(23, 26, 31, 0.12);
+  --dev-control-active: #24282f;
+  --dev-control-active-text: #fffaf0;
+  --dev-canvas: #d8eaf3;
+  --dev-shadow: rgba(23, 26, 31, 0.08);
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+}
+
+.dev-assets.theme-dark {
+  --dev-bg: #11161b;
+  --dev-text: #f4f1e8;
+  --dev-muted: #aeb7bd;
+  --dev-accent: #ffb15f;
+  --dev-card: #1a2128;
+  --dev-card-border: rgba(244, 241, 232, 0.12);
+  --dev-control: #1a2128;
+  --dev-control-text: #f4f1e8;
+  --dev-control-border: rgba(244, 241, 232, 0.14);
+  --dev-control-active: #f4f1e8;
+  --dev-control-active-text: #101418;
+  --dev-canvas: #1c2630;
+  --dev-shadow: rgba(0, 0, 0, 0.26);
+}
+
+.dev-assets-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 auto 18px;
+  max-width: 1480px;
+}
+
+.dev-assets-header h1 {
+  margin: 0 0 8px;
+  color: var(--dev-text);
+  font-size: 42px;
+  line-height: 1;
+}
+
+.dev-assets-header .eyebrow {
+  margin-bottom: 8px;
+  color: var(--dev-accent);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.dev-assets-header span {
+  color: var(--dev-muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dev-assets-controls,
+.dev-assets-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-assets-controls a,
+.dev-assets-controls button,
+.dev-assets-tabs button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--dev-control);
+  color: var(--dev-control-text);
+  border: 1px solid var(--dev-control-border);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.dev-assets-controls button.active,
+.dev-assets-tabs button.active {
+  background: var(--dev-control-active);
+  color: var(--dev-control-active-text);
+  border-color: var(--dev-control-active);
+}
+
+.dev-assets-tabs {
+  max-width: 1480px;
+  margin: 0 auto 18px;
+}
+
+.dev-assets-board {
+  max-width: 1480px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.dev-assets-board-canvas {
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--dev-canvas);
+  border: 1px solid var(--dev-control-border);
+  box-shadow: 0 14px 34px var(--dev-shadow);
+}
+
+.dev-assets-board-canvas canvas {
+  display: block;
+}
+
+.dev-assets-index {
+  display: grid;
+  grid-template-columns: repeat(var(--dev-asset-columns), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dev-asset-meta {
+  min-height: 88px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--dev-card);
+  border: 1px solid var(--dev-card-border);
+}
+
+.dev-asset-meta small {
+  color: var(--dev-accent);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.dev-asset-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.dev-asset-title span {
+  flex: 0 0 auto;
+  min-width: 34px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--dev-control-active);
+  color: var(--dev-control-active-text);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.dev-asset-title strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dev-text);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.dev-asset-meta span {
+  color: var(--dev-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 @media (max-width: 800px) {
   .hero,
   .lobby,
@@ -1742,6 +1924,23 @@ input {
 
   .lobby {
     padding: 12px;
+  }
+
+  .dev-assets {
+    padding: 14px;
+  }
+
+  .dev-assets-header {
+    display: grid;
+    align-items: start;
+  }
+
+  .dev-assets-header h1 {
+    font-size: 34px;
+  }
+
+  .dev-assets-index {
+    grid-template-columns: 1fr;
   }
 
   .join-card {

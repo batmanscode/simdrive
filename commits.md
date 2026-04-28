@@ -2,40 +2,29 @@
 
 ## Recommended Single Commit
 
-Improve Sakura and Alpine scenery with playtest automation
+Add dev asset gallery for procedural props
 
-- add Sakura torii, blossom tunnel, and cleaner petal treatment
-- refresh Alpine landmarks, rock-wall section, and mixed cone/jagged mountain skyline
-- add reusable full-lap and visual-capture playtest scripts
-- document playtest setup, map notes, screenshot handling, and current baselines
-- keep local capture output ignored and reset it before each visual run
-- include playtest script compilation in the normal TypeScript check
+- add a Vite dev-only `/dev-assets` gallery for inspecting procedural track and vehicle assets
+- render generic, map-specific, and cockpit props in grouped tabs with live 3D previews
+- add dark/light, rain, and spin controls for visual inspection
+- improve gallery readability with crisp numbered asset cards and local preview variants for track-positioned props
+- document the gallery workflow and keep generated screenshots out of the repo
 
 ## Split Commit Option
 
 ### Commit 1
 
-Improve Sakura and Alpine track scenery
+Add dev-only procedural asset gallery
 
-- add Sakura signature props and remove floating blossom canopy artifacts
-- reduce distant petal decals that read as sky blobs
-- strengthen Alpine cable-car and chalet landmarks
-- mix cone and jagged Alpine mountains while keeping the road view clear
+- add `/dev-assets` behind `import.meta.env.DEV`
+- render prop groups in a single WebGL canvas to avoid browser context limits
+- add tabs for generic track, map, vehicle, and all-asset views
 
 ### Commit 2
 
-Add map playtest automation
+Polish asset gallery inspection UI
 
-- add reusable WebSocket full-lap driver and Playwright visual capture scripts
-- add npm scripts for lap checks and screenshot captures
-- ignore local playtest screenshot output
-- document setup, workflow, map-specific notes, and known browser capture limits
-
-### Commit 3
-
-Harden playtest capture tooling
-
-- reset capture output folders before each visual run
-- fail visual captures when the target progress is not reached
-- validate CLI numeric arguments and target ranges
-- include playtest script compilation in `npm run typecheck`
+- add dark/light, rain, and spin controls
+- replace blurry in-canvas names with numbered CSS asset cards
+- add local previews for route-positioned and large backdrop assets
+- document the gallery in playtest automation notes

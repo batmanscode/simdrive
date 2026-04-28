@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Info, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Info, Moon, Play, RotateCcw, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
@@ -22,6 +22,8 @@ const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
 const MOTION_STEERING_DEADZONE = 0.06;
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
+const DEV_ASSET_ROUTE = "/dev-assets";
+const IS_DEV_BUILD = import.meta.env.DEV;
 
 type MotionCalibration = {
   frame: string;
@@ -43,6 +45,7 @@ function currentServerTimeMs() {
 }
 
 export function App() {
+  if (IS_DEV_BUILD && location.pathname.startsWith(DEV_ASSET_ROUTE)) return <DevAssetGallery />;
   const isController = location.pathname.startsWith("/controller");
   return isController ? <ControllerApp /> : <DisplayApp />;
 }
@@ -1380,6 +1383,349 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
   );
 }
 
+type DevAsset = {
+  group: string;
+  name: string;
+  note?: string;
+  zoom?: number;
+  render: (rain: boolean) => ReactNode;
+};
+
+const DEV_ASSET_CAR: CarState = {
+  playerId: "dev-preview",
+  carSetupId: DEFAULT_CAR_SETUP_ID,
+  x: 0,
+  y: 0,
+  z: 0,
+  velocityX: 0,
+  velocityZ: 0,
+  heading: 0,
+  speed: 18,
+  steer: 0.18,
+  throttle: 0.4,
+  brake: 0,
+  lap: 1,
+  progress: 0,
+  distanceThisLap: 0,
+  nextCheckpoint: 0,
+  lastValidProgress: 0,
+  timedLapStarted: false,
+  timedRaceStartedAt: 0,
+  currentLapStartedAt: 0,
+  wheelDistance: 8,
+  surface: "road",
+  finished: false,
+  crashed: false,
+  dnf: false,
+  resetAvailable: false,
+  impact: 0,
+  slip: 0.12
+};
+
+const DEV_ASSETS: DevAsset[] = [
+  { group: "Generic Track", name: "TrackStartGantryModel", note: "Start grid, gantry, lights", zoom: 1.28, render: () => <TrackStartGantryModel track={TRACKS.sakura} /> },
+  { group: "Generic Track", name: "RoadsideBoardModel", note: "The pale blank boards seen along routes", render: (rain) => <RoadsideBoardModel rain={rain} /> },
+  { group: "Generic Track", name: "BrakingBoardModel", note: "Striped braking marker", render: () => <BrakingBoardModel /> },
+  { group: "Generic Track", name: "TrackBarrierModel", note: "Low roadside barrier", render: (rain) => <TrackBarrierModel rain={rain} /> },
+  { group: "Generic Track", name: "SponsorBoardModel", note: "#vibejam sponsor board", render: (rain) => <SponsorBoardModel rain={rain} /> },
+  { group: "Sakura", name: "SakuraToriiGate", render: (rain) => <SakuraToriiGateModel track={TRACKS.sakura} rain={rain} /> },
+  { group: "Sakura", name: "SakuraBlossomTunnel", render: (rain) => <SakuraBlossomTunnelPreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraTunnelTree", render: (rain) => <SakuraTunnelTree position={[0, 0, 0]} side={1} heading={0} seed={220} rain={rain} /> },
+  { group: "Sakura", name: "SakuraFeatureGrove", render: (rain) => <SakuraFeatureGrovePreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraGroundAccents", render: (rain) => <SakuraGroundAccentsPreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraTree", render: (rain) => <SakuraTree position={[0, 0, 0]} seed={5} rain={rain} /> },
+  { group: "Sakura", name: "SakuraLantern", render: (rain) => <SakuraLantern position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Sakura", name: "SakuraBanner", render: (rain) => <SakuraBanner position={[0, 0.86, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpineNearPeak", zoom: 1.22, render: (rain) => <AlpineNearPeak rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak cone", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 28, r: 22, kind: "cone" }} seed={3} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak jagged", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 26, r: 22, kind: "jagged" }} seed={4} rain={rain} /> },
+  { group: "Alpine", name: "AlpineCliffRock", render: (rain) => <AlpineCliffRock position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
+  { group: "Alpine", name: "AlpineChalet", render: (rain) => <AlpineChalet position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpineCableCar", render: (rain) => <AlpineCableCar position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpinePine", render: (rain) => <AlpinePine position={[0, 0, 0]} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineRock", render: (rain) => <AlpineRock position={[0, 0.25, 0]} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineSnowBank", render: (rain) => <AlpineSnowBank position={[0, 0.14, 0]} heading={0} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBridge", render: (rain) => <AlpineBridge sample={{ x: 0, y: 0, z: 0, heading: 0 }} track={TRACKS.alpine} rain={rain} /> },
+  { group: "Fjord", name: "FjordWaterfall", zoom: 1.26, render: (rain) => <FjordWaterfall position={[0, 0, 0]} heading={Math.PI} rain={rain} /> },
+  { group: "Fjord", name: "FjordCliffRail", render: (rain) => <FjordCliffRail position={[0, 0, 0]} heading={0} length={11.5} rain={rain} /> },
+  { group: "Fjord", name: "FjordVillage", render: (rain) => <FjordVillage position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordLookout", render: (rain) => <FjordLookout position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordMarker", render: (rain) => <FjordMarker position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordBackdrop", zoom: 1.12, render: (rain) => <FjordBackdropPreview rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSummit", zoom: 1.24, render: (rain) => <CloudlineSummit position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSnowPoles", render: (rain) => <CloudlineSnowPoles position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineCliffBreak", render: (rain) => <CloudlineCliffBreak position={[0, 0, 0]} heading={0} seed={3} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSummitPoles", render: (rain) => <CloudlineSummitPoles position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Cloudline", name: "CloudWisps", render: (rain) => <CloudWispsPreview rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineBackdrop", zoom: 1.08, render: (rain) => <CloudlineBackdropPreview rain={rain} /> },
+  { group: "Vehicle", name: "CarModel", render: () => <CarModel car={DEV_ASSET_CAR} color="#ff8f3d" /> },
+  { group: "Vehicle", name: "Cockpit hands", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="hands" /> },
+  { group: "Vehicle", name: "Cockpit paws", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="paws" /> }
+];
+
+function SakuraBlossomTunnelPreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      {[0, 1, 2].flatMap((segment) => [-1, 1].map((side) => (
+        <SakuraTunnelTree
+          key={`${segment}-${side}`}
+          position={[side * 2.2, 0, (segment - 1) * 2.4]}
+          side={side}
+          heading={0}
+          seed={220 + segment * 9 + side}
+          rain={rain}
+        />
+      )))}
+    </group>
+  );
+}
+
+function SakuraFeatureGrovePreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      <SakuraTree position={[-1.5, 0, 0.25]} seed={104} rain={rain} />
+      <SakuraTree position={[0.55, 0, -0.65]} seed={117} rain={rain} />
+      <SakuraTree position={[1.85, 0, 0.55]} seed={131} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraGroundAccentsPreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      {[[-1.6, 0.82], [0.15, 0.72], [1.65, 0.78]].map(([x, scale], index) => (
+        <mesh key={index} position={[x, 0.01, 0]} rotation={[-Math.PI / 2, 0, index * 0.72]} scale={[scale * 2.7, scale * 0.92, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.1 : 0.14} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FjordBackdropPreview({ rain }: { rain: boolean }) {
+  const peaks = [
+    { x: -2.2, h: 7.4, r: 3.2 },
+    { x: 1.2, h: 9.1, r: 3.8 },
+    { x: 4.0, h: 6.6, r: 2.8 }
+  ];
+  return (
+    <group>
+      {peaks.map((peak, index) => (
+        <group key={index} position={[peak.x, 0, index * -0.65]} rotation={[0, seededUnit(index * 19) * 0.8, 0]}>
+          <mesh position={[0, peak.h / 2, 0]}>
+            <coneGeometry args={[peak.r, peak.h, 9]} />
+            <meshStandardMaterial color={rain ? "#6f7774" : "#77846f"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, peak.h * 0.72, 0]}>
+            <coneGeometry args={[peak.r * 0.34, peak.h * 0.22, 9]} />
+            <meshStandardMaterial color={rain ? "#dfe5e4" : "#eef2f0"} roughness={0.82} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudWispsPreview({ rain }: { rain: boolean }) {
+  return (
+    <group scale={[1.25, 1.25, 1.25]}>
+      {[-2.2, 0, 2.1].map((x, puff) => (
+        <mesh key={puff} position={[x, 1.2 + puff * 0.08, seededUnit(puff + 4) * 0.7]} scale={[2.6 - puff * 0.28, 0.48, 1.2 + puff * 0.22]}>
+          <sphereGeometry args={[1, 12, 8]} />
+          <meshBasicMaterial color={rain ? "#d7dee1" : "#f7fbff"} transparent opacity={rain ? 0.34 : 0.42} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineBackdropPreview({ rain }: { rain: boolean }) {
+  const peaks = [
+    { x: -3.2, h: 8.5, r: 4.2 },
+    { x: 0.6, h: 10.4, r: 4.8 },
+    { x: 4.0, h: 9.2, r: 4.5 }
+  ];
+  return (
+    <group>
+      {peaks.map((peak, index) => (
+        <group key={index} position={[peak.x, 0, index * -0.8]} rotation={[0, seededUnit(index * 23) * 0.7, 0]}>
+          <mesh position={[0, peak.h / 2, 0]}>
+            <coneGeometry args={[peak.r, peak.h, 9]} />
+            <meshStandardMaterial color={rain ? "#6b7273" : "#778179"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, peak.h * 0.73, 0]}>
+            <coneGeometry args={[peak.r * 0.42, peak.h * 0.24, 9]} />
+            <meshStandardMaterial color={rain ? "#dce3e4" : "#f2f5f4"} roughness={0.82} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function DevAssetGallery() {
+  const [rain, setRain] = useState(false);
+  const [spin, setSpin] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
+  const groups = useMemo(() => [...Array.from(new Set(DEV_ASSETS.map((asset) => asset.group))), "All"], []);
+  const [activeGroup, setActiveGroup] = useState("Generic Track");
+  const assets = activeGroup === "All" ? DEV_ASSETS : DEV_ASSETS.filter((asset) => asset.group === activeGroup);
+  const columns = Math.min(4, Math.ceil(Math.sqrt(assets.length)));
+  const rows = Math.max(1, Math.ceil(assets.length / columns));
+  const boardHeight = Math.min(920, Math.max(520, rows * 155));
+
+  return (
+    <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
+      <header className="dev-assets-header">
+        <div>
+          <p className="eyebrow">Dev viewer</p>
+          <h1>Asset Gallery</h1>
+          <span>{assets.length} visible / {DEV_ASSETS.length} procedural assets total</span>
+        </div>
+        <div className="dev-assets-controls">
+          <a href="/">Back to app</a>
+          <button type="button" className={darkMode ? "active" : undefined} onClick={() => setDarkMode((value) => !value)}>
+            {darkMode ? <Moon size={16} /> : <Sun size={16} />} {darkMode ? "Dark" : "Light"}
+          </button>
+          <button type="button" className={rain ? "active" : undefined} onClick={() => setRain((value) => !value)}>
+            Rain
+          </button>
+          <button type="button" className={spin ? "active" : undefined} onClick={() => setSpin((value) => !value)}>
+            <RotateCcw size={16} /> Spin
+          </button>
+        </div>
+      </header>
+      <nav className="dev-assets-tabs" aria-label="Asset groups">
+        {groups.map((group) => (
+          <button key={group} type="button" className={group === activeGroup ? "active" : undefined} onClick={() => setActiveGroup(group)}>
+            {group}
+          </button>
+        ))}
+      </nav>
+      <section className="dev-assets-board" aria-label="Procedural assets">
+        <div className="dev-assets-board-canvas" style={{ height: `${boardHeight}px` }}>
+          <DevAssetCanvas assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+        </div>
+        <div className="dev-assets-index" style={{ "--dev-asset-columns": columns } as CSSProperties}>
+          {assets.map((asset, index) => (
+            <article className="dev-asset-meta" key={`${asset.group}-${asset.name}`}>
+              <small>{asset.group}</small>
+              <div className="dev-asset-title">
+                <span>#{index + 1}</span>
+                <strong>{asset.name}</strong>
+              </div>
+              {asset.note && <span>{asset.note}</span>}
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function DevAssetCanvas({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+  const background = darkMode ? (rain ? "#20272d" : "#1c2630") : (rain ? "#9eabb2" : "#d8eaf3");
+  const sky = darkMode ? (rain ? "#4f5961" : "#6d8899") : (rain ? "#c9d1d7" : "#eef8ff");
+  const ground = darkMode ? (rain ? "#151a1d" : "#1a211d") : (rain ? "#3d4741" : "#596c4e");
+  return (
+    <Canvas orthographic dpr={[1, 1.4]} gl={{ antialias: true, powerPreference: "high-performance" }} camera={{ position: [0, 20, 36], zoom: 34, near: 0.1, far: 1000 }}>
+      <color attach="background" args={[background]} />
+      <ambientLight intensity={darkMode ? (rain ? 0.86 : 0.94) : (rain ? 0.72 : 0.86)} />
+      <hemisphereLight args={[sky, ground, darkMode ? 0.64 : rain ? 0.5 : 0.42]} />
+      <directionalLight position={[8, 10, 6]} intensity={darkMode ? 1.55 : rain ? 0.95 : 1.45} />
+      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+    </Canvas>
+  );
+}
+
+function DevAssetGroupScene({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+  const { camera, size } = useThree();
+  const cellSize = 8.8;
+  const width = Math.max(columns, 1) * cellSize;
+  const depth = Math.max(rows, 1) * cellSize;
+  const centerX = ((columns - 1) * cellSize) / 2;
+  const centerZ = ((rows - 1) * cellSize) / 2;
+
+  useLayoutEffect(() => {
+    const orthographicCamera = camera as THREE.OrthographicCamera;
+    const worldWidth = width + 5;
+    const worldHeight = depth * 0.88 + 11;
+    orthographicCamera.position.set(centerX, Math.max(18, rows * 2.2 + 14), centerZ + Math.max(24, rows * 4.3 + 16));
+    orthographicCamera.lookAt(centerX, 1.2, centerZ);
+    orthographicCamera.zoom = Math.min(size.width / worldWidth, size.height / worldHeight);
+    orthographicCamera.near = 0.1;
+    orthographicCamera.far = 1000;
+    orthographicCamera.updateProjectionMatrix();
+  }, [camera, centerX, centerZ, depth, rows, size.height, size.width, width]);
+
+  return (
+    <group>
+      {assets.map((asset, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        return (
+          <DevAssetCell
+            key={`${asset.group}-${asset.name}`}
+            asset={asset}
+            rain={rain}
+            spin={spin}
+            darkMode={darkMode}
+            position={[col * cellSize, 0, row * cellSize]}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAsset; rain: boolean; spin: boolean; darkMode: boolean; position: [number, number, number] }) {
+  const spinRef = useRef<THREE.Group>(null);
+  const contentRef = useRef<THREE.Group>(null);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    content.position.set(0, 0, 0);
+    content.scale.setScalar(1);
+    content.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(content);
+    if (box.isEmpty()) return;
+
+    const center = box.getCenter(new THREE.Vector3());
+    content.parent?.worldToLocal(center);
+    content.position.sub(center);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDimension = Math.max(size.x, size.y, size.z, 1);
+    const scale = Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1)));
+    content.scale.setScalar(scale);
+    content.updateWorldMatrix(true, true);
+
+    const centeredBox = new THREE.Box3().setFromObject(content);
+    if (Number.isFinite(centeredBox.min.y)) {
+      const bottom = new THREE.Vector3(0, centeredBox.min.y, 0);
+      content.parent?.worldToLocal(bottom);
+      content.position.y -= bottom.y;
+    }
+  }, [asset, rain]);
+
+  useFrame((_, delta) => {
+    if (spin && spinRef.current) spinRef.current.rotation.y += delta * 0.32;
+  });
+
+  return (
+    <group position={position}>
+      <mesh position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[3.25, 32]} />
+        <meshBasicMaterial color={darkMode ? "#111820" : rain ? "#4e565b" : "#c7d8de"} transparent opacity={darkMode ? 0.62 : 0.32} depthWrite={false} />
+      </mesh>
+      <group ref={spinRef} rotation={[0, 0.34, 0]}>
+        <group ref={contentRef}>{asset.render(rain)}</group>
+      </group>
+    </group>
+  );
+}
+
 const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
   const bounds = useMemo(() => getTrackBounds(track), [track]);
   const elevatedTrack = track.id === "fjord" || track.id === "cloudline";
@@ -1599,9 +1945,128 @@ function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
+function TrackStartGantryModel({ track }: { track: TrackDef }) {
+  return (
+    <>
+      <mesh receiveShadow>
+        <boxGeometry args={[track.width + track.curbWidth * 2, 0.04, 1.2]} />
+        <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
+      </mesh>
+      {Array.from({ length: 10 }).map((_, index) => (
+        <mesh key={index} position={[-track.width / 2 + 0.55 + index * (track.width / 10), 0.19, 0]}>
+          <boxGeometry args={[track.width / 10, 0.045, 0.6]} />
+          <meshStandardMaterial color={index % 2 === 0 ? "#111318" : "#f7f4ea"} roughness={0.6} />
+        </mesh>
+      ))}
+      {[0, 4, 8, 12].map((offset, index) => (
+        <mesh key={offset} position={[index % 2 === 0 ? -2.1 : 2.1, 0.08, -offset - 3]}>
+          <boxGeometry args={[1.3, 0.03, 2.0]} />
+          <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
+        </mesh>
+      ))}
+      <mesh position={[0, 4.2, -1.3]} castShadow>
+        <boxGeometry args={[track.width + track.curbWidth * 2 + 4.4, 0.26, 0.26]} />
+        <meshStandardMaterial color="#20242a" roughness={0.5} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.62), 2.05, -1.3]} castShadow>
+          <boxGeometry args={[0.42, 4.1, 0.42]} />
+          <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
+        </mesh>
+      ))}
+      <mesh position={[0, 3.55, -1.08]} castShadow>
+        <boxGeometry args={[6.2, 0.72, 0.18]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 3.55, -0.96]}>
+        <boxGeometry args={[5.55, 0.18, 0.04]} />
+        <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 3.26, -0.96]}>
+        <boxGeometry args={[5.55, 0.18, 0.04]} />
+        <meshStandardMaterial color="#e84f5f" roughness={0.42} />
+      </mesh>
+      {[-2.4, 0, 2.4].map((x, index) => (
+        <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
+          <sphereGeometry args={[0.28, 16, 16]} />
+          <meshStandardMaterial color={index === 2 ? "#24c06f" : "#d23a3a"} emissive={index === 2 ? "#0b3f25" : "#3f0b0b"} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function RoadsideBoardModel({ rain }: { rain: boolean }) {
+  return (
+    <>
+      <mesh castShadow>
+        <boxGeometry args={[1.4, 1.1, 0.12]} />
+        <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, -0.72, 0]}>
+        <boxGeometry args={[0.12, 1.1, 0.12]} />
+        <meshStandardMaterial color="#22262c" roughness={0.5} />
+      </mesh>
+    </>
+  );
+}
+
+function BrakingBoardModel() {
+  return (
+    <>
+      <mesh castShadow>
+        <boxGeometry args={[1.0, 1.0, 0.1]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.62} />
+      </mesh>
+      {[0, 1, 2].map((stripe) => (
+        <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
+          <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
+          <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.76, 0]}>
+        <boxGeometry args={[0.1, 1.1, 0.1]} />
+        <meshStandardMaterial color="#22262c" roughness={0.52} />
+      </mesh>
+    </>
+  );
+}
+
+function TrackBarrierModel({ rain, accent = "#e04a54" }: { rain: boolean; accent?: string }) {
+  return (
+    <>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[2.4, 0.68, 0.22]} />
+        <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, 0.18, 0.13]}>
+        <boxGeometry args={[2.1, 0.08, 0.04]} />
+        <meshStandardMaterial color={accent} roughness={0.5} />
+      </mesh>
+    </>
+  );
+}
+
+function SponsorBoardModel({ rain }: { rain: boolean }) {
   const texture = useMemo(() => createSponsorTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <>
+      <mesh castShadow>
+        <planeGeometry args={[4.2, 1.35]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {[-1.65, 1.65].map((x) => (
+        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
+          <boxGeometry args={[0.12, 2.1, 0.12]} />
+          <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   const placement = useMemo(() => {
     const progress = trackMetrics(track).totalLength * (track.id === "sakura" ? 0.6 : 0.36);
     const sample = sampleTrack(track, progress);
@@ -1615,16 +2080,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
 
   return (
     <group position={[placement.x, placement.y + 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
-      <mesh castShadow>
-        <planeGeometry args={[4.2, 1.35]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
-      </mesh>
-      {[-1.65, 1.65].map((x) => (
-        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
-          <boxGeometry args={[0.12, 2.1, 0.12]} />
-          <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
-        </mesh>
-      ))}
+      <SponsorBoardModel rain={rain} />
     </group>
   );
 }
@@ -1638,50 +2094,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
   return (
     <group>
       <group position={[start.x, start.y + 0.16, start.z]} rotation={[0, start.heading, 0]}>
-        <mesh receiveShadow>
-          <boxGeometry args={[track.width + track.curbWidth * 2, 0.04, 1.2]} />
-          <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
-        </mesh>
-        {Array.from({ length: 10 }).map((_, index) => (
-          <mesh key={index} position={[-track.width / 2 + 0.55 + index * (track.width / 10), 0.19, 0]}>
-            <boxGeometry args={[track.width / 10, 0.045, 0.6]} />
-            <meshStandardMaterial color={index % 2 === 0 ? "#111318" : "#f7f4ea"} roughness={0.6} />
-          </mesh>
-        ))}
-        {[0, 4, 8, 12].map((offset, index) => (
-          <mesh key={offset} position={[index % 2 === 0 ? -2.1 : 2.1, 0.08, -offset - 3]}>
-            <boxGeometry args={[1.3, 0.03, 2.0]} />
-            <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
-          </mesh>
-        ))}
-        <mesh position={[0, 4.2, -1.3]} castShadow>
-          <boxGeometry args={[track.width + track.curbWidth * 2 + 4.4, 0.26, 0.26]} />
-          <meshStandardMaterial color="#20242a" roughness={0.5} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.62), 2.05, -1.3]} castShadow>
-            <boxGeometry args={[0.42, 4.1, 0.42]} />
-            <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
-          </mesh>
-        ))}
-        <mesh position={[0, 3.55, -1.08]} castShadow>
-          <boxGeometry args={[6.2, 0.72, 0.18]} />
-          <meshStandardMaterial color="#fffaf0" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 3.55, -0.96]}>
-          <boxGeometry args={[5.55, 0.18, 0.04]} />
-          <meshStandardMaterial color="#35a7ff" roughness={0.42} />
-        </mesh>
-        <mesh position={[0, 3.26, -0.96]}>
-          <boxGeometry args={[5.55, 0.18, 0.04]} />
-          <meshStandardMaterial color="#e84f5f" roughness={0.42} />
-        </mesh>
-        {[-2.4, 0, 2.4].map((x, index) => (
-          <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
-            <sphereGeometry args={[0.28, 16, 16]} />
-            <meshStandardMaterial color={index === 2 ? "#24c06f" : "#d23a3a"} emissive={index === 2 ? "#0b3f25" : "#3f0b0b"} />
-          </mesh>
-        ))}
+        <TrackStartGantryModel track={track} />
       </group>
       {boards.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
@@ -1689,14 +2102,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 2.3);
         return (
           <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.55, z]} rotation={[0, sample.heading + (side < 0 ? 0.18 : -0.18), 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[1.4, 1.1, 0.12]} />
-              <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
-            </mesh>
-            <mesh position={[0, -0.72, 0]}>
-              <boxGeometry args={[0.12, 1.1, 0.12]} />
-              <meshStandardMaterial color="#22262c" roughness={0.5} />
-            </mesh>
+            <RoadsideBoardModel rain={rain} />
           </group>
         );
       })}
@@ -1706,20 +2112,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         return (
           <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + (side < 0 ? 0.42 : -0.42), 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[1.0, 1.0, 0.1]} />
-              <meshStandardMaterial color="#fffaf0" roughness={0.62} />
-            </mesh>
-            {[0, 1, 2].map((stripe) => (
-              <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
-                <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
-                <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
-              </mesh>
-            ))}
-            <mesh position={[0, -0.76, 0]}>
-              <boxGeometry args={[0.1, 1.1, 0.1]} />
-              <meshStandardMaterial color="#22262c" roughness={0.52} />
-            </mesh>
+            <BrakingBoardModel />
           </group>
         );
       })}
@@ -1730,14 +2123,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         return (
           <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading, 0]}>
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[2.4, 0.68, 0.22]} />
-              <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
-            </mesh>
-            <mesh position={[0, 0.18, 0.13]}>
-              <boxGeometry args={[2.1, 0.08, 0.04]} />
-              <meshStandardMaterial color={index % 2 === 0 ? "#e04a54" : "#24282f"} roughness={0.5} />
-            </mesh>
+            <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
           </group>
         );
       })}
@@ -1763,13 +2149,22 @@ function SakuraToriiGate({ track, rain }: { track: TrackDef; rain: boolean }) {
     const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.13);
     return { ...sample, heading: sample.heading };
   }, [track]);
+
+  return (
+    <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
+      <SakuraToriiGateModel track={track} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraToriiGateModel({ track, rain }: { track: Pick<TrackDef, "width" | "curbWidth">; rain: boolean }) {
   const span = track.width + track.curbWidth * 2 + 5.2;
   const postX = span / 2 - 1.35;
   const vermilion = rain ? "#a1322d" : "#bf332d";
   const darkWood = rain ? "#2b2523" : "#201b19";
 
   return (
-    <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
+    <group>
       {[-1, 1].map((side) => (
         <group key={`torii-post-${side}`} position={[side * postX, 0, 0]}>
           <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
