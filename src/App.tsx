@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Monitor, Moon, Play, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Minus, Monitor, Moon, Play, Plus, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
@@ -1395,6 +1395,24 @@ type DevAsset = {
 type DevThemeMode = "system" | "dark" | "light";
 type DevAssetViewMode = "grid" | "focus";
 type DevAssetScaleMode = "fit" | "world";
+type DevAssetViewport = {
+  zoom: number;
+  panX: number;
+  panY: number;
+};
+type DevAssetPoint = {
+  x: number;
+  y: number;
+};
+type DevAssetViewportSize = {
+  width: number;
+  height: number;
+};
+
+const DEV_ASSET_MIN_ZOOM = 1;
+const DEV_ASSET_MAX_ZOOM = 4;
+const DEV_ASSET_ZOOM_STEP = 1.22;
+const DEV_ASSET_DEFAULT_VIEWPORT: DevAssetViewport = { zoom: 1, panX: 0, panY: 0 };
 
 const DEV_ASSET_CAR: CarState = {
   playerId: "dev-preview",
@@ -1575,9 +1593,22 @@ function DevAssetGallery() {
   const [themeMode, setThemeMode] = useState<DevThemeMode>("system");
   const [viewMode, setViewMode] = useState<DevAssetViewMode>("grid");
   const [scaleMode, setScaleMode] = useState<DevAssetScaleMode>("fit");
+  const [assetViewport, setAssetViewport] = useState<DevAssetViewport>(DEV_ASSET_DEFAULT_VIEWPORT);
+  const [isAssetPanning, setIsAssetPanning] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedAssetKey, setSelectedAssetKey] = useState<string | undefined>();
   const assetCardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const assetBoardRef = useRef<HTMLDivElement | null>(null);
+  const assetViewportRef = useRef(assetViewport);
+  const assetPointerRefs = useRef(new Map<number, DevAssetPoint>());
+  const assetDragRef = useRef<{ pointerId: number; point: DevAssetPoint } | undefined>(undefined);
+  const assetPinchRef = useRef<{
+    startCenter: DevAssetPoint;
+    startDistance: number;
+    startPanX: number;
+    startPanY: number;
+    startZoom: number;
+  } | undefined>(undefined);
   const systemDark = usePrefersDarkMode();
   const darkMode = themeMode === "system" ? systemDark : themeMode === "dark";
   const groups = useMemo(() => [...Array.from(new Set(DEV_ASSETS.map((asset) => asset.group))), "All"], []);
@@ -1597,10 +1628,44 @@ function DevAssetGallery() {
   const rows = Math.max(1, Math.ceil(canvasAssets.length / columns));
   const boardHeight = viewMode === "focus" ? 620 : Math.min(920, Math.max(520, rows * 155));
   const activeAssetKey = selectedAsset ? devAssetKey(selectedAsset) : "";
+  const assetZoomEnabled = viewMode === "focus" && !!selectedAsset;
+  const canResetAssetViewport = assetViewport.zoom > DEV_ASSET_MIN_ZOOM + 0.001 || Math.abs(assetViewport.panX) > 0.5 || Math.abs(assetViewport.panY) > 0.5;
   const focusAsset = useCallback((asset: DevAsset) => {
     setSelectedAssetKey(devAssetKey(asset));
     setViewMode("focus");
   }, []);
+  const resetAssetViewport = useCallback(() => {
+    setAssetViewport(DEV_ASSET_DEFAULT_VIEWPORT);
+    assetPointerRefs.current.clear();
+    assetDragRef.current = undefined;
+    assetPinchRef.current = undefined;
+    setIsAssetPanning(false);
+  }, []);
+  const zoomAssetViewportBy = useCallback((factor: number) => {
+    setAssetViewport((current) => zoomDevAssetViewport(current, current.zoom * factor));
+  }, []);
+
+  useEffect(() => {
+    assetViewportRef.current = assetViewport;
+  }, [assetViewport]);
+
+  useEffect(() => {
+    resetAssetViewport();
+  }, [activeAssetKey, resetAssetViewport, scaleMode, viewMode]);
+
+  useEffect(() => {
+    const element = assetBoardRef.current;
+    if (!element) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (!assetZoomEnabled || !event.ctrlKey) return;
+      event.preventDefault();
+      const { point, size } = devAssetPointerPoint(event, element);
+      const factor = Math.exp(-event.deltaY * 0.0045);
+      setAssetViewport((current) => zoomDevAssetViewport(current, current.zoom * factor, point, size));
+    };
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleWheel);
+  }, [assetZoomEnabled]);
 
   useEffect(() => {
     if (selectedAssetKey && !assets.some((asset) => devAssetKey(asset) === selectedAssetKey)) {
@@ -1612,8 +1677,107 @@ function DevAssetGallery() {
   useLayoutEffect(() => {
     if (!selectedAssetKey) return;
     const activeCard = assetCardRefs.current[activeAssetKey];
-    activeCard?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (activeCard) scrollDevAssetCardIntoPanel(activeCard);
   }, [activeAssetKey, selectedAssetKey, viewMode]);
+
+  const handleAssetPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!assetZoomEnabled) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers reject capture for pointers that have already been cancelled.
+    }
+
+    const { point } = devAssetPointerPoint(event, event.currentTarget);
+    const pointers = assetPointerRefs.current;
+    pointers.set(event.pointerId, point);
+
+    const summary = devAssetPointerSummary(pointers);
+    if (summary) {
+      const current = assetViewportRef.current;
+      assetPinchRef.current = {
+        startCenter: summary.center,
+        startDistance: summary.distance,
+        startPanX: current.panX,
+        startPanY: current.panY,
+        startZoom: current.zoom
+      };
+      assetDragRef.current = undefined;
+      setIsAssetPanning(true);
+      return;
+    }
+
+    if (assetViewportRef.current.zoom > DEV_ASSET_MIN_ZOOM + 0.001) {
+      assetDragRef.current = { pointerId: event.pointerId, point };
+      setIsAssetPanning(true);
+    }
+  }, [assetZoomEnabled]);
+
+  const handleAssetPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!assetZoomEnabled || !assetPointerRefs.current.has(event.pointerId)) return;
+    const { point, size } = devAssetPointerPoint(event, event.currentTarget);
+    const pointers = assetPointerRefs.current;
+    pointers.set(event.pointerId, point);
+
+    const summary = devAssetPointerSummary(pointers);
+    const pinch = assetPinchRef.current;
+    if (summary && pinch) {
+      event.preventDefault();
+      const nextZoom = pinch.startZoom * (summary.distance / pinch.startDistance);
+      setAssetViewport(clampDevAssetViewport(
+        nextZoom,
+        summary.center.x - (pinch.startCenter.x - pinch.startPanX) * (nextZoom / pinch.startZoom),
+        summary.center.y - (pinch.startCenter.y - pinch.startPanY) * (nextZoom / pinch.startZoom),
+        size
+      ));
+      return;
+    }
+
+    const drag = assetDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const deltaX = point.x - drag.point.x;
+    const deltaY = point.y - drag.point.y;
+    drag.point = point;
+    setAssetViewport((current) => clampDevAssetViewport(current.zoom, current.panX + deltaX, current.panY + deltaY, size));
+  }, [assetZoomEnabled]);
+
+  const handleAssetPointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!assetZoomEnabled) return;
+    assetPointerRefs.current.delete(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Browsers may already release touch captures on gesture cancellation.
+    }
+
+    const pointers = assetPointerRefs.current;
+    const summary = devAssetPointerSummary(pointers);
+    if (summary) {
+      const current = assetViewportRef.current;
+      assetPinchRef.current = {
+        startCenter: summary.center,
+        startDistance: summary.distance,
+        startPanX: current.panX,
+        startPanY: current.panY,
+        startZoom: current.zoom
+      };
+      return;
+    }
+
+    assetPinchRef.current = undefined;
+    const remaining = Array.from(pointers.entries())[0];
+    if (remaining && assetViewportRef.current.zoom > DEV_ASSET_MIN_ZOOM + 0.001) {
+      assetDragRef.current = { pointerId: remaining[0], point: remaining[1] };
+      setIsAssetPanning(true);
+      return;
+    }
+
+    assetDragRef.current = undefined;
+    setIsAssetPanning(false);
+  }, [assetZoomEnabled]);
 
   return (
     <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
@@ -1665,6 +1829,15 @@ function DevAssetGallery() {
             World
           </button>
         </div>
+        {assetZoomEnabled && (
+          <DevAssetZoomControls
+            canReset={canResetAssetViewport}
+            viewport={assetViewport}
+            onReset={resetAssetViewport}
+            onZoomIn={() => zoomAssetViewportBy(DEV_ASSET_ZOOM_STEP)}
+            onZoomOut={() => zoomAssetViewportBy(1 / DEV_ASSET_ZOOM_STEP)}
+          />
+        )}
         <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset or card to focus it"}</span>
       </section>
       <nav className="dev-assets-tabs" aria-label="Asset groups">
@@ -1676,8 +1849,26 @@ function DevAssetGallery() {
       </nav>
       <section className="dev-assets-board" style={{ "--dev-board-height": `${boardHeight}px` } as CSSProperties} aria-label="Procedural assets">
         <div className="dev-assets-workspace">
-          <div className="dev-assets-board-canvas">
-            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} scaleMode={scaleMode} onAssetClick={focusAsset} />
+          <div
+            ref={assetBoardRef}
+            className={`dev-assets-board-canvas${assetZoomEnabled ? " zoomable" : ""}${isAssetPanning ? " panning" : ""}`}
+            onPointerCancel={handleAssetPointerEnd}
+            onPointerDown={handleAssetPointerDown}
+            onPointerMove={handleAssetPointerMove}
+            onPointerUp={handleAssetPointerEnd}
+          >
+            <DevAssetCanvas
+              assets={canvasAssets}
+              columns={columns}
+              rows={rows}
+              rain={rain}
+              spin={spin}
+              darkMode={darkMode}
+              scaleMode={scaleMode}
+              viewport={assetZoomEnabled ? assetViewport : DEV_ASSET_DEFAULT_VIEWPORT}
+              zoomEnabled={assetZoomEnabled}
+              onAssetClick={focusAsset}
+            />
             {canvasAssets.length === 0 && (
               <div className="dev-assets-empty">No assets match {search.trim() ? `"${search.trim()}"` : "the current filters"}.</div>
             )}
@@ -1751,8 +1942,106 @@ function DevThemeControl({ mode, onChange }: { mode: DevThemeMode; onChange: (mo
   );
 }
 
+function DevAssetZoomControls({
+  canReset,
+  viewport,
+  onReset,
+  onZoomIn,
+  onZoomOut
+}: {
+  canReset: boolean;
+  viewport: DevAssetViewport;
+  onReset: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  const zoomPercent = Math.round(viewport.zoom * 100);
+  return (
+    <div className="dev-assets-zoom-controls" role="group" aria-label="Focused asset zoom">
+      <button type="button" aria-label="Zoom out" title="Zoom out" disabled={viewport.zoom <= DEV_ASSET_MIN_ZOOM + 0.001} onClick={onZoomOut}>
+        <Minus size={16} />
+      </button>
+      <button type="button" aria-label="Reset zoom" title="Reset zoom" disabled={!canReset} onClick={onReset}>
+        <RotateCcw size={15} />
+      </button>
+      <span className="dev-assets-zoom-value">{zoomPercent}%</span>
+      <button type="button" aria-label="Zoom in" title="Zoom in" disabled={viewport.zoom >= DEV_ASSET_MAX_ZOOM - 0.001} onClick={onZoomIn}>
+        <Plus size={16} />
+      </button>
+    </div>
+  );
+}
+
 function devAssetKey(asset: DevAsset | undefined) {
   return asset ? `${asset.group}:${asset.name}` : "";
+}
+
+function scrollDevAssetCardIntoPanel(card: HTMLButtonElement) {
+  const panel = card.closest(".dev-assets-index-panel") as HTMLElement | null;
+  if (!panel || panel.scrollHeight <= panel.clientHeight + 1) return;
+  const panelRect = panel.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const topInset = 58;
+  const bottomInset = 10;
+  if (cardRect.top < panelRect.top + topInset) {
+    panel.scrollTop -= panelRect.top + topInset - cardRect.top;
+  } else if (cardRect.bottom > panelRect.bottom - bottomInset) {
+    panel.scrollTop += cardRect.bottom - (panelRect.bottom - bottomInset);
+  }
+}
+
+function clampDevAssetViewport(zoom: number, panX: number, panY: number, size?: DevAssetViewportSize): DevAssetViewport {
+  const nextZoom = clamp(zoom, DEV_ASSET_MIN_ZOOM, DEV_ASSET_MAX_ZOOM);
+  if (nextZoom <= DEV_ASSET_MIN_ZOOM + 0.001) return DEV_ASSET_DEFAULT_VIEWPORT;
+  const width = size?.width ?? 900;
+  const height = size?.height ?? 620;
+  const overflow = nextZoom - DEV_ASSET_MIN_ZOOM;
+  const maxPanX = width * overflow * 0.52;
+  const maxPanY = height * overflow * 0.52;
+  return {
+    zoom: nextZoom,
+    panX: clamp(panX, -maxPanX, maxPanX),
+    panY: clamp(panY, -maxPanY, maxPanY)
+  };
+}
+
+function zoomDevAssetViewport(current: DevAssetViewport, zoom: number, anchor: DevAssetPoint = { x: 0, y: 0 }, size?: DevAssetViewportSize) {
+  const nextZoom = clamp(zoom, DEV_ASSET_MIN_ZOOM, DEV_ASSET_MAX_ZOOM);
+  const ratio = nextZoom / current.zoom;
+  return clampDevAssetViewport(
+    nextZoom,
+    anchor.x - (anchor.x - current.panX) * ratio,
+    anchor.y - (anchor.y - current.panY) * ratio,
+    size
+  );
+}
+
+function devAssetPointerPoint(event: { clientX: number; clientY: number }, element: HTMLDivElement) {
+  const rect = element.getBoundingClientRect();
+  return {
+    point: {
+      x: event.clientX - rect.left - rect.width / 2,
+      y: event.clientY - rect.top - rect.height / 2
+    },
+    size: {
+      width: rect.width,
+      height: rect.height
+    }
+  };
+}
+
+function devAssetPointerSummary(points: Map<number, DevAssetPoint>) {
+  const values = Array.from(points.values());
+  if (values.length < 2) return undefined;
+  const first = values[0];
+  const second = values[1];
+  return {
+    center: {
+      x: (first.x + second.x) / 2,
+      y: (first.y + second.y) / 2
+    },
+    distance: Math.max(1, Math.hypot(first.x - second.x, first.y - second.y))
+  };
 }
 
 function DevAssetCanvas({
@@ -1763,6 +2052,8 @@ function DevAssetCanvas({
   spin,
   darkMode,
   scaleMode,
+  viewport,
+  zoomEnabled,
   onAssetClick
 }: {
   assets: DevAsset[];
@@ -1772,6 +2063,8 @@ function DevAssetCanvas({
   spin: boolean;
   darkMode: boolean;
   scaleMode: DevAssetScaleMode;
+  viewport: DevAssetViewport;
+  zoomEnabled: boolean;
   onAssetClick: (asset: DevAsset) => void;
 }) {
   const background = darkMode ? (rain ? "#20272d" : "#1c2630") : (rain ? "#9eabb2" : "#d8eaf3");
@@ -1783,7 +2076,7 @@ function DevAssetCanvas({
       <ambientLight intensity={darkMode ? (rain ? 0.86 : 0.94) : (rain ? 0.72 : 0.86)} />
       <hemisphereLight args={[sky, ground, darkMode ? 0.64 : rain ? 0.5 : 0.42]} />
       <directionalLight position={[8, 10, 6]} intensity={darkMode ? 1.55 : rain ? 0.95 : 1.45} />
-      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} scaleMode={scaleMode} onAssetClick={onAssetClick} />
+      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} scaleMode={scaleMode} viewport={viewport} zoomEnabled={zoomEnabled} onAssetClick={onAssetClick} />
     </Canvas>
   );
 }
@@ -1796,6 +2089,8 @@ function DevAssetGroupScene({
   spin,
   darkMode,
   scaleMode,
+  viewport,
+  zoomEnabled,
   onAssetClick
 }: {
   assets: DevAsset[];
@@ -1805,6 +2100,8 @@ function DevAssetGroupScene({
   spin: boolean;
   darkMode: boolean;
   scaleMode: DevAssetScaleMode;
+  viewport: DevAssetViewport;
+  zoomEnabled: boolean;
   onAssetClick: (asset: DevAsset) => void;
 }) {
   const { camera, size } = useThree();
@@ -1841,13 +2138,26 @@ function DevAssetGroupScene({
       }
     }
 
-    orthographicCamera.position.set(targetX, cameraY, cameraZ);
-    orthographicCamera.lookAt(targetX, targetY, targetZ);
-    orthographicCamera.zoom = Math.min(size.width / worldWidth, size.height / worldHeight);
+    const baseZoom = Math.min(size.width / worldWidth, size.height / worldHeight);
+    const cameraZoom = baseZoom * (zoomEnabled ? viewport.zoom : DEV_ASSET_MIN_ZOOM);
+    const target = new THREE.Vector3(targetX, targetY, targetZ);
+    const position = new THREE.Vector3(targetX, cameraY, cameraZ);
+    if (zoomEnabled && viewport.zoom > DEV_ASSET_MIN_ZOOM + 0.001) {
+      const viewDirection = target.clone().sub(position).normalize();
+      const right = new THREE.Vector3().crossVectors(viewDirection, orthographicCamera.up).normalize();
+      const cameraUp = new THREE.Vector3().crossVectors(right, viewDirection).normalize();
+      const panOffset = right.multiplyScalar(-viewport.panX / cameraZoom).add(cameraUp.multiplyScalar(viewport.panY / cameraZoom));
+      target.add(panOffset);
+      position.add(panOffset);
+    }
+
+    orthographicCamera.position.copy(position);
+    orthographicCamera.lookAt(target);
+    orthographicCamera.zoom = cameraZoom;
     orthographicCamera.near = 0.1;
     orthographicCamera.far = 1000;
     orthographicCamera.updateProjectionMatrix();
-  }, [assets, camera, centerX, centerZ, depth, rain, rows, scaleMode, size.height, size.width, width]);
+  }, [assets, camera, centerX, centerZ, depth, rain, rows, scaleMode, size.height, size.width, viewport.panX, viewport.panY, viewport.zoom, width, zoomEnabled]);
 
   return (
     <group ref={groupRef}>

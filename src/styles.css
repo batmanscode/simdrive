@@ -1794,6 +1794,7 @@ input {
 .dev-assets-tabs button,
 .dev-assets-view-toggle button,
 .dev-assets-scale-toggle button,
+.dev-assets-zoom-controls button,
 .dev-theme-control button {
   min-height: 38px;
   display: inline-flex;
@@ -1813,6 +1814,7 @@ input {
 .dev-assets-tabs button.active,
 .dev-assets-view-toggle button.active,
 .dev-assets-scale-toggle button.active,
+.dev-assets-zoom-controls button.active,
 .dev-theme-control button.active {
   background: var(--dev-control-active);
   color: var(--dev-control-active-text);
@@ -1820,7 +1822,8 @@ input {
 }
 
 .dev-assets-controls button:disabled,
-.dev-assets-view-toggle button:disabled {
+.dev-assets-view-toggle button:disabled,
+.dev-assets-zoom-controls button:disabled {
   cursor: default;
   opacity: 0.5;
 }
@@ -1843,7 +1846,7 @@ input {
   max-width: 1480px;
   margin: 0 auto 14px;
   display: grid;
-  grid-template-columns: minmax(240px, 420px) auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 420px) auto auto auto minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
@@ -1893,9 +1896,37 @@ input {
 }
 
 .dev-assets-view-toggle button,
-.dev-assets-scale-toggle button {
+.dev-assets-scale-toggle button,
+.dev-assets-zoom-controls button {
   border-color: transparent;
   background: transparent;
+}
+
+.dev-assets-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--dev-card);
+  border: 1px solid var(--dev-card-border);
+}
+
+.dev-assets-zoom-controls button {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.dev-assets-zoom-value {
+  min-width: 48px;
+  padding: 0 5px;
+  color: var(--dev-text);
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .dev-assets-tools > span {
@@ -1934,6 +1965,15 @@ input {
 
 .dev-assets-board-canvas canvas {
   display: block;
+}
+
+.dev-assets-board-canvas.zoomable {
+  touch-action: none;
+  cursor: grab;
+}
+
+.dev-assets-board-canvas.zoomable.panning {
+  cursor: grabbing;
 }
 
 .dev-assets-empty {
