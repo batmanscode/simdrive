@@ -1,5 +1,5 @@
 import { DEFAULT_CAR_SETUP_ID, getCarSetup } from "./cars.js";
-import { clamp, nearestTrackPoint, sampleTrack, trackMetrics } from "./tracks.js";
+import { clamp, isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, trackMetrics, wrap } from "./tracks.js";
 import type { CarState, InputFrame, Player, RaceSettings, SurfaceType, TrackDef } from "./types.js";
 
 export const SPEEDOMETER_KMH_PER_UNIT = 8;
@@ -67,7 +67,7 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   }
 
   const nearestBefore = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
-  const surface = getSurface(track, nearestBefore.distance);
+  const surface = getSurface(track, nearestBefore.distance, nearestBefore.progress);
   if (car.speed > 0.01 && car.velocityX === 0 && car.velocityZ === 0) {
     car.velocityX = Math.sin(car.heading) * car.speed;
     car.velocityZ = Math.cos(car.heading) * car.speed;
@@ -191,11 +191,11 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   }
   car.progress = nearestAfter.progress;
 
-  const newSurface = getSurface(track, nearestAfter.distance);
+  const newSurface = getSurface(track, nearestAfter.distance, nearestAfter.progress);
   car.impact = 0;
   if (newSurface === "wall") {
     const snap = nearestAfter;
-    const maxDistance = track.width / 2 + track.curbWidth + track.wallMargin;
+    const maxDistance = wallDistanceLimit(track, nearestAfter.progress);
     const settledDistance = Math.max(track.width / 2 + track.curbWidth, maxDistance - 0.35);
     const dx = car.x - snap.x;
     const dz = car.z - snap.z;
@@ -322,11 +322,22 @@ function crossedProgress(previousProgress: number, nextProgress: number, target:
   return target > previousProgress || target <= nextProgress || totalLength === 0;
 }
 
-function getSurface(track: TrackDef, distanceFromCenter: number): SurfaceType {
+function getSurface(track: TrackDef, distanceFromCenter: number, progress?: number): SurfaceType {
   if (distanceFromCenter <= track.width / 2) return "road";
   if (distanceFromCenter <= track.width / 2 + track.curbWidth) return "curb";
-  if (distanceFromCenter <= track.width / 2 + track.curbWidth + track.wallMargin) return "grass";
+  if (distanceFromCenter <= wallDistanceLimit(track, progress)) return "grass";
   return "wall";
+}
+
+function wallDistanceLimit(track: TrackDef, progress?: number) {
+  return track.width / 2 + track.curbWidth + wallMarginAtProgress(track, progress);
+}
+
+function wallMarginAtProgress(track: TrackDef, progress?: number) {
+  if (track.id !== "causeway" || progress === undefined) return track.wallMargin;
+  const totalLength = trackMetrics(track).totalLength;
+  if (totalLength <= 0) return track.wallMargin;
+  return isCausewayBridgeProgress(wrap(progress, totalLength) / totalLength) ? 0.75 : track.wallMargin;
 }
 
 function downforceGripForSpeed(speed: number, surface: SurfaceType) {

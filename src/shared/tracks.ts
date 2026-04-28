@@ -303,6 +303,10 @@ export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+export function isCausewayBridgeProgress(progressFraction: number) {
+  return progressFraction < 0.34 || (progressFraction > 0.49 && progressFraction < 0.64) || (progressFraction > 0.78 && progressFraction < 0.98);
+}
+
 export function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }

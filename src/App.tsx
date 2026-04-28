@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
-import { nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
+import { isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
 import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, Player, RaceSettings, RoomState, ServerMessage, TrackDef } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
@@ -3910,7 +3910,7 @@ function CausewayDistantKeys({ bounds, rain }: { bounds: TrackBounds; rain: bool
 }
 
 function CausewayBridgeRails({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const samples = useMemo(() => sampleTrackVisuals(track, 86), [track]);
+  const samples = useMemo(() => sampleTrackVisuals(track, 30), [track]);
   return (
     <group>
       {samples.flatMap((sample, index) => {
@@ -3919,13 +3919,13 @@ function CausewayBridgeRails({ track, rain }: { track: TrackDef; rain: boolean }
         return [-1, 1].map((side) => {
           const rightX = Math.sin(sample.heading + Math.PI / 2);
           const rightZ = Math.cos(sample.heading + Math.PI / 2);
-          const offset = side * (track.width / 2 + track.curbWidth + 0.65);
+          const offset = side * (track.width / 2 + track.curbWidth + 1.2);
           return (
             <CausewayBridgeRail
               key={`causeway-bridge-rail-${index}-${side}`}
               position={[sample.x + rightX * offset, sample.y, sample.z + rightZ * offset]}
               heading={sample.heading}
-              length={sample.length * 0.78}
+              length={sample.length * 0.7}
               rain={rain}
             />
           );
@@ -4295,10 +4295,6 @@ function causewayWaterMarkerPosition(sample: { x: number; z: number; heading: nu
     x: sample.x + rightX * side * offset,
     z: sample.z + rightZ * side * offset
   };
-}
-
-function isCausewayBridgeProgress(progress: number) {
-  return progress < 0.34 || (progress > 0.49 && progress < 0.64) || (progress > 0.78 && progress < 0.98);
 }
 
 function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
