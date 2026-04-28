@@ -9,7 +9,10 @@
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc && vite build && tsc -p server/tsconfig.json",
     "start": "node server-dist/server/index.js",
-    "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit && npm run typecheck:playtests",
+    "typecheck:playtests": "tsc -p playtests/tsconfig.json --noEmit",
+    "playtest:lap": "tsx playtests/full-lap.ts",
+    "playtest:capture": "tsx playtests/visual-capture.ts"
   },
   "dependencies": {
     "@react-three/fiber": "^9.4.0",

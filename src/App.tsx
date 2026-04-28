@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Info, Play, RotateCcw, Smartphone, Trophy, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Monitor, Moon, Play, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import * as THREE from "three";
 import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID, type CarSetup } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
@@ -22,6 +22,8 @@ const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
 const MOTION_STEERING_DEADZONE = 0.06;
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
+const DEV_ASSET_ROUTE = "/dev-assets";
+const IS_DEV_BUILD = import.meta.env.DEV;
 
 type MotionCalibration = {
   frame: string;
@@ -43,6 +45,7 @@ function currentServerTimeMs() {
 }
 
 export function App() {
+  if (IS_DEV_BUILD && location.pathname.startsWith(DEV_ASSET_ROUTE)) return <DevAssetGallery />;
   const isController = location.pathname.startsWith("/controller");
   return isController ? <ControllerApp /> : <DisplayApp />;
 }
@@ -1380,6 +1383,475 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
   );
 }
 
+type DevAsset = {
+  group: string;
+  name: string;
+  note?: string;
+  pivot?: [number, number, number];
+  zoom?: number;
+  render: (rain: boolean) => ReactNode;
+};
+
+type DevThemeMode = "system" | "dark" | "light";
+type DevAssetViewMode = "grid" | "focus";
+
+const DEV_ASSET_CAR: CarState = {
+  playerId: "dev-preview",
+  carSetupId: DEFAULT_CAR_SETUP_ID,
+  x: 0,
+  y: 0,
+  z: 0,
+  velocityX: 0,
+  velocityZ: 0,
+  heading: 0,
+  speed: 18,
+  steer: 0.18,
+  throttle: 0.4,
+  brake: 0,
+  lap: 1,
+  progress: 0,
+  distanceThisLap: 0,
+  nextCheckpoint: 0,
+  lastValidProgress: 0,
+  timedLapStarted: false,
+  timedRaceStartedAt: 0,
+  currentLapStartedAt: 0,
+  wheelDistance: 8,
+  surface: "road",
+  finished: false,
+  crashed: false,
+  dnf: false,
+  resetAvailable: false,
+  impact: 0,
+  slip: 0.12
+};
+
+const DEV_ASSETS: DevAsset[] = [
+  { group: "Generic Track", name: "TrackStartGantryModel", note: "Start grid, gantry, lights", pivot: [0, 0, -1.3], zoom: 1.28, render: () => <TrackStartGantryModel track={TRACKS.sakura} /> },
+  { group: "Generic Track", name: "RoadsideBoardModel", note: "The pale blank boards seen along routes", render: (rain) => <RoadsideBoardModel rain={rain} /> },
+  { group: "Generic Track", name: "BrakingBoardModel", note: "Striped braking marker", render: () => <BrakingBoardModel /> },
+  { group: "Generic Track", name: "TrackBarrierModel", note: "Low roadside barrier", render: (rain) => <TrackBarrierModel rain={rain} /> },
+  { group: "Generic Track", name: "SponsorBoardModel", note: "#vibejam sponsor board", render: (rain) => <SponsorBoardModel rain={rain} /> },
+  { group: "Sakura", name: "SakuraToriiGate", render: (rain) => <SakuraToriiGateModel track={TRACKS.sakura} rain={rain} /> },
+  { group: "Sakura", name: "SakuraBlossomTunnel", render: (rain) => <SakuraBlossomTunnelPreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraTunnelTree", render: (rain) => <SakuraTunnelTree position={[0, 0, 0]} side={1} heading={0} seed={220} rain={rain} /> },
+  { group: "Sakura", name: "SakuraFeatureGrove", render: (rain) => <SakuraFeatureGrovePreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraGroundAccents", render: (rain) => <SakuraGroundAccentsPreview rain={rain} /> },
+  { group: "Sakura", name: "SakuraTree", render: (rain) => <SakuraTree position={[0, 0, 0]} seed={5} rain={rain} /> },
+  { group: "Sakura", name: "SakuraLantern", render: (rain) => <SakuraLantern position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Sakura", name: "SakuraBanner", render: (rain) => <SakuraBanner position={[0, 0.86, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpineNearPeak", zoom: 1.22, render: (rain) => <AlpineNearPeak rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak cone", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 28, r: 22, kind: "cone" }} seed={3} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak jagged", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 26, r: 22, kind: "jagged" }} seed={4} rain={rain} /> },
+  { group: "Alpine", name: "AlpineCliffRock", render: (rain) => <AlpineCliffRock position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
+  { group: "Alpine", name: "AlpineChalet", render: (rain) => <AlpineChalet position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpineCableCar", render: (rain) => <AlpineCableCar position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Alpine", name: "AlpinePine", render: (rain) => <AlpinePine position={[0, 0, 0]} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineRock", render: (rain) => <AlpineRock position={[0, 0.25, 0]} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineSnowBank", render: (rain) => <AlpineSnowBank position={[0, 0.14, 0]} heading={0} seed={8} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBridge", render: (rain) => <AlpineBridge sample={{ x: 0, y: 0, z: 0, heading: 0 }} track={TRACKS.alpine} rain={rain} /> },
+  { group: "Fjord", name: "FjordWaterfall", zoom: 1.26, render: (rain) => <FjordWaterfall position={[0, 0, 0]} heading={Math.PI} rain={rain} /> },
+  { group: "Fjord", name: "FjordCliffRail", render: (rain) => <FjordCliffRail position={[0, 0, 0]} heading={0} length={11.5} rain={rain} /> },
+  { group: "Fjord", name: "FjordVillage", render: (rain) => <FjordVillage position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordLookout", render: (rain) => <FjordLookout position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordMarker", render: (rain) => <FjordMarker position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Fjord", name: "FjordBackdrop", zoom: 1.12, render: (rain) => <FjordBackdropPreview rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSummit", zoom: 1.24, render: (rain) => <CloudlineSummit position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSnowPoles", render: (rain) => <CloudlineSnowPoles position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineCliffBreak", render: (rain) => <CloudlineCliffBreak position={[0, 0, 0]} heading={0} seed={3} rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineSummitPoles", render: (rain) => <CloudlineSummitPoles position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Cloudline", name: "CloudWisps", render: (rain) => <CloudWispsPreview rain={rain} /> },
+  { group: "Cloudline", name: "CloudlineBackdrop", zoom: 1.08, render: (rain) => <CloudlineBackdropPreview rain={rain} /> },
+  { group: "Vehicle", name: "CarModel", render: () => <CarModel car={DEV_ASSET_CAR} color="#ff8f3d" /> },
+  { group: "Vehicle", name: "Cockpit hands", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="hands" /> },
+  { group: "Vehicle", name: "Cockpit paws", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="paws" /> }
+];
+
+function SakuraBlossomTunnelPreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      {[0, 1, 2].flatMap((segment) => [-1, 1].map((side) => (
+        <SakuraTunnelTree
+          key={`${segment}-${side}`}
+          position={[side * 2.2, 0, (segment - 1) * 2.4]}
+          side={side}
+          heading={0}
+          seed={220 + segment * 9 + side}
+          rain={rain}
+        />
+      )))}
+    </group>
+  );
+}
+
+function SakuraFeatureGrovePreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      <SakuraTree position={[-1.5, 0, 0.25]} seed={104} rain={rain} />
+      <SakuraTree position={[0.55, 0, -0.65]} seed={117} rain={rain} />
+      <SakuraTree position={[1.85, 0, 0.55]} seed={131} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraGroundAccentsPreview({ rain }: { rain: boolean }) {
+  return (
+    <group>
+      {[[-1.6, 0.82], [0.15, 0.72], [1.65, 0.78]].map(([x, scale], index) => (
+        <mesh key={index} position={[x, 0.01, 0]} rotation={[-Math.PI / 2, 0, index * 0.72]} scale={[scale * 2.7, scale * 0.92, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.1 : 0.14} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FjordBackdropPreview({ rain }: { rain: boolean }) {
+  const peaks = [
+    { x: -2.2, h: 7.4, r: 3.2 },
+    { x: 1.2, h: 9.1, r: 3.8 },
+    { x: 4.0, h: 6.6, r: 2.8 }
+  ];
+  return (
+    <group>
+      {peaks.map((peak, index) => (
+        <group key={index} position={[peak.x, 0, index * -0.65]} rotation={[0, seededUnit(index * 19) * 0.8, 0]}>
+          <mesh position={[0, peak.h / 2, 0]}>
+            <coneGeometry args={[peak.r, peak.h, 9]} />
+            <meshStandardMaterial color={rain ? "#6f7774" : "#77846f"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, peak.h * 0.72, 0]}>
+            <coneGeometry args={[peak.r * 0.34, peak.h * 0.22, 9]} />
+            <meshStandardMaterial color={rain ? "#dfe5e4" : "#eef2f0"} roughness={0.82} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudWispsPreview({ rain }: { rain: boolean }) {
+  return (
+    <group scale={[1.25, 1.25, 1.25]}>
+      {[-2.2, 0, 2.1].map((x, puff) => (
+        <mesh key={puff} position={[x, 1.2 + puff * 0.08, seededUnit(puff + 4) * 0.7]} scale={[2.6 - puff * 0.28, 0.48, 1.2 + puff * 0.22]}>
+          <sphereGeometry args={[1, 12, 8]} />
+          <meshBasicMaterial color={rain ? "#d7dee1" : "#f7fbff"} transparent opacity={rain ? 0.34 : 0.42} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineBackdropPreview({ rain }: { rain: boolean }) {
+  const peaks = [
+    { x: -3.2, h: 8.5, r: 4.2 },
+    { x: 0.6, h: 10.4, r: 4.8 },
+    { x: 4.0, h: 9.2, r: 4.5 }
+  ];
+  return (
+    <group>
+      {peaks.map((peak, index) => (
+        <group key={index} position={[peak.x, 0, index * -0.8]} rotation={[0, seededUnit(index * 23) * 0.7, 0]}>
+          <mesh position={[0, peak.h / 2, 0]}>
+            <coneGeometry args={[peak.r, peak.h, 9]} />
+            <meshStandardMaterial color={rain ? "#6b7273" : "#778179"} roughness={0.98} />
+          </mesh>
+          <mesh position={[0, peak.h * 0.73, 0]}>
+            <coneGeometry args={[peak.r * 0.42, peak.h * 0.24, 9]} />
+            <meshStandardMaterial color={rain ? "#dce3e4" : "#f2f5f4"} roughness={0.82} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function DevAssetGallery() {
+  const [rain, setRain] = useState(false);
+  const [spin, setSpin] = useState(false);
+  const [themeMode, setThemeMode] = useState<DevThemeMode>("system");
+  const [viewMode, setViewMode] = useState<DevAssetViewMode>("grid");
+  const [search, setSearch] = useState("");
+  const [selectedAssetKey, setSelectedAssetKey] = useState<string | undefined>();
+  const systemDark = usePrefersDarkMode();
+  const darkMode = themeMode === "system" ? systemDark : themeMode === "dark";
+  const groups = useMemo(() => [...Array.from(new Set(DEV_ASSETS.map((asset) => asset.group))), "All"], []);
+  const [activeGroup, setActiveGroup] = useState("Generic Track");
+  const normalizedSearch = search.trim().toLowerCase();
+  const assets = useMemo(() => (
+    (activeGroup === "All" ? DEV_ASSETS : DEV_ASSETS.filter((asset) => asset.group === activeGroup)).filter((asset) => (
+      !normalizedSearch
+      || asset.name.toLowerCase().includes(normalizedSearch)
+      || asset.group.toLowerCase().includes(normalizedSearch)
+      || asset.note?.toLowerCase().includes(normalizedSearch)
+    ))
+  ), [activeGroup, normalizedSearch]);
+  const selectedAsset = assets.find((asset) => devAssetKey(asset) === selectedAssetKey) ?? assets[0];
+  const canvasAssets = viewMode === "focus" && selectedAsset ? [selectedAsset] : assets;
+  const columns = viewMode === "focus" ? 1 : Math.min(4, Math.max(1, Math.ceil(Math.sqrt(canvasAssets.length))));
+  const rows = Math.max(1, Math.ceil(canvasAssets.length / columns));
+  const boardHeight = viewMode === "focus" ? 620 : Math.min(920, Math.max(520, rows * 155));
+
+  useEffect(() => {
+    if (selectedAssetKey && !assets.some((asset) => devAssetKey(asset) === selectedAssetKey)) {
+      setSelectedAssetKey(undefined);
+      setViewMode("grid");
+    }
+  }, [assets, selectedAssetKey]);
+
+  return (
+    <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
+      <header className="dev-assets-header">
+        <div>
+          <p className="eyebrow">Dev viewer</p>
+          <h1>Asset Gallery</h1>
+          <span>{assets.length} visible / {DEV_ASSETS.length} procedural assets total</span>
+        </div>
+        <div className="dev-assets-controls">
+          <a href="/">Back to app</a>
+          <DevThemeControl mode={themeMode} onChange={setThemeMode} />
+          <button type="button" className={rain ? "active" : undefined} onClick={() => setRain((value) => !value)}>
+            Rain
+          </button>
+          <button type="button" className={spin ? "active" : undefined} onClick={() => setSpin((value) => !value)}>
+            <RotateCcw size={16} /> Spin
+          </button>
+        </div>
+      </header>
+      <section className="dev-assets-tools" aria-label="Asset viewer tools">
+        <label className="dev-assets-search">
+          <Search size={16} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search assets" />
+        </label>
+        <div className="dev-assets-view-toggle" role="group" aria-label="Canvas view mode">
+          <button type="button" className={viewMode === "grid" ? "active" : undefined} onClick={() => setViewMode("grid")}>
+            <Grid2X2 size={16} /> Grid
+          </button>
+          <button
+            type="button"
+            className={viewMode === "focus" ? "active" : undefined}
+            disabled={!selectedAsset}
+            onClick={() => {
+              if (selectedAsset) {
+                setSelectedAssetKey(devAssetKey(selectedAsset));
+                setViewMode("focus");
+              }
+            }}
+          >
+            <Maximize2 size={16} /> Focus
+          </button>
+        </div>
+        <span>{viewMode === "focus" && selectedAsset ? `Focused: ${selectedAsset.name}` : "Click an asset card to focus it"}</span>
+      </section>
+      <nav className="dev-assets-tabs" aria-label="Asset groups">
+        {groups.map((group) => (
+          <button key={group} type="button" className={group === activeGroup ? "active" : undefined} onClick={() => setActiveGroup(group)}>
+            {group}
+          </button>
+        ))}
+      </nav>
+      <section className="dev-assets-board" style={{ "--dev-board-height": `${boardHeight}px` } as CSSProperties} aria-label="Procedural assets">
+        <div className="dev-assets-workspace">
+          <div className="dev-assets-board-canvas">
+            <DevAssetCanvas assets={canvasAssets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+            {canvasAssets.length === 0 && (
+              <div className="dev-assets-empty">No assets match {search.trim() ? `"${search.trim()}"` : "the current filters"}.</div>
+            )}
+          </div>
+          <aside className="dev-assets-index-panel" aria-label="Asset index">
+            <div className="dev-assets-index-header">
+              <strong>{viewMode === "focus" && selectedAsset ? selectedAsset.name : activeGroup}</strong>
+              <span>{assets.length} assets</span>
+            </div>
+            {assets.length === 0 ? (
+              <p className="dev-assets-no-results">Try another group or search term.</p>
+            ) : (
+              <div className="dev-assets-index">
+                {assets.map((asset, index) => (
+                  <button
+                    type="button"
+                    className={devAssetKey(asset) === devAssetKey(selectedAsset) ? "dev-asset-meta active" : "dev-asset-meta"}
+                    key={`${asset.group}-${asset.name}`}
+                    onClick={() => {
+                      setSelectedAssetKey(devAssetKey(asset));
+                      setViewMode("focus");
+                    }}
+                  >
+                    <small>{asset.group}</small>
+                    <div className="dev-asset-title">
+                      <span>#{index + 1}</span>
+                      <strong>{asset.name}</strong>
+                    </div>
+                    {asset.note && <span>{asset.note}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function usePrefersDarkMode() {
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    const update = () => setPrefersDark(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return prefersDark;
+}
+
+function DevThemeControl({ mode, onChange }: { mode: DevThemeMode; onChange: (mode: DevThemeMode) => void }) {
+  const options: Array<{ mode: DevThemeMode; label: string; icon: ReactNode }> = [
+    { mode: "system", label: "System", icon: <Monitor size={16} /> },
+    { mode: "dark", label: "Dark", icon: <Moon size={16} /> },
+    { mode: "light", label: "Light", icon: <Sun size={16} /> }
+  ];
+
+  return (
+    <div className="dev-theme-control" role="group" aria-label="Viewer theme">
+      {options.map((option) => (
+        <button key={option.mode} type="button" className={mode === option.mode ? "active" : undefined} onClick={() => onChange(option.mode)}>
+          {option.icon} {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function devAssetKey(asset: DevAsset | undefined) {
+  return asset ? `${asset.group}:${asset.name}` : "";
+}
+
+function DevAssetCanvas({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+  const background = darkMode ? (rain ? "#20272d" : "#1c2630") : (rain ? "#9eabb2" : "#d8eaf3");
+  const sky = darkMode ? (rain ? "#4f5961" : "#6d8899") : (rain ? "#c9d1d7" : "#eef8ff");
+  const ground = darkMode ? (rain ? "#151a1d" : "#1a211d") : (rain ? "#3d4741" : "#596c4e");
+  return (
+    <Canvas orthographic dpr={[1, 1.4]} gl={{ antialias: true, powerPreference: "high-performance" }} camera={{ position: [0, 20, 36], zoom: 34, near: 0.1, far: 1000 }}>
+      <color attach="background" args={[background]} />
+      <ambientLight intensity={darkMode ? (rain ? 0.86 : 0.94) : (rain ? 0.72 : 0.86)} />
+      <hemisphereLight args={[sky, ground, darkMode ? 0.64 : rain ? 0.5 : 0.42]} />
+      <directionalLight position={[8, 10, 6]} intensity={darkMode ? 1.55 : rain ? 0.95 : 1.45} />
+      <DevAssetGroupScene assets={assets} columns={columns} rows={rows} rain={rain} spin={spin} darkMode={darkMode} />
+    </Canvas>
+  );
+}
+
+function DevAssetGroupScene({ assets, columns, rows, rain, spin, darkMode }: { assets: DevAsset[]; columns: number; rows: number; rain: boolean; spin: boolean; darkMode: boolean }) {
+  const { camera, size } = useThree();
+  const cellSize = 8.8;
+  const width = Math.max(columns, 1) * cellSize;
+  const depth = Math.max(rows, 1) * cellSize;
+  const centerX = ((columns - 1) * cellSize) / 2;
+  const centerZ = ((rows - 1) * cellSize) / 2;
+
+  useLayoutEffect(() => {
+    const orthographicCamera = camera as THREE.OrthographicCamera;
+    const worldWidth = width + 5;
+    const worldHeight = depth * 0.88 + 11;
+    orthographicCamera.position.set(centerX, Math.max(18, rows * 2.2 + 14), centerZ + Math.max(24, rows * 4.3 + 16));
+    orthographicCamera.lookAt(centerX, 1.2, centerZ);
+    orthographicCamera.zoom = Math.min(size.width / worldWidth, size.height / worldHeight);
+    orthographicCamera.near = 0.1;
+    orthographicCamera.far = 1000;
+    orthographicCamera.updateProjectionMatrix();
+  }, [camera, centerX, centerZ, depth, rows, size.height, size.width, width]);
+
+  return (
+    <group>
+      {assets.map((asset, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        return (
+          <DevAssetCell
+            key={`${asset.group}-${asset.name}`}
+            asset={asset}
+            rain={rain}
+            spin={spin}
+            darkMode={darkMode}
+            position={[col * cellSize, 0, row * cellSize]}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+function DevAssetCell({ asset, rain, spin, darkMode, position }: { asset: DevAsset; rain: boolean; spin: boolean; darkMode: boolean; position: [number, number, number] }) {
+  const spinRef = useRef<THREE.Group>(null);
+  const contentRef = useRef<THREE.Group>(null);
+
+  useLayoutEffect(() => {
+    const spinGroup = spinRef.current;
+    const content = contentRef.current;
+    if (!content) return;
+    const savedSpinRotation = spinGroup?.rotation.clone();
+    if (spinGroup) {
+      spinGroup.rotation.set(0, 0, 0);
+      spinGroup.updateWorldMatrix(true, true);
+    }
+    content.position.set(0, 0, 0);
+    content.scale.setScalar(1);
+    content.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(content);
+    if (box.isEmpty()) {
+      if (spinGroup && savedSpinRotation) {
+        spinGroup.rotation.copy(savedSpinRotation);
+        spinGroup.updateWorldMatrix(true, true);
+      }
+      return;
+    }
+
+    const center = box.getCenter(new THREE.Vector3());
+    content.parent?.worldToLocal(center);
+    const pivot = asset.pivot ? new THREE.Vector3(...asset.pivot) : center;
+    content.position.sub(pivot);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDimension = Math.max(size.x, size.y, size.z, 1);
+    const scale = Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1)));
+    content.scale.setScalar(scale);
+    content.updateWorldMatrix(true, true);
+
+    const centeredBox = new THREE.Box3().setFromObject(content);
+    if (Number.isFinite(centeredBox.min.y)) {
+      const bottom = new THREE.Vector3(0, centeredBox.min.y, 0);
+      content.parent?.worldToLocal(bottom);
+      content.position.y -= bottom.y;
+    }
+    if (spinGroup && savedSpinRotation) {
+      spinGroup.rotation.copy(savedSpinRotation);
+      spinGroup.updateWorldMatrix(true, true);
+    }
+  }, [asset, rain]);
+
+  useFrame((_, delta) => {
+    if (spin && spinRef.current) spinRef.current.rotation.y += delta * 0.32;
+  });
+
+  return (
+    <group position={position}>
+      <mesh position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[3.25, 32]} />
+        <meshBasicMaterial color={darkMode ? "#111820" : rain ? "#4e565b" : "#c7d8de"} transparent opacity={darkMode ? 0.62 : 0.32} depthWrite={false} />
+      </mesh>
+      <group ref={spinRef} rotation={[0, 0.34, 0]}>
+        <group ref={contentRef}>{asset.render(rain)}</group>
+      </group>
+    </group>
+  );
+}
+
 const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
   const bounds = useMemo(() => getTrackBounds(track), [track]);
   const elevatedTrack = track.id === "fjord" || track.id === "cloudline";
@@ -1599,9 +2071,128 @@ function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
+function TrackStartGantryModel({ track }: { track: TrackDef }) {
+  return (
+    <>
+      <mesh receiveShadow>
+        <boxGeometry args={[track.width + track.curbWidth * 2, 0.04, 1.2]} />
+        <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
+      </mesh>
+      {Array.from({ length: 10 }).map((_, index) => (
+        <mesh key={index} position={[-track.width / 2 + 0.55 + index * (track.width / 10), 0.19, 0]}>
+          <boxGeometry args={[track.width / 10, 0.045, 0.6]} />
+          <meshStandardMaterial color={index % 2 === 0 ? "#111318" : "#f7f4ea"} roughness={0.6} />
+        </mesh>
+      ))}
+      {[0, 4, 8, 12].map((offset, index) => (
+        <mesh key={offset} position={[index % 2 === 0 ? -2.1 : 2.1, 0.08, -offset - 3]}>
+          <boxGeometry args={[1.3, 0.03, 2.0]} />
+          <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
+        </mesh>
+      ))}
+      <mesh position={[0, 4.2, -1.3]} castShadow>
+        <boxGeometry args={[track.width + track.curbWidth * 2 + 4.4, 0.26, 0.26]} />
+        <meshStandardMaterial color="#20242a" roughness={0.5} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.62), 2.05, -1.3]} castShadow>
+          <boxGeometry args={[0.42, 4.1, 0.42]} />
+          <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
+        </mesh>
+      ))}
+      <mesh position={[0, 3.55, -1.08]} castShadow>
+        <boxGeometry args={[6.2, 0.72, 0.18]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 3.55, -0.96]}>
+        <boxGeometry args={[5.55, 0.18, 0.04]} />
+        <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 3.26, -0.96]}>
+        <boxGeometry args={[5.55, 0.18, 0.04]} />
+        <meshStandardMaterial color="#e84f5f" roughness={0.42} />
+      </mesh>
+      {[-2.4, 0, 2.4].map((x, index) => (
+        <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
+          <sphereGeometry args={[0.28, 16, 16]} />
+          <meshStandardMaterial color={index === 2 ? "#24c06f" : "#d23a3a"} emissive={index === 2 ? "#0b3f25" : "#3f0b0b"} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function RoadsideBoardModel({ rain }: { rain: boolean }) {
+  return (
+    <>
+      <mesh castShadow>
+        <boxGeometry args={[1.4, 1.1, 0.12]} />
+        <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, -0.72, 0]}>
+        <boxGeometry args={[0.12, 1.1, 0.12]} />
+        <meshStandardMaterial color="#22262c" roughness={0.5} />
+      </mesh>
+    </>
+  );
+}
+
+function BrakingBoardModel() {
+  return (
+    <>
+      <mesh castShadow>
+        <boxGeometry args={[1.0, 1.0, 0.1]} />
+        <meshStandardMaterial color="#fffaf0" roughness={0.62} />
+      </mesh>
+      {[0, 1, 2].map((stripe) => (
+        <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
+          <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
+          <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.76, 0]}>
+        <boxGeometry args={[0.1, 1.1, 0.1]} />
+        <meshStandardMaterial color="#22262c" roughness={0.52} />
+      </mesh>
+    </>
+  );
+}
+
+function TrackBarrierModel({ rain, accent = "#e04a54" }: { rain: boolean; accent?: string }) {
+  return (
+    <>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[2.4, 0.68, 0.22]} />
+        <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, 0.18, 0.13]}>
+        <boxGeometry args={[2.1, 0.08, 0.04]} />
+        <meshStandardMaterial color={accent} roughness={0.5} />
+      </mesh>
+    </>
+  );
+}
+
+function SponsorBoardModel({ rain }: { rain: boolean }) {
   const texture = useMemo(() => createSponsorTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <>
+      <mesh castShadow>
+        <planeGeometry args={[4.2, 1.35]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {[-1.65, 1.65].map((x) => (
+        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
+          <boxGeometry args={[0.12, 2.1, 0.12]} />
+          <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   const placement = useMemo(() => {
     const progress = trackMetrics(track).totalLength * (track.id === "sakura" ? 0.6 : 0.36);
     const sample = sampleTrack(track, progress);
@@ -1615,16 +2206,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
 
   return (
     <group position={[placement.x, placement.y + 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
-      <mesh castShadow>
-        <planeGeometry args={[4.2, 1.35]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
-      </mesh>
-      {[-1.65, 1.65].map((x) => (
-        <mesh key={x} position={[x, -1.05, -0.04]} castShadow>
-          <boxGeometry args={[0.12, 2.1, 0.12]} />
-          <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
-        </mesh>
-      ))}
+      <SponsorBoardModel rain={rain} />
     </group>
   );
 }
@@ -1638,50 +2220,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
   return (
     <group>
       <group position={[start.x, start.y + 0.16, start.z]} rotation={[0, start.heading, 0]}>
-        <mesh receiveShadow>
-          <boxGeometry args={[track.width + track.curbWidth * 2, 0.04, 1.2]} />
-          <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
-        </mesh>
-        {Array.from({ length: 10 }).map((_, index) => (
-          <mesh key={index} position={[-track.width / 2 + 0.55 + index * (track.width / 10), 0.19, 0]}>
-            <boxGeometry args={[track.width / 10, 0.045, 0.6]} />
-            <meshStandardMaterial color={index % 2 === 0 ? "#111318" : "#f7f4ea"} roughness={0.6} />
-          </mesh>
-        ))}
-        {[0, 4, 8, 12].map((offset, index) => (
-          <mesh key={offset} position={[index % 2 === 0 ? -2.1 : 2.1, 0.08, -offset - 3]}>
-            <boxGeometry args={[1.3, 0.03, 2.0]} />
-            <meshStandardMaterial color="#f7f4ea" roughness={0.7} />
-          </mesh>
-        ))}
-        <mesh position={[0, 4.2, -1.3]} castShadow>
-          <boxGeometry args={[track.width + track.curbWidth * 2 + 4.4, 0.26, 0.26]} />
-          <meshStandardMaterial color="#20242a" roughness={0.5} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={`gantry-tower-${side}`} position={[side * (track.width / 2 + track.curbWidth + 0.62), 2.05, -1.3]} castShadow>
-            <boxGeometry args={[0.42, 4.1, 0.42]} />
-            <meshStandardMaterial color="#20242a" roughness={0.52} metalness={0.08} />
-          </mesh>
-        ))}
-        <mesh position={[0, 3.55, -1.08]} castShadow>
-          <boxGeometry args={[6.2, 0.72, 0.18]} />
-          <meshStandardMaterial color="#fffaf0" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 3.55, -0.96]}>
-          <boxGeometry args={[5.55, 0.18, 0.04]} />
-          <meshStandardMaterial color="#35a7ff" roughness={0.42} />
-        </mesh>
-        <mesh position={[0, 3.26, -0.96]}>
-          <boxGeometry args={[5.55, 0.18, 0.04]} />
-          <meshStandardMaterial color="#e84f5f" roughness={0.42} />
-        </mesh>
-        {[-2.4, 0, 2.4].map((x, index) => (
-          <mesh key={x} position={[x, 3.8, -1.3]} castShadow>
-            <sphereGeometry args={[0.28, 16, 16]} />
-            <meshStandardMaterial color={index === 2 ? "#24c06f" : "#d23a3a"} emissive={index === 2 ? "#0b3f25" : "#3f0b0b"} />
-          </mesh>
-        ))}
+        <TrackStartGantryModel track={track} />
       </group>
       {boards.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
@@ -1689,14 +2228,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 2.3);
         return (
           <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.55, z]} rotation={[0, sample.heading + (side < 0 ? 0.18 : -0.18), 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[1.4, 1.1, 0.12]} />
-              <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
-            </mesh>
-            <mesh position={[0, -0.72, 0]}>
-              <boxGeometry args={[0.12, 1.1, 0.12]} />
-              <meshStandardMaterial color="#22262c" roughness={0.5} />
-            </mesh>
+            <RoadsideBoardModel rain={rain} />
           </group>
         );
       })}
@@ -1706,20 +2238,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         return (
           <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + (side < 0 ? 0.42 : -0.42), 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[1.0, 1.0, 0.1]} />
-              <meshStandardMaterial color="#fffaf0" roughness={0.62} />
-            </mesh>
-            {[0, 1, 2].map((stripe) => (
-              <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
-                <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
-                <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
-              </mesh>
-            ))}
-            <mesh position={[0, -0.76, 0]}>
-              <boxGeometry args={[0.1, 1.1, 0.1]} />
-              <meshStandardMaterial color="#22262c" roughness={0.52} />
-            </mesh>
+            <BrakingBoardModel />
           </group>
         );
       })}
@@ -1730,23 +2249,151 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         return (
           <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading, 0]}>
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[2.4, 0.68, 0.22]} />
-              <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
-            </mesh>
-            <mesh position={[0, 0.18, 0.13]}>
-              <boxGeometry args={[2.1, 0.08, 0.04]} />
-              <meshStandardMaterial color={index % 2 === 0 ? "#e04a54" : "#24282f"} roughness={0.5} />
-            </mesh>
+            <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
           </group>
         );
       })}
-      {track.id === "sakura" && <SakuraFeatureGrove track={track} rain={rain} />}
-      {track.id === "alpine" && <AlpineVistaPeak track={track} rain={rain} />}
+      {track.id === "sakura" && <SakuraSignatureProps track={track} rain={rain} />}
+      {track.id === "alpine" && <AlpineSignatureProps track={track} rain={rain} />}
       <TrackIdentityProps track={track} rain={rain} />
     </group>
   );
 });
+
+function SakuraSignatureProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return (
+    <group>
+      <SakuraToriiGate track={track} rain={rain} />
+      <SakuraBlossomTunnel track={track} rain={rain} />
+      <SakuraFeatureGrove track={track} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraToriiGate({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.13);
+    return { ...sample, heading: sample.heading };
+  }, [track]);
+
+  return (
+    <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
+      <SakuraToriiGateModel track={track} rain={rain} />
+    </group>
+  );
+}
+
+function SakuraToriiGateModel({ track, rain }: { track: Pick<TrackDef, "width" | "curbWidth">; rain: boolean }) {
+  const span = track.width + track.curbWidth * 2 + 5.2;
+  const postX = span / 2 - 1.35;
+  const vermilion = rain ? "#a1322d" : "#bf332d";
+  const darkWood = rain ? "#2b2523" : "#201b19";
+
+  return (
+    <group>
+      {[-1, 1].map((side) => (
+        <group key={`torii-post-${side}`} position={[side * postX, 0, 0]}>
+          <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
+            <boxGeometry args={[1.0, 0.32, 0.9]} />
+            <meshStandardMaterial color={rain ? "#8b8d86" : "#a29d8f"} roughness={0.84} />
+          </mesh>
+          <mesh position={[0, 2.35, 0]} castShadow>
+            <cylinderGeometry args={[0.26, 0.34, 4.7, 12]} />
+            <meshStandardMaterial color={vermilion} roughness={0.56} />
+          </mesh>
+          <mesh position={[0, 4.62, 0]} castShadow>
+            <boxGeometry args={[0.76, 0.36, 0.5]} />
+            <meshStandardMaterial color={darkWood} roughness={0.58} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 4.78, 0]} castShadow>
+        <boxGeometry args={[span, 0.42, 0.42]} />
+        <meshStandardMaterial color={vermilion} roughness={0.56} />
+      </mesh>
+      <mesh position={[0, 5.17, 0]} castShadow>
+        <boxGeometry args={[span + 1.9, 0.28, 0.64]} />
+        <meshStandardMaterial color={darkWood} roughness={0.54} />
+      </mesh>
+      <mesh position={[0, 4.1, 0.08]} castShadow>
+        <boxGeometry args={[span - 2.1, 0.28, 0.32]} />
+        <meshStandardMaterial color={vermilion} roughness={0.56} />
+      </mesh>
+      {[-3.2, 3.2].map((x) => (
+        <group key={`torii-lantern-${x}`} position={[x, 3.42, 0.1]}>
+          <mesh position={[0, 0.34, 0]} castShadow>
+            <cylinderGeometry args={[0.035, 0.035, 0.66, 8]} />
+            <meshStandardMaterial color={darkWood} roughness={0.6} />
+          </mesh>
+          <mesh castShadow>
+            <boxGeometry args={[0.42, 0.38, 0.34]} />
+            <meshStandardMaterial color={rain ? "#e8bca4" : "#ffd7ad"} emissive="#6b2518" emissiveIntensity={rain ? 0.55 : 0.34} roughness={0.62} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function SakuraBlossomTunnel({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const tunnel = useMemo(() => {
+    const metrics = trackMetrics(track);
+    const progresses = [0.23, 0.265, 0.3, 0.335, 0.37, 0.405, 0.44];
+    const trees = progresses.flatMap((progress, segment) => {
+      const sample = sampleTrack(track, metrics.totalLength * progress);
+      return [-1, 1].map((side) => {
+        const position = tracksidePropPosition(track, sample, side, 0.2 + seededUnit(segment * 17 + side) * 1.2, 1.5, 0.8);
+        return {
+          ...position,
+          side,
+          heading: sample.heading,
+          seed: 220 + segment * 9 + side
+        };
+      });
+    });
+    return { trees };
+  }, [track]);
+
+  return (
+    <group>
+      {tunnel.trees.map((tree) => (
+        <SakuraTunnelTree key={`sakura-tunnel-tree-${tree.seed}`} position={[tree.x, tree.y, tree.z]} side={tree.side} heading={tree.heading} seed={tree.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function SakuraTunnelTree({ position, side, heading, seed, rain }: { position: [number, number, number]; side: number; heading: number; seed: number; rain: boolean }) {
+  const blossom = rain ? "#d98ea5" : "#f2a8bd";
+  const blossomShade = rain ? "#c77d96" : "#ffc1cf";
+  const height = 3.35 + seededUnit(seed * 13) * 0.75;
+  const inward = -side;
+
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, height * 0.45, 0]} rotation={[0, 0, inward * 0.11]} castShadow>
+        <cylinderGeometry args={[0.15, 0.26, height, 7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.78} />
+      </mesh>
+      <mesh position={[inward * 0.74, height + 0.1, 0]} scale={[1.55, 0.9, 1.18]} castShadow>
+        <sphereGeometry args={[0.86, 14, 8]} />
+        <meshStandardMaterial color={blossom} roughness={0.86} />
+      </mesh>
+      <mesh position={[inward * 1.22, height - 0.25, 0.38]} scale={[1.18, 0.72, 0.94]} castShadow>
+        <sphereGeometry args={[0.78, 12, 8]} />
+        <meshStandardMaterial color={blossomShade} roughness={0.86} />
+      </mesh>
+      <mesh position={[inward * 1.08, height - 0.28, -0.42]} scale={[1.08, 0.68, 0.88]} castShadow>
+        <sphereGeometry args={[0.72, 12, 8]} />
+        <meshStandardMaterial color={blossom} roughness={0.86} />
+      </mesh>
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 23) * Math.PI]} scale={[1.75, 0.95, 1]} receiveShadow>
+        <circleGeometry args={[1, 18]} />
+        <meshBasicMaterial color={blossomShade} transparent opacity={rain ? 0.12 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
 
 function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean }) {
   const trees = useMemo(() => {
@@ -1769,6 +2416,17 @@ function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean })
   );
 }
 
+function AlpineSignatureProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  return (
+    <group>
+      <AlpineVistaPeak track={track} rain={rain} />
+      <AlpineRockWall track={track} rain={rain} />
+      <AlpineChaletFeature track={track} rain={rain} />
+      <AlpineCableCarFeature track={track} rain={rain} />
+    </group>
+  );
+}
+
 function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
   const placement = useMemo(() => {
     const metrics = trackMetrics(track);
@@ -1779,22 +2437,205 @@ function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
 
   return (
     <group position={[placement.x, placement.y, placement.z]} rotation={[0, placement.heading, 0]}>
-      <mesh position={[0, 4.9, 0]} scale={[1.15, 1, 0.86]}>
-        <coneGeometry args={[11.5, 15.5, 9]} />
-        <meshStandardMaterial color={rain ? "#848c88" : "#8d937f"} roughness={0.96} />
+      <AlpineNearPeak rain={rain} />
+    </group>
+  );
+}
+
+function AlpineNearPeak({ rain }: { rain: boolean }) {
+  const rock = rain ? "#7c8581" : "#858c7c";
+  const shadowRock = rain ? "#6d7672" : "#747d70";
+  const baseRock = rain ? "#5f6965" : "#66705f";
+  const snow = rain ? "#dce3e2" : "#f2f5f1";
+
+  return (
+    <group>
+      <mesh position={[0, 5.8, 0]} rotation={[0, 0.18, 0]} scale={[8.8, 11.6, 6.8]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 9]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
       </mesh>
-      <mesh position={[-6.8, 3.2, 4.2]} rotation={[0, -0.35, 0]} scale={[0.78, 0.72, 0.92]}>
-        <coneGeometry args={[8.4, 10.4, 8]} />
-        <meshStandardMaterial color={rain ? "#737c79" : "#7d8675"} roughness={0.98} />
+      <mesh position={[-4.8, 3.0, 3.0]} rotation={[0, -0.2, 0]} scale={[3.9, 6.0, 3.2]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
       </mesh>
-      <mesh position={[0, 12.4, 0]} scale={[0.92, 0.82, 0.7]}>
-        <coneGeometry args={[4.9, 4.5, 9]} />
-        <meshStandardMaterial color={rain ? "#e3e8e8" : "#f4f6f2"} roughness={0.82} />
+      <mesh position={[4.2, 2.65, -2.85]} rotation={[0, 0.4, 0]} scale={[3.55, 5.3, 2.9]} castShadow receiveShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={rain ? "#737c79" : "#7c8576"} roughness={0.99} />
       </mesh>
-      <mesh position={[-6.8, 7.3, 4.2]} rotation={[0, -0.35, 0]} scale={[0.62, 0.58, 0.72]}>
-        <coneGeometry args={[3.5, 2.7, 8]} />
-        <meshStandardMaterial color={rain ? "#d9e0df" : "#eef1f2"} roughness={0.84} />
+      <mesh position={[0.1, 0.42, 0.15]} rotation={[0.02, 0.28, 0]} scale={[8.8, 0.72, 6.4]} receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
       </mesh>
+      <mesh position={[0.2, 10.25, -0.28]} rotation={[0, 0.18, 0]} scale={[2.9, 3.3, 2.15]} castShadow>
+        <coneGeometry args={[1, 1, 9]} />
+        <meshStandardMaterial color={snow} roughness={0.84} />
+      </mesh>
+      <mesh position={[-4.8, 5.35, 3.0]} rotation={[0, -0.2, 0]} scale={[1.28, 1.42, 1.02]} castShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineRockWall({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const rocks = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [0.34, 0.375, 0.41, 0.445, 0.48].map((progress, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * progress);
+      const side = -1;
+      const position = tracksidePropPosition(track, sample, side, -0.4 + seededUnit(index * 11) * 1.3, 3.4, 1.1);
+      return {
+        ...position,
+        heading: sample.heading + (seededUnit(index * 7) - 0.5) * 0.6,
+        seed: index
+      };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {rocks.map((rock) => (
+        <AlpineCliffRock key={`alpine-cliff-${rock.seed}`} position={[rock.x, rock.y, rock.z]} heading={rock.heading} seed={rock.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function AlpineCliffRock({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  const rock = rain ? "#68716d" : "#737b6e";
+  const snow = rain ? "#d9e1e0" : "#eef2ee";
+  const height = 2.8 + seededUnit(seed * 17) * 1.6;
+
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0.12, 0.2, 0.05]} rotation={[0.02, seededUnit(seed * 5) * 0.5, 0]} scale={[2.7, 0.34, 1.45]} receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#5e6764" : "#687164"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, height * 0.54, 0]} rotation={[0.12, seededUnit(seed * 3) * 0.4, -0.08]} scale={[2.55, height, 1.34]} castShadow receiveShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rock} roughness={0.98} />
+      </mesh>
+      <mesh position={[1.75, height * 0.34, -0.45]} rotation={[-0.1, 0.42, 0.06]} scale={[1.6, height * 0.55, 1.1]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#5e6764" : "#697265"} roughness={0.99} />
+      </mesh>
+      <mesh position={[-1.6, height * 0.28, 0.35]} rotation={[0.02, -0.36, 0.1]} scale={[1.5, height * 0.45, 1.0]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#747d79" : "#7d8578"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0.18, height + 0.5, -0.04]} rotation={[0.02, 0.2, 0]} scale={[1.25, 0.34, 0.76]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+    </group>
+  );
+}
+
+function AlpineChaletFeature({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.72);
+    const position = tracksidePropPosition(track, sample, 1, 4.2, 4.3, 1.8);
+    return { ...position, heading: sample.heading - 0.62 };
+  }, [track]);
+
+  return <AlpineChalet position={[placement.x, placement.y, placement.z]} heading={placement.heading} rain={rain} />;
+}
+
+function AlpineChalet({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const timber = rain ? "#6f4a37" : "#87583d";
+  const roof = rain ? "#31383f" : "#30343a";
+  const snow = rain ? "#dce3e2" : "#f2f5f1";
+
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.34, 1.34, 1.34]}>
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <boxGeometry args={[3.5, 1.4, 2.35]} />
+        <meshStandardMaterial color={timber} roughness={0.78} />
+      </mesh>
+      <mesh position={[0, 1.63, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+        <coneGeometry args={[2.65, 1.25, 4]} />
+        <meshStandardMaterial color={roof} roughness={0.64} />
+      </mesh>
+      <mesh position={[0, 2.2, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1.0, 0.2, 0.7]} castShadow>
+        <coneGeometry args={[2.55, 0.45, 4]} />
+        <meshStandardMaterial color={snow} roughness={0.84} />
+      </mesh>
+      {[-1.0, 1.0].map((x) => (
+        <mesh key={`chalet-window-${x}`} position={[x, 0.88, -1.2]}>
+          <boxGeometry args={[0.62, 0.38, 0.05]} />
+          <meshStandardMaterial color={rain ? "#ffe0a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.58 : 0.3} roughness={0.48} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.28, -1.36]} castShadow>
+        <boxGeometry args={[4.2, 0.18, 0.34]} />
+        <meshStandardMaterial color={rain ? "#594032" : "#6b4a35"} roughness={0.76} />
+      </mesh>
+      {[-1.75, 0, 1.75].map((x) => (
+        <mesh key={`chalet-rail-${x}`} position={[x, 0.62, -1.42]} castShadow>
+          <boxGeometry args={[0.1, 0.68, 0.1]} />
+          <meshStandardMaterial color={rain ? "#4a362d" : "#54392d"} roughness={0.72} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function AlpineCableCarFeature({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const placement = useMemo(() => {
+    const sample = sampleTrack(track, trackMetrics(track).totalLength * 0.61);
+    const position = tracksidePropPosition(track, sample, -1, 6.5, 4.6, 2);
+    return { ...position, heading: sample.heading + 0.34 };
+  }, [track]);
+
+  return <AlpineCableCar position={[placement.x, placement.y, placement.z]} heading={placement.heading} rain={rain} />;
+}
+
+function AlpineCableCar({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const steel = rain ? "#3d4548" : "#343b3f";
+  const cabin = rain ? "#b83d43" : "#d64045";
+
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.16, 1.14, 1.16]}>
+      {[-6, 6].map((x) => (
+        <group key={`cable-tower-${x}`} position={[x, 0, 0]}>
+          <mesh position={[0, 2.15, 0]} castShadow>
+            <boxGeometry args={[0.28, 4.3, 0.28]} />
+            <meshStandardMaterial color={steel} roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 4.32, 0]} castShadow>
+            <boxGeometry args={[1.55, 0.18, 0.26]} />
+            <meshStandardMaterial color={steel} roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 0.1, 0]} receiveShadow>
+            <boxGeometry args={[0.85, 0.2, 0.85]} />
+            <meshStandardMaterial color={rain ? "#8b8d86" : "#a29d8f"} roughness={0.84} />
+          </mesh>
+        </group>
+      ))}
+      {[4.62, 4.86].map((y) => (
+        <mesh key={`cable-line-${y}`} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[13.6, 0.045, 0.045]} />
+          <meshStandardMaterial color={steel} roughness={0.42} metalness={0.2} />
+        </mesh>
+      ))}
+      {[-2.2, 2.7].map((x, index) => (
+        <group key={`cable-car-${index}`} position={[x, 3.68 - index * 0.12, 0]}>
+          <mesh position={[0, 0.5, 0]} castShadow>
+            <boxGeometry args={[0.045, 0.72, 0.045]} />
+            <meshStandardMaterial color={steel} roughness={0.48} metalness={0.12} />
+          </mesh>
+          <mesh castShadow>
+            <boxGeometry args={[1.34, 0.88, 0.88]} />
+            <meshStandardMaterial color={cabin} roughness={0.58} />
+          </mesh>
+          <mesh position={[0, 0.1, -0.41]}>
+            <boxGeometry args={[0.84, 0.38, 0.035]} />
+            <meshStandardMaterial color={rain ? "#d8eef4" : "#bfe8ff"} emissive="#18384b" emissiveIntensity={rain ? 0.3 : 0.18} roughness={0.42} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -1803,13 +2644,12 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
   const patches = useMemo(() => {
     const metrics = trackMetrics(track);
     return [
-      { progress: 0.18, side: 1, s: 1.25, extra: 2.4 },
-      { progress: 0.39, side: 1, s: 1.05, extra: 3.6 },
-      { progress: 0.58, side: -1, s: 0.95, extra: 2.8 },
-      { progress: 0.78, side: -1, s: 1.15, extra: 3.2 }
+      { progress: 0.2, side: 1, s: 0.82, extra: 2.9 },
+      { progress: 0.43, side: 1, s: 0.72, extra: 4.2 },
+      { progress: 0.72, side: -1, s: 0.78, extra: 3.4 }
     ].map((patch, index) => {
       const sample = sampleTrack(track, metrics.totalLength * patch.progress);
-      const position = tracksidePropPosition(track, sample, patch.side, patch.extra, patch.s * 4.8, 0.8);
+      const position = tracksidePropPosition(track, sample, patch.side, patch.extra, patch.s * 2.7, 0.8);
       return { ...patch, ...position, rotation: seededUnit(index * 13) * Math.PI };
     });
   }, [track]);
@@ -1817,9 +2657,9 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
   return (
     <group>
       {patches.map((patch, index) => (
-        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, patch.y + 0.01, patch.z]} rotation={[-Math.PI / 2, 0, patch.rotation]} scale={[patch.s * 4.8, patch.s * 1.8, 1]}>
-          <circleGeometry args={[1, 22]} />
-          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
+        <mesh key={`sakura-petal-patch-${index}`} position={[patch.x, patch.y + 0.01, patch.z]} rotation={[-Math.PI / 2, 0, patch.rotation]} scale={[patch.s * 2.7, patch.s * 0.92, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color={rain ? "#c88da0" : "#f2a8bd"} transparent opacity={rain ? 0.1 : 0.14} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
     </group>
@@ -1827,27 +2667,99 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
 }
 
 function AlpineBackdrop({ rain }: { rain: boolean }) {
-  const mountains = [
-    { x: -88, z: 128, h: 22, r: 18 },
-    { x: -48, z: 148, h: 29, r: 24 },
-    { x: 18, z: 158, h: 20, r: 18 },
-    { x: 108, z: 152, h: 31, r: 27 },
-    { x: 178, z: 70, h: 24, r: 22 }
+  const mountains: AlpineBackdropMountain[] = [
+    { x: -92, z: 128, h: 25, r: 19, kind: "jagged" },
+    { x: -46, z: 150, h: 32, r: 25, kind: "cone" },
+    { x: 18, z: 158, h: 22, r: 18, kind: "jagged" },
+    { x: 108, z: 152, h: 34, r: 28, kind: "cone" },
+    { x: 178, z: 70, h: 26, r: 22, kind: "cone" }
   ];
   return (
     <group>
       {mountains.map((mountain, index) => (
-        <group key={`mountain-${index}`} position={[mountain.x, mountain.h / 2 - 0.2, mountain.z]} rotation={[0, seededUnit(index * 17) * 0.8, 0]}>
-          <mesh>
-            <coneGeometry args={[mountain.r, mountain.h, 8]} />
-            <meshStandardMaterial color={rain ? "#707975" : "#7f8877"} roughness={0.98} />
-          </mesh>
-          <mesh position={[0, mountain.h * 0.28, 0]}>
-            <coneGeometry args={[mountain.r * 0.38, mountain.h * 0.24, 8]} />
-            <meshStandardMaterial color={rain ? "#e5e8e8" : "#f4f6f2"} roughness={0.86} />
-          </mesh>
-        </group>
+        <AlpineBackdropPeak key={`mountain-${index}`} mountain={mountain} seed={index} rain={rain} />
       ))}
+    </group>
+  );
+}
+
+type AlpineBackdropMountain = { x: number; z: number; h: number; r: number; kind: "cone" | "jagged" };
+
+function AlpineBackdropPeak({ mountain, seed, rain }: { mountain: AlpineBackdropMountain; seed: number; rain: boolean }) {
+  const rock = rain ? "#707975" : "#7f8877";
+  const shadowRock = rain ? "#646d69" : "#737d6f";
+  const baseRock = rain ? "#59635f" : "#65705f";
+  const snow = rain ? "#e5e8e8" : "#f4f6f2";
+
+  if (mountain.kind === "cone") {
+    return (
+      <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
+        <mesh position={[0, mountain.h * 0.48, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.64, mountain.h * 0.96, mountain.r * 0.5]}>
+          <coneGeometry args={[1, 1, 9]} />
+          <meshStandardMaterial color={rock} roughness={0.98} />
+        </mesh>
+        <mesh position={[-mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.33, mountain.h * 0.56, mountain.r * 0.28]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={shadowRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[mountain.r * 0.33, mountain.h * 0.24, -mountain.r * 0.2]} rotation={[0, 0.36, 0]} scale={[mountain.r * 0.3, mountain.h * 0.48, mountain.r * 0.25]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={baseRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[0, 0.34, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.72, mountain.h * 0.055, mountain.r * 0.54]}>
+          <dodecahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color={baseRock} roughness={0.99} />
+        </mesh>
+        <mesh position={[0, mountain.h * 0.82, 0]} rotation={[0, 0.1, 0]} scale={[mountain.r * 0.22, mountain.h * 0.24, mountain.r * 0.18]}>
+          <coneGeometry args={[1, 1, 9]} />
+          <meshStandardMaterial color={snow} roughness={0.86} />
+        </mesh>
+        <mesh position={[-mountain.r * 0.34, mountain.h * 0.51, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.1, mountain.h * 0.1, mountain.r * 0.08]}>
+          <coneGeometry args={[1, 1, 8]} />
+          <meshStandardMaterial color={snow} roughness={0.86} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
+      <mesh position={[0, mountain.h * 0.37, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.72, mountain.h * 0.74, mountain.r * 0.55]}>
+        <coneGeometry args={[1, 1, 7]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, 0.44, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.74, mountain.h * 0.075, mountain.r * 0.55]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.34, 0.36, mountain.r * 0.2]} rotation={[-0.02, 0.38, 0.03]} scale={[mountain.r * 0.42, mountain.h * 0.055, mountain.r * 0.3]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[mountain.r * 0.35, 0.34, -mountain.r * 0.24]} rotation={[0.03, -0.26, -0.02]} scale={[mountain.r * 0.38, mountain.h * 0.05, mountain.r * 0.28]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={baseRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, mountain.h * 0.45, 0]} rotation={[0.08, 0.22, -0.04]} scale={[mountain.r * 0.58, mountain.h * 0.45, mountain.r * 0.44]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rock} roughness={0.98} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.36, mountain.h * 0.33, mountain.r * 0.16]} rotation={[-0.06, -0.3, 0.08]} scale={[mountain.r * 0.38, mountain.h * 0.32, mountain.r * 0.33]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={shadowRock} roughness={0.99} />
+      </mesh>
+      <mesh position={[mountain.r * 0.32, mountain.h * 0.27, -mountain.r * 0.22]} rotation={[0.02, 0.4, 0.08]} scale={[mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.3]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#78817d" : "#858e7f"} roughness={0.99} />
+      </mesh>
+      <mesh position={[0, mountain.h * 0.86, 0]} rotation={[0.06, 0.2, 0]} scale={[mountain.r * 0.22, mountain.h * 0.08, mountain.r * 0.18]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
+      <mesh position={[-mountain.r * 0.36, mountain.h * 0.61, mountain.r * 0.16]} rotation={[0.04, -0.22, 0]} scale={[mountain.r * 0.14, mountain.h * 0.06, mountain.r * 0.12]}>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={snow} roughness={0.86} />
+      </mesh>
     </group>
   );
 }
@@ -2027,13 +2939,13 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const samples = useMemo(() => sampleTrackVisuals(track, 115), [track]);
   const scenicAnchors = useMemo(() => {
     const metrics = trackMetrics(track);
-    const waterfallSample = sampleTrack(track, metrics.totalLength * 0.18);
-    const villageSample = sampleTrack(track, metrics.totalLength * 0.72);
-    const lookoutSample = sampleTrack(track, metrics.totalLength * 0.48);
+    const waterfallSample = sampleTrack(track, metrics.totalLength * 0.165);
+    const villageSample = sampleTrack(track, metrics.totalLength * 0.69);
+    const lookoutSample = sampleTrack(track, metrics.totalLength * 0.455);
     return {
-      waterfall: { ...tracksidePropPosition(track, waterfallSample, -1, 16, 5.5, 2), heading: waterfallSample.heading + 0.35 },
-      village: { ...tracksidePropPosition(track, villageSample, 1, 10, 5, 2), heading: villageSample.heading - 0.35 },
-      lookout: { ...tracksidePropPosition(track, lookoutSample, 1, 8, 3, 1.2), heading: lookoutSample.heading - 0.7 }
+      waterfall: { ...tracksidePropPosition(track, waterfallSample, -1, 11, 6.8, 2.4), heading: waterfallSample.heading + 0.25 },
+      village: { ...tracksidePropPosition(track, villageSample, 1, 2.8, 7.4, 2.2), heading: villageSample.heading - 0.28 },
+      lookout: { ...tracksidePropPosition(track, lookoutSample, 1, 0.8, 6.0, 1.4), heading: lookoutSample.heading - 0.62 }
     };
   }, [track]);
 
@@ -2044,6 +2956,7 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       <FjordWaterfall position={[scenicAnchors.waterfall.x, scenicAnchors.waterfall.y, scenicAnchors.waterfall.z]} heading={scenicAnchors.waterfall.heading} rain={rain} />
       <FjordVillage position={[scenicAnchors.village.x, scenicAnchors.village.y, scenicAnchors.village.z]} heading={scenicAnchors.village.heading} rain={rain} />
       <FjordLookout position={[scenicAnchors.lookout.x, scenicAnchors.lookout.y, scenicAnchors.lookout.z]} heading={scenicAnchors.lookout.heading} rain={rain} />
+      <FjordScenicMarkers track={track} rain={rain} />
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (index % 4 === 0) {
@@ -2100,17 +3013,93 @@ function FjordBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolean })
 function FjordWaterfall({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, 7.5, 0]} scale={[1.2, 1, 0.65]} castShadow>
-        <coneGeometry args={[6.2, 16, 7]} />
+      <mesh position={[0, 5.7, 0]} rotation={[0.04, 0, 0.02]} scale={[4.8, 6.0, 0.86]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
       </mesh>
-      <mesh position={[0, 6.2, -1.05]} rotation={[0, 0, 0.08]}>
-        <planeGeometry args={[1.25, 10.8]} />
-        <meshBasicMaterial color={rain ? "#d8eef4" : "#e7fbff"} transparent opacity={rain ? 0.42 : 0.5} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[-3.5, 3.55, -0.42]} rotation={[0.08, -0.18, 0.04]} scale={[2.2, 3.2, 0.98]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
       </mesh>
-      <mesh position={[0, 0.12, -1.25]} rotation={[-Math.PI / 2, 0, 0]} scale={[2.8, 1.25, 1]}>
-        <circleGeometry args={[1, 22]} />
-        <meshBasicMaterial color="#cfefff" transparent opacity={rain ? 0.18 : 0.28} depthWrite={false} side={THREE.DoubleSide} />
+      <mesh position={[3.55, 3.85, -0.28]} rotation={[0.08, 0.22, -0.03]} scale={[2.35, 3.45, 1.0]} castShadow>
+        <dodecahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial color={rain ? "#69716f" : "#747b70"} roughness={0.98} />
+      </mesh>
+      {[-5.2, 5.4].map((x, index) => (
+        <mesh key={`fjord-fall-rock-${index}`} position={[x * 0.68, 1.35, -1.02]} rotation={[0.15, 0.18 * (index === 0 ? -1 : 1), 0.06]} scale={[1.8, 0.68, 0.96]} castShadow>
+          <dodecahedronGeometry args={[1.1, 0]} />
+          <meshStandardMaterial color={rain ? "#5f6967" : "#646d61"} roughness={0.96} />
+        </mesh>
+      ))}
+      <mesh position={[0, 4.78, -1.22]} rotation={[0, 0, 0.08]}>
+        <planeGeometry args={[1.85, 8.8]} />
+        <meshBasicMaterial color={rain ? "#d8eef4" : "#e7fbff"} transparent opacity={rain ? 0.52 : 0.62} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {[-1.35, 1.45].map((x, index) => (
+        <mesh key={`fjord-fall-stream-${index}`} position={[x * 0.62, 4.1, -1.36]} rotation={[0, 0, index === 0 ? -0.05 : 0.04]}>
+          <planeGeometry args={[0.34, 6.9]} />
+          <meshBasicMaterial color="#f3feff" transparent opacity={rain ? 0.36 : 0.46} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.12, -1.76]} rotation={[-Math.PI / 2, 0, 0]} scale={[3.4, 1.5, 1]}>
+        <circleGeometry args={[1, 26]} />
+        <meshBasicMaterial color="#cfefff" transparent opacity={rain ? 0.2 : 0.34} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      {[-2.2, 0.2, 2.5].map((x, index) => (
+        <mesh key={`fjord-fall-mist-${index}`} position={[x * 0.72, 0.5 + index * 0.05, -2.0 - index * 0.15]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.36 - index * 0.16, 0.45, 1]}>
+          <circleGeometry args={[1, 18]} />
+          <meshBasicMaterial color="#f1fbff" transparent opacity={rain ? 0.12 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FjordScenicMarkers({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const markers = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [
+      { progress: 0.135, side: -1, length: 9.5 },
+      { progress: 0.445, side: 1, length: 11.5 },
+      { progress: 0.685, side: 1, length: 10.5 }
+    ].map((marker, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * marker.progress);
+      const position = tracksidePropPosition(track, sample, marker.side, 0.3, 0.4, 0.8);
+      return { ...marker, ...position, heading: sample.heading, seed: index };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {markers.map((marker) => (
+        <FjordCliffRail key={`fjord-rail-${marker.seed}`} position={[marker.x, marker.y, marker.z]} heading={marker.heading} length={marker.length} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function FjordCliffRail({ position, heading, length, rain }: { position: [number, number, number]; heading: number; length: number; rain: boolean }) {
+  const postCount = Math.max(3, Math.round(length / 2.6));
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {Array.from({ length: postCount }).map((_, index) => {
+        const z = -length / 2 + (length / Math.max(1, postCount - 1)) * index;
+        return (
+          <mesh key={`fjord-rail-post-${index}`} position={[0, 0.62, z]} castShadow>
+            <boxGeometry args={[0.16, 1.22, 0.16]} />
+            <meshStandardMaterial color={rain ? "#273037" : "#303636"} roughness={0.68} />
+          </mesh>
+        );
+      })}
+      {[0.58, 1.04].map((y) => (
+        <mesh key={`fjord-rail-bar-${y}`} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[0.16, 0.12, length]} />
+          <meshStandardMaterial color={rain ? "#273037" : "#303636"} roughness={0.68} />
+        </mesh>
+      ))}
+      <mesh position={[0.42, 0.07, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.7, length + 0.8]} />
+        <meshStandardMaterial color={rain ? "#77817d" : "#8f9488"} roughness={0.92} />
       </mesh>
     </group>
   );
@@ -2118,26 +3107,40 @@ function FjordWaterfall({ position, heading, rain }: { position: [number, number
 
 function FjordVillage({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
-      {[-2.2, 0.4, 2.8].map((x, index) => (
-        <group key={`fjord-cabin-${index}`} position={[x, 0, index % 2 === 0 ? 0.8 : -0.75]} rotation={[0, (index - 1) * 0.16, 0]}>
-          <mesh position={[0, 0.58, 0]} castShadow>
-            <boxGeometry args={[1.55, 1.12, 1.28]} />
+    <group position={position} rotation={[0, heading, 0]} scale={[1.5, 1.5, 1.5]}>
+      {[-3.8, -1.25, 1.35, 3.9].map((x, index) => (
+        <group key={`fjord-cabin-${index}`} position={[x, 0, index % 2 === 0 ? 0.85 : -0.78]} rotation={[0, (index - 1.5) * 0.13, 0]}>
+          <mesh position={[0, 0.68, 0]} castShadow>
+            <boxGeometry args={[1.8, 1.28, 1.44]} />
             <meshStandardMaterial color={rain ? "#8d4c42" : "#a4473e"} roughness={0.72} />
           </mesh>
-          <mesh position={[0, 1.28, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <coneGeometry args={[1.22, 0.8, 4]} />
+          <mesh position={[0, 1.5, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+            <coneGeometry args={[1.48, 0.95, 4]} />
             <meshStandardMaterial color={rain ? "#303941" : "#2d3339"} roughness={0.62} />
           </mesh>
-          <mesh position={[0, 0.78, -0.66]}>
-            <boxGeometry args={[0.58, 0.32, 0.035]} />
+          <mesh position={[0, 0.86, -0.74]}>
+            <boxGeometry args={[0.7, 0.38, 0.04]} />
             <meshStandardMaterial color={rain ? "#ffe1a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.55 : 0.28} roughness={0.48} />
           </mesh>
         </group>
       ))}
-      <mesh position={[0.2, 0.06, -2.1]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6.6, 0.75]} />
+      <mesh position={[0.1, 0.06, -2.35]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[9.2, 0.82]} />
         <meshStandardMaterial color={rain ? "#463a2e" : "#5b4936"} roughness={0.78} />
+      </mesh>
+      {[-3.2, -1.05, 1.1, 3.25].map((x) => (
+        <mesh key={`fjord-dock-post-${x}`} position={[x, 0.46, -3.08]} castShadow>
+          <boxGeometry args={[0.14, 0.86, 0.14]} />
+          <meshStandardMaterial color={rain ? "#3d342c" : "#5b4936"} roughness={0.74} />
+        </mesh>
+      ))}
+      <mesh position={[4.95, 0.74, -1.65]} rotation={[0, -0.25, 0]} castShadow>
+        <boxGeometry args={[0.14, 1.24, 0.14]} />
+        <meshStandardMaterial color="#2f3438" roughness={0.6} />
+      </mesh>
+      <mesh position={[4.95, 1.22, -1.65]} rotation={[0, -0.25, 0]}>
+        <boxGeometry args={[1.0, 0.42, 0.06]} />
+        <meshStandardMaterial color={rain ? "#fff4d7" : "#fff7df"} roughness={0.56} />
       </mesh>
     </group>
   );
@@ -2145,20 +3148,32 @@ function FjordVillage({ position, heading, rain }: { position: [number, number, 
 
 function FjordLookout({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[2.1, 7]} />
+    <group position={position} rotation={[0, heading, 0]} scale={[1.16, 1.16, 1.16]}>
+      <mesh position={[0, 0.2, 0]} receiveShadow>
+        <cylinderGeometry args={[3.9, 4.5, 0.36, 7]} />
         <meshStandardMaterial color={rain ? "#8a8e87" : "#a6a897"} roughness={0.86} />
       </mesh>
-      {[-1.4, 0, 1.4].map((x) => (
-        <mesh key={x} position={[x, 0.68, -1.05]}>
-          <boxGeometry args={[0.08, 1.2, 0.08]} />
+      {[-2.65, -1.3, 0, 1.3, 2.65].map((x) => (
+        <mesh key={x} position={[x, 0.88, -2.2]}>
+          <boxGeometry args={[0.1, 1.4, 0.1]} />
           <meshStandardMaterial color="#2f3438" roughness={0.6} />
         </mesh>
       ))}
-      <mesh position={[0, 1.18, -1.05]}>
-        <boxGeometry args={[3.2, 0.12, 0.08]} />
+      <mesh position={[0, 1.45, -2.2]}>
+        <boxGeometry args={[5.7, 0.14, 0.1]} />
         <meshStandardMaterial color="#2f3438" roughness={0.6} />
+      </mesh>
+      <mesh position={[-2.55, 1.0, 1.15]} castShadow>
+        <boxGeometry args={[0.14, 1.8, 0.14]} />
+        <meshStandardMaterial color="#303636" roughness={0.65} />
+      </mesh>
+      <mesh position={[-2.1, 1.62, 1.16]} rotation={[0, 0, 0.08]}>
+        <boxGeometry args={[0.95, 0.5, 0.05]} />
+        <meshStandardMaterial color={rain ? "#df484e" : "#d53d45"} roughness={0.48} />
+      </mesh>
+      <mesh position={[1.85, 0.48, 1.2]} rotation={[-Math.PI / 2, 0, -0.2]}>
+        <planeGeometry args={[2.4, 1.2]} />
+        <meshStandardMaterial color={rain ? "#6e7773" : "#7f887a"} roughness={0.88} />
       </mesh>
     </group>
   );
@@ -2184,7 +3199,7 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const samples = useMemo(() => sampleTrackVisuals(track, 230), [track]);
   const summit = useMemo(() => {
     const highest = trackMetrics(track).samples.reduce((best, sample) => (sample.y > best.y ? sample : best));
-    return { ...tracksidePropPosition(track, highest, 1, 18, 7, 2.5), heading: highest.heading - 0.42 };
+    return { ...tracksidePropPosition(track, highest, 1, 3.2, 6.5, 2.8), heading: highest.heading - 0.35 };
   }, [track]);
 
   return (
@@ -2192,6 +3207,7 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       <CloudlineBackdrop bounds={bounds} rain={rain} />
       <CloudlineSummit position={[summit.x, summit.y, summit.z]} heading={summit.heading} rain={rain} />
       <CloudWisps bounds={bounds} rain={rain} />
+      <CloudlineRidgeDetails track={track} rain={rain} />
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (sample.y < 230 && index % 3 !== 1) {
@@ -2236,28 +3252,130 @@ function CloudlineBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolea
 
 function CloudlineSummit({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
   return (
-    <group position={position} rotation={[0, heading, 0]}>
+    <group position={position} rotation={[0, heading, 0]} scale={[1.55, 1.55, 1.55]}>
       <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[6.4, 32]} />
+        <circleGeometry args={[8.4, 32]} />
         <meshStandardMaterial color={rain ? "#cfd8d7" : "#eef1f2"} roughness={0.88} />
       </mesh>
-      <mesh position={[0, 1.05, 0]} castShadow>
-        <cylinderGeometry args={[2.3, 2.6, 1.9, 18]} />
+      <mesh position={[0, 1.34, 0]} castShadow>
+        <cylinderGeometry args={[3.1, 3.55, 2.45, 18]} />
         <meshStandardMaterial color={rain ? "#c3c9c8" : "#e3e2d8"} roughness={0.72} />
       </mesh>
-      <mesh position={[0, 2.2, 0]} castShadow>
-        <sphereGeometry args={[1.75, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      <mesh position={[0, 2.86, 0]} castShadow>
+        <sphereGeometry args={[2.32, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial color={rain ? "#8fa8b0" : "#9cc4d2"} roughness={0.42} metalness={0.12} />
       </mesh>
-      <mesh position={[3.2, 3.35, -0.4]} rotation={[0, 0, 0.08]} castShadow>
-        <cylinderGeometry args={[0.12, 0.16, 6.2, 8]} />
+      <mesh position={[4.65, 5.05, -0.55]} rotation={[0, 0, 0.08]} castShadow>
+        <cylinderGeometry args={[0.14, 0.19, 9.2, 8]} />
         <meshStandardMaterial color="#2c3137" roughness={0.52} />
       </mesh>
       {[0, 1, 2].map((level) => (
-        <mesh key={level} position={[3.2, 1.25 + level * 1.45, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.72 + level * 0.15, 0.025, 8, 28]} />
+        <mesh key={level} position={[4.65, 1.7 + level * 1.92, -0.55]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.88 + level * 0.2, 0.03, 8, 28]} />
           <meshStandardMaterial color={rain ? "#dfe6e6" : "#f8f5e8"} roughness={0.5} metalness={0.08} />
         </mesh>
+      ))}
+      {[-6.5, 6.5].map((x) => (
+        <group key={`cloudline-summit-marker-${x}`} position={[x, 0, 4.5]}>
+          <mesh position={[0, 1.6, 0]} castShadow>
+            <boxGeometry args={[0.16, 3.2, 0.16]} />
+            <meshStandardMaterial color="#2c3137" roughness={0.55} />
+          </mesh>
+          <mesh position={[0, 3.25, 0]} castShadow>
+            <boxGeometry args={[0.52, 0.52, 0.52]} />
+            <meshStandardMaterial color={rain ? "#f0f2f0" : "#fff7df"} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineRidgeDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const details = useMemo(() => {
+    const metrics = trackMetrics(track);
+    return [
+      { progress: 0.18, side: -1, kind: "poles" as const },
+      { progress: 0.29, side: 1, kind: "cliff" as const },
+      { progress: 0.43, side: -1, kind: "poles" as const },
+      { progress: 0.515, side: -1, kind: "summit" as const },
+      { progress: 0.61, side: 1, kind: "cliff" as const },
+      { progress: 0.72, side: -1, kind: "poles" as const },
+      { progress: 0.84, side: 1, kind: "cliff" as const }
+    ].map((detail, index) => {
+      const sample = sampleTrack(track, metrics.totalLength * detail.progress);
+      const radius = detail.kind === "cliff" ? 5.2 : detail.kind === "summit" ? 1.2 : 0.5;
+      const extra = detail.kind === "cliff" ? 3.8 : 1.2;
+      const position = tracksidePropPosition(track, sample, detail.side, extra, radius, 1.2);
+      return { ...detail, ...position, heading: sample.heading, seed: index };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {details.map((detail) => {
+        if (detail.kind === "cliff") {
+          return <CloudlineCliffBreak key={`cloudline-cliff-${detail.seed}`} position={[detail.x, detail.y, detail.z]} heading={detail.heading} seed={detail.seed} rain={rain} />;
+        }
+        if (detail.kind === "summit") {
+          return <CloudlineSummitPoles key="cloudline-summit-poles" position={[detail.x, detail.y, detail.z]} heading={detail.heading} rain={rain} />;
+        }
+        return <CloudlineSnowPoles key={`cloudline-poles-${detail.seed}`} position={[detail.x, detail.y, detail.z]} heading={detail.heading} seed={detail.seed} rain={rain} />;
+      })}
+    </group>
+  );
+}
+
+function CloudlineSnowPoles({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {[-3.2, -1.1, 1.15, 3.25].map((z, index) => (
+        <group key={`cloudline-snow-pole-${index}`} position={[seed % 2 === 0 ? 0 : 0.35, 0, z]}>
+          <mesh position={[0, 1.15, 0]} castShadow>
+            <boxGeometry args={[0.12, 2.3, 0.12]} />
+            <meshStandardMaterial color={rain ? "#e3e8e8" : "#f4f0dd"} roughness={0.54} />
+          </mesh>
+          <mesh position={[0, 1.82, 0.01]}>
+            <boxGeometry args={[0.14, 0.28, 0.14]} />
+            <meshStandardMaterial color="#d53d45" roughness={0.44} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CloudlineCliffBreak({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading + seededUnit(seed * 13) * 0.18 - 0.09, 0]}>
+      {[-3.8, 0, 3.7].map((z, index) => (
+        <mesh key={`cloudline-cliff-rock-${index}`} position={[0.25 * (index - 1), 0.72, z]} rotation={[0.08, seededUnit(seed * (index + 5)) * 0.5, 0.04]} scale={[3.2 - index * 0.25, 0.82, 1.42 + index * 0.18]} castShadow>
+          <dodecahedronGeometry args={[1.25, 0]} />
+          <meshStandardMaterial color={rain ? "#687273" : "#727d76"} roughness={0.98} />
+        </mesh>
+      ))}
+      <mesh position={[0, 1.38, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[5.8, 8.8]} />
+        <meshStandardMaterial color={rain ? "#d6dfdf" : "#f1f4f3"} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+function CloudlineSummitPoles({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      {[-1.8, 0, 1.8].map((z, index) => (
+        <group key={`cloudline-summit-pole-${index}`} position={[0, 0, z]}>
+          <mesh position={[0, 1.75, 0]} castShadow>
+            <boxGeometry args={[0.16, 3.5, 0.16]} />
+            <meshStandardMaterial color="#2c3137" roughness={0.54} />
+          </mesh>
+          <mesh position={[0.38, 3.0, 0]} rotation={[0, 0, index % 2 === 0 ? 0.05 : -0.05]}>
+            <boxGeometry args={[0.76, 0.36, 0.05]} />
+            <meshStandardMaterial color={rain ? "#f2eee0" : "#fff7df"} roughness={0.52} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
