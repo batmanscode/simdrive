@@ -18,7 +18,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Each driver can choose a car setup: Balanced, High Grip, or High Speed. The lobby shows each driver's setup.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws.
 - Non-VIP players can see the chosen race settings and driver setups in the lobby.
-- Four tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- Five tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, formula-style cars, and per-driver cockpit Hands/Paws/None display cosmetics.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
 - Controller setup/lobby screens warn when the phone is not on the recommended Android Chromium-style browser path for best motion and haptic support.
@@ -36,7 +36,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Main controller pitch: phones become steering wheels and pedals with calibration, touch fallback, and landscape race mode.
 - Main race-info pitch: cockpit racing with minimap, live leaderboard, best laps, and results.
 - Display UI pitch: the shared screen can follow the room/device theme with light and dark display modes.
-- Track pitch: short party circuits plus long real-world-inspired mountain endurance routes.
+- Track pitch: short party circuits plus long real-world-inspired coastal and mountain endurance routes.
 
 ## Planned Or Experimental
 

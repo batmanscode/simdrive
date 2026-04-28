@@ -1475,6 +1475,14 @@ const DEV_ASSETS: DevAsset[] = [
   { group: "Fjord", name: "FjordLookout", render: (rain) => <FjordLookout position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Fjord", name: "FjordMarker", render: (rain) => <FjordMarker position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Fjord", name: "FjordBackdrop", zoom: 1.12, render: (rain) => <FjordBackdropPreview rain={rain} /> },
+  { group: "Causeway", name: "CausewayBridgeRail", render: (rain) => <CausewayBridgeRail position={[0, 0, 0]} heading={0} length={12} rain={rain} /> },
+  { group: "Causeway", name: "CausewayOldBridgeSegment", render: (rain) => <CausewayOldBridgeSegment position={[0, 0, 0]} heading={0} length={13} rain={rain} /> },
+  { group: "Causeway", name: "CausewayPalm", render: (rain) => <CausewayPalm position={[0, 0, 0]} heading={0} seed={5} rain={rain} /> },
+  { group: "Causeway", name: "CausewayMangrove", render: (rain) => <CausewayMangrove position={[0, 0, 0]} seed={7} rain={rain} /> },
+  { group: "Causeway", name: "CausewayLighthouse", zoom: 1.2, render: (rain) => <CausewayLighthouse position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Causeway", name: "CausewayMarina", zoom: 1.16, render: (rain) => <CausewayMarina position={[0, 0, 0]} heading={0} rain={rain} /> },
+  { group: "Causeway", name: "CausewayBoat", render: (rain) => <CausewayBoat position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
+  { group: "Causeway", name: "CausewayBuoy", render: (rain) => <CausewayBuoy position={[0, 0, 0]} seed={2} rain={rain} /> },
   { group: "Cloudline", name: "CloudlineSummit", zoom: 1.24, render: (rain) => <CloudlineSummit position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Cloudline", name: "CloudlineSnowPoles", render: (rain) => <CloudlineSnowPoles position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
   { group: "Cloudline", name: "CloudlineCliffBreak", render: (rain) => <CloudlineCliffBreak position={[0, 0, 0]} heading={0} seed={3} rain={rain} /> },
@@ -2283,11 +2291,15 @@ function DevAssetCell({
 const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
   const bounds = useMemo(() => getTrackBounds(track), [track]);
   const elevatedTrack = track.id === "fjord" || track.id === "cloudline";
+  const coastalTrack = track.id === "causeway";
   const terrainBaseY = elevatedTrack ? bounds.minY - (track.id === "cloudline" ? 1.15 : 0.9) : bounds.minY - 0.55;
   const groundWidth = bounds.maxX - bounds.minX + 360;
   const groundDepth = bounds.maxZ - bounds.minZ + 360;
   const groundX = (bounds.minX + bounds.maxX) / 2;
   const groundZ = (bounds.minZ + bounds.maxZ) / 2;
+  const groundColor = coastalTrack
+    ? (rain ? "#456d78" : "#51abc1")
+    : (rain ? "#3e4d45" : "#5a7e48");
   const elevatedTerrainGeometry = useMemo(() => {
     if (!elevatedTrack) return undefined;
     return createElevatedTrackTerrainGeometry(track, terrainBaseY);
@@ -2296,14 +2308,19 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
     ? (rain ? "#7e8988" : "#b9c5bd")
     : (rain ? "#3d594d" : "#66855a");
   const shoulderGeometry = useMemo(() => {
-    const shoulderWidth = track.width + (track.curbWidth + track.wallMargin) * 2 + (elevatedTrack ? 26 : 34);
+    const shoulderWidth = track.width + (track.curbWidth + track.wallMargin) * 2 + (coastalTrack ? 24 : elevatedTrack ? 26 : 34);
     return createTrackRibbonGeometry(track, shoulderWidth, 0, -0.09, track.id === "cloudline" ? 6.5 : 4.2);
-  }, [elevatedTrack, track]);
+  }, [coastalTrack, elevatedTrack, track]);
   const shoulderColor = track.id === "cloudline"
     ? (rain ? "#8d9998" : "#d0d8d3")
+    : track.id === "causeway"
+      ? (rain ? "#929486" : "#cfc6a1")
     : track.id === "fjord"
       ? (rain ? "#455f55" : "#6f8a5f")
       : (rain ? "#43564b" : "#638650");
+  const runoffColor = track.id === "causeway"
+    ? (rain ? "#8b9083" : "#c7ba8c")
+    : (rain ? "#46524d" : "#6f8c58");
   const curbStripeGeometries = useMemo(() => createCurbStripeGeometries(track, 4.6), [track]);
   const roadGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width, 0, 0.035, 2.7), [track]);
   const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
@@ -2322,7 +2339,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[groundX, terrainBaseY - 0.08, groundZ]} receiveShadow>
         <planeGeometry args={[groundWidth, groundDepth]} />
-        <meshStandardMaterial color={rain ? "#3e4d45" : "#5a7e48"} roughness={0.95} />
+        <meshStandardMaterial color={groundColor} roughness={0.95} />
       </mesh>
       {elevatedTerrainGeometry && (
         <mesh geometry={elevatedTerrainGeometry} receiveShadow>
@@ -2334,7 +2351,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
       </mesh>
       <TrackTerrain track={track} rain={rain} />
       <mesh geometry={runoffGeometry} receiveShadow>
-        <meshStandardMaterial color={rain ? "#46524d" : "#6f8c58"} roughness={0.92} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={runoffColor} roughness={0.92} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
         <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
@@ -2388,7 +2405,10 @@ type AsphaltPatch = {
 };
 
 function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const samples = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 220 : track.id === "fjord" ? 90 : track.id === "alpine" ? 36 : 26), [track]);
+  const samples = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 220 : track.id === "fjord" ? 90 : track.id === "causeway" ? 120 : track.id === "alpine" ? 36 : 26), [track]);
+  if (track.id === "causeway") {
+    return <CausewayGroundAccents track={track} rain={rain} />;
+  }
   return (
     <group>
       {samples.map((sample, index) => {
@@ -2418,7 +2438,7 @@ function TrackTerrain({ track, rain }: { track: TrackDef; rain: boolean }) {
 }
 
 function RainPuddles({ track }: { track: TrackDef }) {
-  const puddles = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 140 : track.id === "fjord" ? 70 : 18).filter((_, index) => index % 3 === 0), [track]);
+  const puddles = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 140 : track.id === "fjord" || track.id === "causeway" ? 70 : 18).filter((_, index) => index % 3 === 0), [track]);
   return (
     <group>
       {puddles.map((sample, index) => {
@@ -2445,7 +2465,7 @@ function RainPuddles({ track }: { track: TrackDef }) {
 function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
   const patches = useMemo<AsphaltPatch[]>(() => {
     const surfacePatches: AsphaltPatch[] = [];
-    const samples = sampleTrackVisuals(track, track.id === "cloudline" ? 42 : track.id === "fjord" ? 18 : 5.2);
+    const samples = sampleTrackVisuals(track, track.id === "cloudline" ? 42 : track.id === "fjord" || track.id === "causeway" ? 18 : 5.2);
     samples.forEach((sample, index) => {
       if (index % 2 !== 0) return;
       const sideNoise = seededUnit(index * 11 + track.id.length) - 0.5;
@@ -2463,7 +2483,7 @@ function AsphaltDetails({ track, rain }: { track: TrackDef; rain: boolean }) {
       });
     });
 
-    const curveSamples = sampleTrackVisuals(track, track.id === "cloudline" ? 70 : track.id === "fjord" ? 28 : 8.5);
+    const curveSamples = sampleTrackVisuals(track, track.id === "cloudline" ? 70 : track.id === "fjord" || track.id === "causeway" ? 28 : 8.5);
     curveSamples.forEach((sample, index) => {
       const previous = curveSamples[(index - 1 + curveSamples.length) % curveSamples.length];
       const next = curveSamples[(index + 1) % curveSamples.length];
@@ -2685,7 +2705,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
 
 const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   const start = sampleTrackVisuals(track, 7)[0];
-  const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 140 : track.id === "fjord" ? 70 : track.id === "alpine" ? 28 : 21), [track]);
+  const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 140 : track.id === "fjord" || track.id === "causeway" ? 70 : track.id === "alpine" ? 28 : 21), [track]);
   const boards = propSamples.filter((_, index) => index % 3 === 0);
   const barriers = propSamples.filter((_, index) => index % 2 === 1);
   const brakingBoards = propSamples.filter((_, index) => index % 4 === 1);
@@ -3241,6 +3261,7 @@ function TrackIdentityProps({ track, rain }: { track: TrackDef; rain: boolean })
   if (track.id === "sakura") return <SakuraProps track={track} rain={rain} />;
   if (track.id === "alpine") return <AlpineProps track={track} rain={rain} />;
   if (track.id === "fjord") return <FjordProps track={track} rain={rain} />;
+  if (track.id === "causeway") return <CausewayProps track={track} rain={rain} />;
   return <CloudlineProps track={track} rain={rain} />;
 }
 
@@ -3732,6 +3753,552 @@ function FjordMarker({ position, heading, rain }: { position: [number, number, n
       </mesh>
     </group>
   );
+}
+
+function CausewayGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const patches = useMemo(() => {
+    return sampleTrackVisuals(track, 180).map((sample, index) => {
+      const side = index % 2 === 0 ? -1 : 1;
+      const radius = 5.2 + seededUnit(index * 17) * 5.4;
+      const position = tracksidePropPosition(track, sample, side, 7 + seededUnit(index * 11) * 18, radius, 1.6);
+      return {
+        ...position,
+        radius,
+        rotation: seededUnit(index * 23) * Math.PI,
+        mangrove: index % 3 !== 1,
+        seed: index
+      };
+    });
+  }, [track]);
+
+  return (
+    <group>
+      {patches.map((patch) => (
+        <group key={`causeway-shoal-${patch.seed}`} position={[patch.x, -0.39, patch.z]} rotation={[0, patch.rotation, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[patch.radius * 1.75, patch.radius * 0.58, 1]} receiveShadow>
+            <circleGeometry args={[1, 26]} />
+            <meshStandardMaterial color={rain ? "#b9ad8b" : "#dfd09c"} roughness={0.96} />
+          </mesh>
+          {patch.mangrove && (
+            <>
+              <mesh position={[-patch.radius * 0.34, 0.08, 0.16]} rotation={[-Math.PI / 2, 0, 0.22]} scale={[patch.radius * 0.52, patch.radius * 0.18, 1]}>
+                <circleGeometry args={[1, 14]} />
+                <meshStandardMaterial color={rain ? "#426451" : "#4f7b54"} roughness={0.92} />
+              </mesh>
+              <mesh position={[patch.radius * 0.22, 0.1, -0.24]} rotation={[-Math.PI / 2, 0, -0.34]} scale={[patch.radius * 0.42, patch.radius * 0.16, 1]}>
+                <circleGeometry args={[1, 14]} />
+                <meshStandardMaterial color={rain ? "#3a5848" : "#426d4b"} roughness={0.92} />
+              </mesh>
+            </>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CausewayProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const bounds = useMemo(() => getTrackBounds(track), [track]);
+  const samples = useMemo(() => sampleTrackVisuals(track, 125), [track]);
+  const landmarks = useMemo(() => {
+    const metrics = trackMetrics(track);
+    const place = (progress: number, side: number, extra: number, radius: number, headingOffset: number) => {
+      const sample = sampleTrack(track, metrics.totalLength * progress);
+      const position = tracksidePropPosition(track, sample, side, extra, radius, 1.7);
+      return { ...position, heading: sample.heading + headingOffset };
+    };
+    return {
+      lighthouse: place(0.422, -1, 2.4, 6.8, 1.12),
+      village: place(0.70, -1, 1.8, 10.8, 1.26),
+      overlook: place(0.285, -1, 2.2, 5.6, -0.22)
+    };
+  }, [track]);
+
+  return (
+    <group>
+      <CausewayWater bounds={bounds} rain={rain} />
+      <CausewayDistantKeys bounds={bounds} rain={rain} />
+      <CausewayBridgeRails track={track} rain={rain} />
+      <CausewayHeritageBridge track={track} rain={rain} />
+      <CausewayLighthouse position={[landmarks.lighthouse.x, landmarks.lighthouse.y, landmarks.lighthouse.z]} heading={landmarks.lighthouse.heading} rain={rain} />
+      <CausewayMarina position={[landmarks.village.x, landmarks.village.y, landmarks.village.z]} heading={landmarks.village.heading} rain={rain} />
+      <CausewayOverlook position={[landmarks.overlook.x, landmarks.overlook.y, landmarks.overlook.z]} heading={landmarks.overlook.heading} rain={rain} />
+      <CausewayBoats bounds={bounds} rain={rain} />
+      {samples.map((sample, index) => {
+        const progress = (index + 0.5) / samples.length;
+        const side = index % 2 === 0 ? -1 : 1;
+        if (isCausewayBridgeProgress(progress)) {
+          if (index % 3 === 0) {
+            const position = causewayWaterMarkerPosition(sample, side, 26 + seededUnit(index * 13) * 18);
+            return <CausewayBuoy key={`causeway-buoy-${index}`} position={[position.x, -0.2, position.z]} seed={index} rain={rain} />;
+          }
+          if (index % 4 === 1) {
+            const position = tracksidePropPosition(track, sample, side, -5.4, 0.35, 0.8);
+            return <CausewayMileMarker key={`causeway-marker-${index}`} position={[position.x, position.y + 0.42, position.z]} heading={sample.heading - side * 0.38} rain={rain} />;
+          }
+          return null;
+        }
+        if (index % 3 === 0) {
+          const position = tracksidePropPosition(track, sample, side, 5 + seededUnit(index * 5) * 9, 1.8, 1.2);
+          return <CausewayPalm key={`causeway-palm-${index}`} position={[position.x, position.y, position.z]} heading={sample.heading} seed={index} rain={rain} />;
+        }
+        if (index % 3 === 1) {
+          const position = tracksidePropPosition(track, sample, side, 3 + seededUnit(index * 7) * 7, 2.1, 1.2);
+          return <CausewayMangrove key={`causeway-mangrove-${index}`} position={[position.x, position.y, position.z]} seed={index} rain={rain} />;
+        }
+        const position = causewayWaterMarkerPosition(sample, side, 21 + seededUnit(index * 19) * 14);
+        return <CausewayBuoy key={`causeway-open-buoy-${index}`} position={[position.x, -0.2, position.z]} seed={index} rain={rain} />;
+      })}
+    </group>
+  );
+}
+
+function CausewayWater({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
+  const width = bounds.maxX - bounds.minX + 520;
+  const depth = bounds.maxZ - bounds.minZ + 520;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  const waves = useMemo(() => {
+    return Array.from({ length: 42 }).map((_, index) => ({
+      x: bounds.minX - 210 + seededUnit(index * 11) * width,
+      z: bounds.minZ - 210 + seededUnit(index * 17) * depth,
+      rotation: seededUnit(index * 23) * Math.PI,
+      length: 16 + seededUnit(index * 29) * 34,
+      opacity: 0.08 + seededUnit(index * 31) * 0.1
+    }));
+  }, [bounds.minX, bounds.minZ, depth, width]);
+
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[centerX, -0.48, centerZ]}>
+        <planeGeometry args={[width, depth]} />
+        <meshStandardMaterial color={rain ? "#4f7d8b" : "#47b8cf"} roughness={0.36} metalness={0.08} transparent opacity={rain ? 0.76 : 0.82} depthWrite={false} />
+      </mesh>
+      {waves.map((wave, index) => (
+        <mesh key={`causeway-wave-${index}`} position={[wave.x, -0.43, wave.z]} rotation={[-Math.PI / 2, 0, wave.rotation]} scale={[wave.length, 0.34, 1]}>
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial color={rain ? "#d7eef0" : "#e6feff"} transparent opacity={rain ? wave.opacity * 0.58 : wave.opacity} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CausewayDistantKeys({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
+  const islands = [
+    { x: bounds.minX + 120, z: bounds.maxZ + 126, sx: 68, sz: 18, r: 0.18 },
+    { x: bounds.maxX - 220, z: bounds.maxZ + 90, sx: 92, sz: 25, r: -0.12 },
+    { x: bounds.minX - 138, z: bounds.minZ + 72, sx: 72, sz: 20, r: 0.36 },
+    { x: bounds.maxX + 128, z: bounds.minZ + 168, sx: 84, sz: 24, r: -0.28 }
+  ];
+  return (
+    <group>
+      {islands.map((island, index) => (
+        <group key={`causeway-distant-key-${index}`} position={[island.x, -0.36, island.z]} rotation={[0, island.r, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[island.sx, island.sz, 1]}>
+            <circleGeometry args={[1, 28]} />
+            <meshStandardMaterial color={rain ? "#bdb08f" : "#ddce96"} roughness={0.94} />
+          </mesh>
+          <mesh position={[0, 0.07, -1.5]} rotation={[-Math.PI / 2, 0, 0.08]} scale={[island.sx * 0.58, island.sz * 0.52, 1]}>
+            <circleGeometry args={[1, 18]} />
+            <meshStandardMaterial color={rain ? "#405d4d" : "#4f7954"} roughness={0.92} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function CausewayBridgeRails({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 86), [track]);
+  return (
+    <group>
+      {samples.flatMap((sample, index) => {
+        const progress = (index + 0.5) / samples.length;
+        if (!isCausewayBridgeProgress(progress)) return [];
+        return [-1, 1].map((side) => {
+          const rightX = Math.sin(sample.heading + Math.PI / 2);
+          const rightZ = Math.cos(sample.heading + Math.PI / 2);
+          const offset = side * (track.width / 2 + track.curbWidth + 0.65);
+          return (
+            <CausewayBridgeRail
+              key={`causeway-bridge-rail-${index}-${side}`}
+              position={[sample.x + rightX * offset, sample.y, sample.z + rightZ * offset]}
+              heading={sample.heading}
+              length={sample.length * 0.78}
+              rain={rain}
+            />
+          );
+        });
+      })}
+    </group>
+  );
+}
+
+function CausewayBridgeRail({ position, heading, length, rain }: { position: [number, number, number]; heading: number; length: number; rain: boolean }) {
+  const postCount = Math.max(3, Math.min(9, Math.round(length / 9)));
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, 0.28, 0]} castShadow>
+        <boxGeometry args={[0.34, 0.56, length]} />
+        <meshStandardMaterial color={rain ? "#aab2ad" : "#d4d2c5"} roughness={0.74} />
+      </mesh>
+      <mesh position={[0, 0.6, 0]}>
+        <boxGeometry args={[0.4, 0.08, length]} />
+        <meshStandardMaterial color={rain ? "#dbe4e2" : "#fff8e4"} roughness={0.62} />
+      </mesh>
+      {Array.from({ length: postCount }).map((_, index) => {
+        const z = -length / 2 + (length / Math.max(1, postCount - 1)) * index;
+        return (
+          <mesh key={`causeway-rail-post-${index}`} position={[0, 0.88, z]} castShadow>
+            <boxGeometry args={[0.12, 0.54, 0.12]} />
+            <meshStandardMaterial color={rain ? "#48545a" : "#4d565b"} roughness={0.58} metalness={0.08} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+function CausewayHeritageBridge({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const samples = useMemo(() => sampleTrackVisuals(track, 96), [track]);
+  return (
+    <group>
+      {samples.map((sample, index) => {
+        const progress = (index + 0.5) / samples.length;
+        if (progress < 0.035 || progress > 0.25 || index % 7 === 3) return null;
+        const rightX = Math.sin(sample.heading + Math.PI / 2);
+        const rightZ = Math.cos(sample.heading + Math.PI / 2);
+        const offset = -(track.width / 2 + track.curbWidth + track.wallMargin + 18);
+        return (
+          <CausewayOldBridgeSegment
+            key={`causeway-old-bridge-${index}`}
+            position={[sample.x + rightX * offset, sample.y - 0.18, sample.z + rightZ * offset]}
+            heading={sample.heading}
+            length={sample.length * 0.86}
+            rain={rain}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+function CausewayOldBridgeSegment({ position, heading, length, rain }: { position: [number, number, number]; heading: number; length: number; rain: boolean }) {
+  const postCount = Math.max(3, Math.min(8, Math.round(length / 10)));
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh position={[0, 0.1, 0]} receiveShadow>
+        <boxGeometry args={[3.15, 0.22, length]} />
+        <meshStandardMaterial color={rain ? "#7d8078" : "#9a9788"} roughness={0.9} />
+      </mesh>
+      {[-1.35, 1.35].map((x) => (
+        <mesh key={`old-bridge-rail-${x}`} position={[x, 0.55, 0]}>
+          <boxGeometry args={[0.09, 0.1, length]} />
+          <meshStandardMaterial color={rain ? "#4c4740" : "#675a49"} roughness={0.74} />
+        </mesh>
+      ))}
+      {Array.from({ length: postCount }).map((_, index) => {
+        const z = -length / 2 + (length / Math.max(1, postCount - 1)) * index;
+        return (
+          <group key={`old-bridge-post-${index}`} position={[0, 0, z]}>
+            {[-1.35, 1.35].map((x) => (
+              <mesh key={x} position={[x, 0.32, 0]} castShadow>
+                <boxGeometry args={[0.12, 0.72, 0.12]} />
+                <meshStandardMaterial color={rain ? "#4c4740" : "#675a49"} roughness={0.74} />
+              </mesh>
+            ))}
+            <mesh position={[0, -0.42, 0]} castShadow>
+              <cylinderGeometry args={[0.16, 0.22, 1.04, 8]} />
+              <meshStandardMaterial color={rain ? "#6f736e" : "#898579"} roughness={0.86} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function CausewayPalm({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  const height = 3.1 + seededUnit(seed * 13) * 1.15;
+  const lean = (seededUnit(seed * 17) - 0.5) * 0.38;
+  const trunk = rain ? "#71543c" : "#8b6545";
+  const leaf = rain ? "#345f45" : "#28724a";
+  const leafLight = rain ? "#3f7653" : "#39935d";
+  return (
+    <group position={position} rotation={[0, heading + seededUnit(seed * 19) * Math.PI, 0]}>
+      <mesh position={[0, height * 0.46, 0]} rotation={[0, 0, lean]} castShadow>
+        <cylinderGeometry args={[0.12, 0.22, height, 8]} />
+        <meshStandardMaterial color={trunk} roughness={0.8} />
+      </mesh>
+      {Array.from({ length: 8 }).map((_, index) => {
+        const angle = (Math.PI * 2 * index) / 8 + seededUnit(seed * 23) * 0.25;
+        return (
+          <mesh
+            key={`palm-frond-${index}`}
+            position={[Math.sin(angle) * 0.54 + lean * 0.42, height + 0.04, Math.cos(angle) * 0.54]}
+            rotation={[0.34, angle, index % 2 === 0 ? 0.58 : -0.58]}
+            castShadow
+          >
+            <boxGeometry args={[0.18, 0.065, 1.65]} />
+            <meshStandardMaterial color={index % 2 === 0 ? leaf : leafLight} roughness={0.84} />
+          </mesh>
+        );
+      })}
+      <mesh position={[lean * 0.42, height + 0.02, 0]} castShadow>
+        <sphereGeometry args={[0.28, 10, 8]} />
+        <meshStandardMaterial color={leaf} roughness={0.84} />
+      </mesh>
+    </group>
+  );
+}
+
+function CausewayMangrove({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  const foliage = rain ? "#3d604d" : "#47764d";
+  const darkFoliage = rain ? "#345443" : "#3e6545";
+  return (
+    <group position={position} rotation={[0, seededUnit(seed * 31) * Math.PI, 0]}>
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0.15]} scale={[2.2, 1.0, 1]}>
+        <circleGeometry args={[1, 16]} />
+        <meshStandardMaterial color={rain ? "#b8ad8a" : "#d8c88f"} roughness={0.95} />
+      </mesh>
+      {[
+        [-0.82, 0.62, 0.18, 0.92],
+        [0.3, 0.82, -0.16, 1.12],
+        [0.88, 0.52, 0.32, 0.82]
+      ].map(([x, y, z, scale], index) => (
+        <mesh key={`mangrove-crown-${index}`} position={[x, y, z]} scale={[scale, scale * 0.64, scale * 0.82]} castShadow>
+          <sphereGeometry args={[0.8, 12, 8]} />
+          <meshStandardMaterial color={index % 2 === 0 ? darkFoliage : foliage} roughness={0.9} />
+        </mesh>
+      ))}
+      {[-0.48, 0.18, 0.58].map((x, index) => (
+        <mesh key={`mangrove-root-${index}`} position={[x, 0.34, index * 0.18 - 0.15]} rotation={[0.14, 0, (index - 1) * 0.28]}>
+          <cylinderGeometry args={[0.055, 0.08, 0.8, 6]} />
+          <meshStandardMaterial color={rain ? "#4c3e32" : "#634b35"} roughness={0.82} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CausewayLighthouse({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.94, 1.94, 1.94]}>
+      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[4.15, 2.82, 1]} receiveShadow>
+        <circleGeometry args={[1, 26]} />
+        <meshStandardMaterial color={rain ? "#b7ac8b" : "#dbc98d"} roughness={0.94} />
+      </mesh>
+      <mesh position={[0, 1.9, 0]} castShadow>
+        <cylinderGeometry args={[0.5, 0.78, 3.78, 16]} />
+        <meshStandardMaterial color={rain ? "#e8ebe8" : "#fff8e8"} roughness={0.68} />
+      </mesh>
+      {[0.94, 2.2].map((y) => (
+        <mesh key={`lighthouse-stripe-${y}`} position={[0, y, 0]} castShadow>
+          <cylinderGeometry args={[0.58, 0.65, 0.24, 16]} />
+          <meshStandardMaterial color={rain ? "#b33b42" : "#d6474f"} roughness={0.58} />
+        </mesh>
+      ))}
+      <mesh position={[0, 3.92, 0]} castShadow>
+        <cylinderGeometry args={[0.72, 0.66, 0.48, 16]} />
+        <meshStandardMaterial color={rain ? "#263039" : "#2d343b"} roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 4.24, 0]} castShadow>
+        <coneGeometry args={[0.78, 0.6, 16]} />
+        <meshStandardMaterial color={rain ? "#b33b42" : "#d6474f"} roughness={0.58} />
+      </mesh>
+      <mesh position={[0, 3.94, -0.54]}>
+        <boxGeometry args={[0.86, 0.3, 0.05]} />
+        <meshStandardMaterial color={rain ? "#ffe8a8" : "#ffd166"} emissive="#6b3908" emissiveIntensity={rain ? 0.56 : 0.32} roughness={0.4} />
+      </mesh>
+      <mesh position={[-1.72, 0.32, 0.98]} rotation={[0, 0.28, 0]} castShadow>
+        <boxGeometry args={[1.2, 0.58, 0.82]} />
+        <meshStandardMaterial color={rain ? "#dfd7c5" : "#fff2d4"} roughness={0.75} />
+      </mesh>
+      <mesh position={[-1.72, 0.82, 0.98]} rotation={[0, 0.28, 0]} castShadow>
+        <coneGeometry args={[0.78, 0.48, 4]} />
+        <meshStandardMaterial color={rain ? "#a53c42" : "#cf4a51"} roughness={0.62} />
+      </mesh>
+      <group scale={[0.52, 0.52, 0.52]}>
+        <CausewayPalm position={[3.8, 0, 1.75]} heading={0.4} seed={712} rain={rain} />
+      </group>
+    </group>
+  );
+}
+
+function CausewayMarina({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  const colors = rain ? ["#9b7862", "#617c8e", "#9b626b"] : ["#e7a66e", "#81b7c7", "#e47f93"];
+  const accentColors = rain ? ["#a75d52", "#668da0", "#b59255", "#7a8f68"] : ["#df665f", "#5bb3ca", "#f0bf57", "#84a86b"];
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.78, 1.78, 1.78]}>
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0.08]} scale={[8.55, 4.65, 1]} receiveShadow>
+        <circleGeometry args={[1, 26]} />
+        <meshStandardMaterial color={rain ? "#b8ad8a" : "#d8c88f"} roughness={0.94} />
+      </mesh>
+      {[-2.5, 0.1, 2.7].map((x, index) => (
+        <group key={`marina-hut-${index}`} position={[x, 0, index % 2 === 0 ? 0.7 : -0.55]} rotation={[0, (index - 1) * 0.12, 0]}>
+          <mesh position={[0, 0.62, 0]} castShadow>
+            <boxGeometry args={[1.65, 1.18, 1.38]} />
+            <meshStandardMaterial color={colors[index]} roughness={0.72} />
+          </mesh>
+          <mesh position={[0, 1.42, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+            <coneGeometry args={[1.24, 0.82, 4]} />
+            <meshStandardMaterial color={rain ? "#2f3940" : "#334049"} roughness={0.62} />
+          </mesh>
+          <mesh position={[0, 0.78, -0.71]}>
+            <boxGeometry args={[0.64, 0.34, 0.04]} />
+            <meshStandardMaterial color={rain ? "#ffe6aa" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.5 : 0.26} roughness={0.48} />
+          </mesh>
+        </group>
+      ))}
+      {[-3.4, -1.15, 1.15, 3.4].map((x, index) => (
+        <group key={`marina-cabana-${index}`} position={[x, 0, -2.02 + (index % 2) * 0.28]} rotation={[0, (index - 1.5) * 0.08, 0]}>
+          <mesh position={[0, 0.48, 0]} castShadow>
+            <boxGeometry args={[1.22, 0.88, 0.78]} />
+            <meshStandardMaterial color={accentColors[index]} roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 1.0, -0.03]} castShadow>
+            <boxGeometry args={[1.46, 0.18, 0.96]} />
+            <meshStandardMaterial color={index % 2 === 0 ? (rain ? "#f0e5ca" : "#fff1cf") : (rain ? "#32434b" : "#354852")} roughness={0.62} />
+          </mesh>
+          <mesh position={[0, 0.55, -0.41]}>
+            <boxGeometry args={[0.52, 0.28, 0.04]} />
+            <meshStandardMaterial color={rain ? "#ffe6aa" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.48 : 0.24} roughness={0.48} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 0.1, -3.2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[7.8, 0.8]} />
+        <meshStandardMaterial color={rain ? "#5c4938" : "#73563d"} roughness={0.82} />
+      </mesh>
+      {[-3.9, -2.6, -1.3, 0, 1.3, 2.6, 3.9].map((x, index) => (
+        <group key={`marina-flag-${index}`} position={[x, 0, -3.75]}>
+          <mesh position={[0, 0.92, 0]} castShadow>
+            <cylinderGeometry args={[0.035, 0.045, 1.78, 6]} />
+            <meshStandardMaterial color={rain ? "#465159" : "#53616a"} roughness={0.58} />
+          </mesh>
+          <mesh position={[0.18, 1.58, 0]}>
+            <boxGeometry args={[0.46, 0.24, 0.035]} />
+            <meshStandardMaterial color={accentColors[index % accentColors.length]} roughness={0.52} />
+          </mesh>
+        </group>
+      ))}
+      {[-3.4, -1.7, 0, 1.7, 3.4].map((x) => (
+        <mesh key={`marina-post-${x}`} position={[x, 0.46, -3.62]} castShadow>
+          <boxGeometry args={[0.13, 0.92, 0.13]} />
+          <meshStandardMaterial color={rain ? "#4b3a2f" : "#654832"} roughness={0.78} />
+        </mesh>
+      ))}
+      <CausewayBoat position={[4.95, -0.2, -3.02]} heading={-0.18} seed={12} rain={rain} />
+    </group>
+  );
+}
+
+function CausewayOverlook({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[1.12, 1.12, 1.12]}>
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[4.2, 28]} />
+        <meshStandardMaterial color={rain ? "#b8b1a1" : "#d6cda9"} roughness={0.88} />
+      </mesh>
+      {[-3.0, -1.5, 0, 1.5, 3.0].map((x) => (
+        <mesh key={`overlook-post-${x}`} position={[x, 0.72, -2.5]} castShadow>
+          <boxGeometry args={[0.12, 1.28, 0.12]} />
+          <meshStandardMaterial color={rain ? "#435057" : "#4f595f"} roughness={0.6} />
+        </mesh>
+      ))}
+      <mesh position={[0, 1.34, -2.5]} castShadow>
+        <boxGeometry args={[6.4, 0.12, 0.12]} />
+        <meshStandardMaterial color={rain ? "#435057" : "#4f595f"} roughness={0.6} />
+      </mesh>
+      <mesh position={[-1.1, 0.46, 1.0]} rotation={[-Math.PI / 2, 0, 0.28]}>
+        <planeGeometry args={[2.3, 1.1]} />
+        <meshStandardMaterial color={rain ? "#8f9a8d" : "#9fa88e"} roughness={0.9} />
+      </mesh>
+      <CausewayPalm position={[2.8, 0, 1.4]} heading={0.2} seed={900} rain={rain} />
+    </group>
+  );
+}
+
+function CausewayBoats({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
+  const width = bounds.maxX - bounds.minX;
+  const depth = bounds.maxZ - bounds.minZ;
+  const boats = [
+    { x: bounds.minX + width * 0.22, z: bounds.maxZ + 72, h: -0.2, r: 0.9, seed: 1 },
+    { x: bounds.maxX - width * 0.18, z: bounds.minZ + depth * 0.22, h: -0.2, r: -0.55, seed: 2 },
+    { x: bounds.minX + width * 0.52, z: bounds.minZ - 88, h: -0.2, r: 0.18, seed: 3 }
+  ];
+  return (
+    <group>
+      {boats.map((boat) => (
+        <CausewayBoat key={`causeway-boat-${boat.seed}`} position={[boat.x, boat.h, boat.z]} heading={boat.r} seed={boat.seed} rain={rain} />
+      ))}
+    </group>
+  );
+}
+
+function CausewayBoat({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
+  const hull = seed % 2 === 0 ? (rain ? "#b44b52" : "#d84f5c") : (rain ? "#5d89a0" : "#46a7c9");
+  return (
+    <group position={position} rotation={[0, heading, 0]} scale={[0.9 + seededUnit(seed * 7) * 0.32, 0.9, 0.9]}>
+      <mesh position={[0, 0.08, 0]} scale={[1.35, 0.28, 0.48]} castShadow>
+        <sphereGeometry args={[1, 14, 8]} />
+        <meshStandardMaterial color={hull} roughness={0.68} />
+      </mesh>
+      <mesh position={[0, 1.05, 0]} castShadow>
+        <cylinderGeometry args={[0.035, 0.05, 2.0, 8]} />
+        <meshStandardMaterial color={rain ? "#2f3940" : "#343a40"} roughness={0.52} />
+      </mesh>
+      <mesh position={[0.36, 1.12, 0.02]} rotation={[0, 0, -0.18]}>
+        <planeGeometry args={[0.88, 1.42]} />
+        <meshBasicMaterial color={rain ? "#e2e7df" : "#fff4d8"} transparent opacity={0.92} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+function CausewayBuoy({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
+  const red = seed % 2 === 0;
+  return (
+    <group position={position} rotation={[0, seededUnit(seed * 11) * Math.PI, 0]}>
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <cylinderGeometry args={[0.16, 0.22, 0.48, 10]} />
+        <meshStandardMaterial color={red ? (rain ? "#b63d44" : "#d8474f") : rain ? "#d6e2df" : "#fff7df"} roughness={0.55} />
+      </mesh>
+      <mesh position={[0, 0.55, 0]}>
+        <sphereGeometry args={[0.12, 10, 8]} />
+        <meshStandardMaterial color={red ? "#fff7df" : "#d8474f"} roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+function CausewayMileMarker({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
+  return (
+    <group position={position} rotation={[0, heading, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.28, 0.86, 0.2]} />
+        <meshStandardMaterial color={rain ? "#e0e7e3" : "#fff8e4"} roughness={0.58} />
+      </mesh>
+      <mesh position={[0, 0.2, 0.12]}>
+        <boxGeometry args={[0.18, 0.2, 0.035]} />
+        <meshStandardMaterial color={rain ? "#438d93" : "#31a4b5"} roughness={0.46} />
+      </mesh>
+    </group>
+  );
+}
+
+function causewayWaterMarkerPosition(sample: { x: number; z: number; heading: number }, side: number, offset: number) {
+  const rightX = Math.sin(sample.heading + Math.PI / 2);
+  const rightZ = Math.cos(sample.heading + Math.PI / 2);
+  return {
+    x: sample.x + rightX * side * offset,
+    z: sample.z + rightZ * side * offset
+  };
+}
+
+function isCausewayBridgeProgress(progress: number) {
+  return progress < 0.34 || (progress > 0.49 && progress < 0.64) || (progress > 0.78 && progress < 0.98);
 }
 
 function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {

@@ -107,7 +107,7 @@ The practical controller loop:
 - Lower desired speed for sharp curves, then brake if current speed exceeds desired speed.
 - Use `highGrip`, `ghostMode: true`, and `stabilityAssist: true` for visual map checks. This reduces unrelated driving failures.
 
-This is good enough for Sakura, Alpine, and Fjord at the default speed scale. Alpine needs conservative braking because it has longer fast sections and a heavier chicane. For Alpine, a desired-speed range around `4.6` to `14.5` with stronger braking on future heading deltas completed the lap reliably.
+This is good enough for Sakura, Alpine, Fjord, and Keys Causeway at the default speed scale. Alpine needs conservative braking because it has longer fast sections and a heavier chicane. For Alpine, a desired-speed range around `4.6` to `14.5` with stronger braking on future heading deltas completed the lap reliably.
 
 Cloudline is too long for the default review speed. Use `--speed-scale 1.55 --progress-log-ms 30000` for Cloudline completion and visual checks; that kept the lap stable while finishing in about 11 minutes.
 
@@ -119,6 +119,7 @@ What worked:
 - For a full Sakura pass, a screenshot set at representative progress targets was enough to inspect the new scenery.
 - Targeted short runs are useful: capture start/early, then separate mid/end runs if Chromium gets unstable.
 - For longer tracks, split the test into a pure WebSocket completion pass and separate one-screenshot browser visual passes. The pure WebSocket lap is more reliable for proving finish/results, and the targeted browser runs are better for inspecting scenery.
+- If a long browser visual command is otherwise silent long enough for the local tool session to be killed, wrap it with a simple shell heartbeat and keep the screenshot command itself unchanged.
 
 What did not work:
 
@@ -177,6 +178,14 @@ Fjord:
 - The late dark overhead section is treated as Fjord's tunnel/underpass moment. Do not remove it as an artifact unless it blocks visibility or clips through the car.
 - Small cliff rails help the road edge read more like a fjord route. Avoid adding many more generic rocks; the map benefits from clean water/road views.
 
+Keys Causeway:
+
+- The default driver finished cleanly with road-only samples.
+- The route is intentionally fully flat. Keep the long bridge straight as the first major impression and use scenery density, not elevation, for variety.
+- Water, pale shoulders, bridge rails, and the old parallel bridge cue read clearly from the cockpit.
+- Signature lighthouse/marina props should read from the cockpit but stay secondary to the bridge and water views. Keep them colorful and clear without turning them into road-blocking set pieces.
+- For browser captures beyond the first bridge targets, use a heartbeat wrapper or split targets so quiet long drives are not killed before screenshots are written.
+
 Cloudline:
 
 - Use `--speed-scale 1.55 --progress-log-ms 30000` for full-lap checks. The default driver is stable but too slow/silent for practical Cloudline completion.
@@ -222,6 +231,19 @@ Fjord:
 - Latest visual command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track fjord --targets 0.145:waterfall-approach,0.445:lookout-approach,0.675:village-approach,0.91:tunnel-finish --out-dir playtest-captures-fjord-refresh --timeout-ms 540000'`
 - Latest visual recheck: waterfall approach, lookout approach, village approach, and tunnel/finish captures had no browser console errors.
 - Visual notes: water and route read cleanly; village/lookout are more readable; waterfall is visible but intentionally secondary; late tunnel/underpass view is expected.
+
+Keys Causeway:
+
+- Command: `npm run playtest:lap -- --track causeway --timeout-ms 540000 --progress-log-ms 30000 --json`
+- Latest recorded result: finished, no crash, no DNF.
+- Latest recorded finish time: about `438.536s`.
+- Latest recorded max center distance: `2.86`.
+- Surfaces sampled by the generic script: `road` only.
+- Latest visual command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track causeway --targets 0.08:bridge-final,0.285:old-bridge-final --out-dir playtest-captures-causeway-early-final --timeout-ms 180000 --speed-scale 2.2 --width 1024 --height 640'`
+- Follow-up visual command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track causeway --targets 0.418:lighthouse-final,0.695:marina-final --out-dir playtest-captures-causeway-final --timeout-ms 300000 --speed-scale 2.2 --width 1024 --height 640'`
+- Latest landmark recheck command: `npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright))) npm run playtest:capture -- --track causeway --targets 0.418:lighthouse-recheck,0.695:marina-recheck --out-dir playtest-captures-causeway-landmark-recheck --timeout-ms 300000 --speed-scale 2.2 --width 1024 --height 640'`
+- Latest visual recheck: bridge straight, old bridge, strengthened lighthouse, and strengthened marina captures had no browser console errors when wrapped with a shell heartbeat.
+- Visual notes: bridge straight is strong; open-water bends intentionally breathe; lighthouse and marina are clearer side landmarks rather than dominant road-blocking objects.
 
 Cloudline:
 

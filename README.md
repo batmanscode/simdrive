@@ -26,7 +26,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Display landing/lobby/results screens support System, Light, and Dark themes.
 - The home screen shows a live active-driver count only when at least one driver is online.
 - One-player practice works.
-- Four tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- Five tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, formula-style cars, countdown lights, and a short first-place banner.
 - Race view includes a minimap and live global leaderboard.
 - Results include podium-style placement, total time, and best lap.
