@@ -82,6 +82,43 @@ export const TRACKS: Record<TrackId, TrackDef> = {
       { x: -160, y: 7, z: -160 }
     ], 0.5, 0.45)
   },
+  causeway: {
+    id: "causeway",
+    name: "Keys Causeway",
+    description: "Flat coastal endurance route with a landmark bridge straight, island bends, and wide ocean views.",
+    inspiration: "Florida Keys Overseas Highway and Seven Mile Bridge causeway driving.",
+    targetLap: "~4 min",
+    width: 12.4,
+    curbWidth: 1.25,
+    wallMargin: 9,
+    points: scalePoints([
+      { x: 0, z: 0 },
+      { x: 420, z: 0 },
+      { x: 860, z: 0 },
+      { x: 1300, z: -4 },
+      { x: 1680, z: -10 },
+      { x: 1940, z: 130 },
+      { x: 2070, z: 420 },
+      { x: 1950, z: 720 },
+      { x: 1640, z: 875 },
+      { x: 1200, z: 820 },
+      { x: 820, z: 660 },
+      { x: 470, z: 815 },
+      { x: 120, z: 960 },
+      { x: -300, z: 900 },
+      { x: -610, z: 670 },
+      { x: -840, z: 430 },
+      { x: -1140, z: 520 },
+      { x: -1430, z: 735 },
+      { x: -1720, z: 620 },
+      { x: -1900, z: 320 },
+      { x: -1800, z: 90 },
+      { x: -1450, z: -60 },
+      { x: -1040, z: -95 },
+      { x: -650, z: -55 },
+      { x: -260, z: -10 }
+    ], 0.7)
+  },
   cloudline: {
     id: "cloudline",
     name: "Cloudline Ascent",

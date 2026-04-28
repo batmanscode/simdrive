@@ -10,6 +10,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test grass/off-track recovery: it should punish mistakes without feeling like the car is stuck forever.
 - Test braking into the Sakura hairpin and Alpine chicane: braking should feel strong but not instant.
 - Test Fjord Loop manually for a full lap: watch for road disappearing into grass, grass stripe artifacts across the road, false tunnels/walls, or floating-sky gaps.
+- Test Keys Causeway manually for a full lap: check that the bridge straight feels fast but not empty, water/shore props stay off the road, and the flat coastal route remains readable through the island bends.
 - Test Cloudline Ascent manually for several representative sections and at least one long climb/descent: watch for the same terrain artifacts as Fjord, especially around stacked switchbacks.
 - Test uphill/downhill sections on Fjord and Cloudline: grade physics should feel like a hill effect without snapping the car to the wrong elevated road layer.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.

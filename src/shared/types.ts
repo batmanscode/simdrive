@@ -1,6 +1,6 @@
 export type Phase = "lobby" | "countdown" | "racing" | "results";
 
-export type TrackId = "sakura" | "alpine" | "fjord" | "cloudline";
+export type TrackId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline";
 
 export type SurfaceType = "road" | "curb" | "grass" | "wall";
 

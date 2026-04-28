@@ -206,15 +206,17 @@ The main race view should be first-person/cockpit-style, as if the player is ins
 
 ### Tracks
 
-MVP includes four real-inspired tracks. They should draw from fan-favorite Formula 1 circuit archetypes and public-road mountain archetypes. Real-world course characteristics can be used as references; avoid official trademarks, logos, signage, or branded assets unless those are intentionally licensed or cleared.
+MVP includes five real-inspired tracks. They should draw from fan-favorite Formula 1 circuit archetypes, public-road coastal archetypes, and public-road mountain archetypes. Real-world course characteristics can be used as references; avoid official trademarks, logos, signage, or branded assets unless those are intentionally licensed or cleared.
 
 Research signals point repeatedly to Spa-Francorchamps, Monza, Suzuka, Silverstone, Monaco, and Interlagos/Sao Paulo as strong inspiration pools. Use those as design inspiration only.
 
-Research references used for Track C and Track D:
+Research references used for Track C, Track D, and Track E:
 
 - Nürburgring official race tracks page: Nordschleife length/context: https://nuerburgring.de/info/nuerburgring/race-tracks?locale=en
 - Pikes Peak International Hill Climb official race page: course length, turns, and elevation climb: https://ppihc.org/about/
 - Norwegian Scenic Routes Geiranger-Trollstigen page: fjord/mountain scenery, hairpins, climbs, and descents: https://www.nasjonaleturistveger.no/en/routes/geiranger--trollstigen/
+- Florida Keys & Key West Seven Mile Bridge page: Overseas Highway ocean views, old parallel bridge, and Pigeon Key context: https://visitfloridakeys.com/plan-your-trip/plan-book/getting-here-around/seven-mile-bridge
+- Britannica Seven Mile Bridge page: bridge length, Overseas Highway relationship, and old/new bridge history: https://www.britannica.com/place/Seven-Mile-Bridge
 
 Track A: `Sakura Sprint`
 
@@ -240,7 +242,15 @@ Track C: `Fjord Loop`
 - Key features: fjord-side water views, timber village scenery, ridge climbs, downhill braking zones, cliff markers, waterfalls, and generous off-track prop clearance.
 - Target lap time: about 4 minutes for an average player.
 
-Track D: `Cloudline Ascent`
+Track D: `Keys Causeway`
+
+- Flat coastal endurance loop.
+- Designed for a roughly 4-minute lap with a long bridge straight, open water views, and calmer island bends.
+- Inspired by the feel of the Florida Keys Overseas Highway, Seven Mile Bridge, the parallel Old Seven Mile Bridge, and low island causeway scenery.
+- Key features: fully flat centerline, long straight over water, turquoise sea plane, pale shoulders, low bridge rails, old parallel bridge sections, palms, mangroves, lighthouse/marina scenery, and generous prop clearance.
+- Target lap time: about 4 minutes for an average player.
+
+Track E: `Cloudline Ascent`
 
 - Very long mountain-pass endurance track.
 - Designed for a roughly 12-minute lap with extended climbing, stacked switchbacks, exposed ridge straights, and a long downhill return.
@@ -556,7 +566,7 @@ Anti-cheat for MVP:
 - Up to 8 players can join one room.
 - A display can render 1 to 4 local players in split-screen.
 - VIP can select a track, lap count, and rolling/warm-up option.
-- The current MVP track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, and `Cloudline Ascent`.
+- The current MVP track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
 - Race starts, runs, finishes, and shows leaderboard.
 - Phone steering, brake, and throttle control the car.
 - Audio feedback works on phones after user gesture.
