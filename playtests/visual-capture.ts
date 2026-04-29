@@ -1,7 +1,8 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { hasFlag, parseTrackId, RaceDriver, readArg, readNumberArg, readRepeatedArg, sleep } from "./lib/driver.js";
+import { hasFlag, parseTrackId, parseVehicleId, RaceDriver, readArg, readNumberArg, readRepeatedArg, sleep } from "./lib/driver.js";
+import type { CarSetupId } from "../src/shared/types.js";
 
 type Target = {
   fraction: number;
@@ -16,6 +17,8 @@ let browser: { close: () => Promise<void> } | undefined;
 try {
   const serverUrl = readArg(args, "--server", "http://127.0.0.1:8787/")!;
   const trackId = parseTrackId(readArg(args, "--track", "alpine"));
+  const vehicleId = parseVehicleId(readArg(args, "--vehicle", "formula"));
+  const setupId = readArg(args, "--setup") as CarSetupId | undefined;
   const timeoutMs = readNumberArg(args, "--timeout-ms", "120000", { integer: true, min: 1 });
   const width = readNumberArg(args, "--width", "1440", { integer: true, min: 1 });
   const height = readNumberArg(args, "--height", "900", { integer: true, min: 1 });
@@ -50,8 +53,10 @@ try {
     roomCode,
     displayGroupId: displaySession.displayGroupId,
     trackId,
+    vehicleId,
+    carSetupId: setupId,
     speedScale,
-    name: `${trackId} visual`,
+    name: `${vehicleId} ${trackId} visual`,
     color: "#ff8f3d"
   });
   await driver.start();
@@ -62,7 +67,7 @@ try {
     await driver.waitForProgress(target.fraction, timeoutMs);
     driver.setHolding(true);
     await sleep(250);
-    const filename = `${trackId}-${safeLabel(target.label)}.png`;
+    const filename = `${trackId}-${vehicleId}-${safeLabel(target.label)}.png`;
     const filePath = path.join(outDir, filename);
     await page.screenshot({ path: filePath, fullPage: false });
     captures.push({
@@ -75,7 +80,7 @@ try {
     await sleep(100);
   }
 
-  console.log(JSON.stringify({ roomCode, trackId, captures, consoleErrors }, null, 2));
+  console.log(JSON.stringify({ roomCode, trackId, vehicleId, captures, consoleErrors }, null, 2));
   if (consoleErrors.length > 0) process.exitCode = 1;
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

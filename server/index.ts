@@ -2,10 +2,10 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { CAR_SETUPS, DEFAULT_CAR_SETUP_ID } from "../src/shared/cars.js";
+import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getDefaultSetupIdForVehicle, getVehicle, hasVehicleSetup, kmhToInternalSpeed, resolveCarSetupId, VEHICLES } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -23,6 +23,7 @@ const CRASH_EVENT_TTL_MS = 1_600;
 const CRASH_EVENT_COOLDOWN_MS = 1_200;
 const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
+const VEHICLE_IDS = new Set<VehicleId>(Object.keys(VEHICLES) as VehicleId[]);
 
 type ClientRole = "unknown" | "display" | "controller";
 
@@ -212,9 +213,18 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_vehicle") {
+    const player = getClientPlayer(client, room);
+    if (!player || room.phase !== "lobby" || !VEHICLE_IDS.has(message.vehicleId)) return;
+    player.vehicleId = message.vehicleId;
+    player.carSetupId = resolveCarSetupId(player.vehicleId, player.carSetupId);
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "set_car_setup") {
     const player = getClientPlayer(client, room);
-    if (!player || room.phase !== "lobby" || !CAR_SETUPS[message.carSetupId]) return;
+    if (!player || room.phase !== "lobby" || !hasVehicleSetup(player.vehicleId, message.carSetupId)) return;
     player.carSetupId = message.carSetupId;
     broadcastRoom(room);
     return;
@@ -357,7 +367,8 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     displayGroupId,
     name: `Driver ${room.players.size + 1}`,
     color: defaultColors[room.players.size % defaultColors.length],
-    carSetupId: DEFAULT_CAR_SETUP_ID,
+    vehicleId: DEFAULT_VEHICLE_ID,
+    carSetupId: getDefaultSetupIdForVehicle(DEFAULT_VEHICLE_ID) ?? DEFAULT_CAR_SETUP_ID,
     cockpitStyle: "hands",
     isReady: false,
     isVIP: false,
@@ -407,7 +418,9 @@ function tickRoom(room: Room, dt: number) {
       ? room.inputs.get(car.playerId) ?? emptyInput
       : { ...emptyInput, brake: 0.35 };
     stepCar(car, input, track, room.settings, dt, raceTime);
-    if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= WALL_EXPLOSION_SPEED_THRESHOLD) {
+    if (!wasCrashed && car.crashed && !car.finished && !car.dnf) {
+      addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 28, 0.65, 1), [car.playerId], car.y);
+    } else if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= wallExplosionSpeedThreshold(car)) {
       addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId], car.y);
     }
     crashedBeforeContacts.set(car.playerId, car.crashed);
@@ -533,6 +546,11 @@ function updateResetAvailability(car: CarState, raceTime: number) {
 function raceLimitSeconds(track: (typeof TRACKS)[keyof typeof TRACKS], lapCount: number) {
   const measuredLap = trackMetrics(track).totalLength / 4.2;
   return Math.max(240, measuredLap * lapCount * 2 + 60);
+}
+
+function wallExplosionSpeedThreshold(car: CarState) {
+  const vehicle = getVehicle(car.vehicleId);
+  return Math.min(WALL_EXPLOSION_SPEED_THRESHOLD, kmhToInternalSpeed(vehicle.physics.wallExplosionSpeedKmh));
 }
 
 function roomState(room: Room): RoomState {

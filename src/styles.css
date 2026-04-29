@@ -1529,6 +1529,41 @@ input {
   gap: 8px;
 }
 
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vehicle-card {
+  min-height: 58px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  padding: 10px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #24272d;
+  color: #fffaf0;
+  text-align: left;
+}
+
+.vehicle-card.active {
+  border-color: #35a7ff;
+  background: #2d3138;
+}
+
+.vehicle-card strong,
+.vehicle-card small {
+  overflow-wrap: anywhere;
+}
+
+.vehicle-card small {
+  color: rgba(255, 250, 240, 0.66);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .setup-card {
   display: grid;
   gap: 7px;
@@ -1544,6 +1579,10 @@ input {
 .setup-card.active {
   border-color: #e84f5f;
   background: #2f3035;
+}
+
+.setup-card.locked {
+  border-color: rgba(255, 250, 240, 0.14);
 }
 
 .setup-card small {

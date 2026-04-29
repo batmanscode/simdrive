@@ -26,6 +26,7 @@ Reusable playtest scripts live under `playtests/`.
 
 - `npm run playtest:lap -- --track alpine` runs a pure WebSocket full-lap completion check. It creates a room through the server protocol, joins a controller, drives one lap, and prints JSON with finish state, surfaces, max center distance, progress marks, and results.
 - `npm run playtest:lap -- --track sakura --json` does the same with quieter output.
+- Add `--vehicle formula`, `--vehicle kart`, `--vehicle stockTruck`, or `--vehicle tukTuk` to test a specific vehicle class. Add `--setup balanced`, `--setup highGrip`, or `--setup highSpeed` for vehicles that support multiple setups.
 - `npm run playtest:capture -- --track alpine --target 0.24:vista` runs one browser visual capture. It creates the display in Playwright, drives to the target progress, briefly brakes, saves a screenshot under `playtest-captures/`, and prints JSON. Target values are `0-1` fractions or `1-100` percents, optionally followed by `:label`.
 - Add `--speed-scale 1.55` when a very long track needs a faster automation pass. The default is `1`, so existing Sakura/Alpine behavior is unchanged.
 - Add `--progress-log-ms 30000` to `playtest:lap` for long maps. It writes progress heartbeats to stderr so long runs do not sit silent for many minutes.
