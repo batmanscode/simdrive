@@ -1579,9 +1579,13 @@ const DEV_ASSETS: DevAsset[] = [
   { group: "Cloudline", name: "CloudlineSummitPoles", render: (rain) => <CloudlineSummitPoles position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Cloudline", name: "CloudWisps", render: (rain) => <CloudWispsPreview rain={rain} /> },
   { group: "Cloudline", name: "CloudlineBackdrop", zoom: 1.08, render: (rain) => <CloudlineBackdropPreview rain={rain} /> },
-  { group: "Vehicle", name: "CarModel", render: () => <CarModel car={DEV_ASSET_CAR} color="#ff8f3d" /> },
-  { group: "Vehicle", name: "Cockpit hands", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="hands" /> },
-  { group: "Vehicle", name: "Cockpit paws", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="paws" /> }
+  { group: "Vehicle", name: "CarModel", note: "Shared visual for balanced, high grip, and high speed setups", render: () => <CarModel car={DEV_ASSET_CAR} color="#ff8f3d" /> },
+  { group: "Vehicle", name: "Driver Colour Lineup", note: "Every colour available in the new controller setup", render: () => <DriverColourLineup /> },
+  { group: "Cockpit", name: "Cockpit none", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="none" /> },
+  { group: "Cockpit", name: "Cockpit hands", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="hands" /> },
+  { group: "Cockpit", name: "Cockpit paws", render: () => <Cockpit car={DEV_ASSET_CAR} color="#ff8f3d" cockpitStyle="paws" /> },
+  { group: "Driver", name: "Hands on wheel", render: () => <DriverWheelPreview cockpitStyle="hands" /> },
+  { group: "Driver", name: "Paws on wheel", render: () => <DriverWheelPreview cockpitStyle="paws" /> }
 ];
 
 function SakuraBlossomTunnelPreview({ rain }: { rain: boolean }) {
@@ -5108,6 +5112,36 @@ function CockpitRevLights({ speed, throttle }: { speed: number; throttle: number
           </mesh>
         );
       })}
+    </group>
+  );
+}
+
+function DriverColourLineup() {
+  const columns = 4;
+  const xGap = 3.1;
+  const zGap = 4.1;
+  const centerX = ((columns - 1) * xGap) / 2;
+  const rows = Math.ceil(COLORS.length / columns);
+  const centerZ = ((rows - 1) * zGap) / 2;
+  return (
+    <group>
+      {COLORS.map((color, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        return (
+          <group key={color} position={[col * xGap - centerX, 0, row * zGap - centerZ]}>
+            <CarModel car={DEV_ASSET_CAR} color={color} />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function DriverWheelPreview({ cockpitStyle }: { cockpitStyle: Exclude<CockpitStyle, "none"> }) {
+  return (
+    <group position={[0, -0.1, -0.08]}>
+      <CockpitWheel steer={DEV_ASSET_CAR.steer} style={cockpitStyle} />
     </group>
   );
 }
