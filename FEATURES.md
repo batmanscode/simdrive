@@ -19,7 +19,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - Each driver can choose a personal cockpit style: None, Hands, or Paws.
 - Non-VIP players can see the chosen race settings and driver setups in the lobby.
 - Five tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
-- Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, formula-style cars, and per-driver cockpit Hands/Paws/None display cosmetics.
+- Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, vehicle-specific cockpit silhouettes, and per-driver cockpit Hands/Paws/None display cosmetics.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
 - Controller setup/lobby screens warn when the phone is not on the recommended Android Chromium-style browser path for best motion and haptic support.
 - Audio feedback includes engine speed/throttle, tire slip/off-road noise, brake tone, curb rumble, impact thuds, start/test cue, server-marked countdown beeps, and a stronger race-start `GO` cue.

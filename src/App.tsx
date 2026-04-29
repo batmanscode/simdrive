@@ -4937,13 +4937,63 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
           <boxGeometry args={[0.72, 0.22, 0.5]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
         </mesh>
+        <mesh castShadow position={[0, 0.22, 0.84]}>
+          <boxGeometry args={[0.5, 0.022, 0.3]} />
+          <meshStandardMaterial color={color} roughness={0.32} metalness={0.18} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`kart-nose-seam-${side}`} castShadow position={[side * 0.26, 0.235, 0.84]}>
+            <boxGeometry args={[0.016, 0.012, 0.28]} />
+            <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+          </mesh>
+        ))}
+        <mesh castShadow position={[0, 0.236, 0.69]}>
+          <boxGeometry args={[0.43, 0.012, 0.018]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[0, 0.225, 1.08]}>
+          <boxGeometry args={[0.62, 0.02, 0.055]} />
+          <meshStandardMaterial color="#0f1318" roughness={0.44} metalness={0.16} />
+        </mesh>
         <mesh castShadow position={[-0.72, 0.08, 0.08]}>
           <boxGeometry args={[0.24, 0.18, 1.0]} />
           <meshStandardMaterial color={color} roughness={0.36} metalness={0.14} />
         </mesh>
+        <mesh castShadow position={[-0.72, 0.185, 0.08]}>
+          <boxGeometry args={[0.18, 0.018, 0.82]} />
+          <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
+        </mesh>
+        <mesh castShadow position={[-0.82, 0.204, 0.08]}>
+          <boxGeometry args={[0.018, 0.012, 0.72]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[-0.72, 0.205, -0.34]}>
+          <boxGeometry args={[0.17, 0.012, 0.018]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[-0.72, 0.195, 0.53]}>
+          <boxGeometry args={[0.2, 0.018, 0.055]} />
+          <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.16} />
+        </mesh>
         <mesh castShadow position={[0.72, 0.08, 0.08]}>
           <boxGeometry args={[0.24, 0.18, 1.0]} />
           <meshStandardMaterial color={color} roughness={0.36} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[0.72, 0.185, 0.08]}>
+          <boxGeometry args={[0.18, 0.018, 0.82]} />
+          <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
+        </mesh>
+        <mesh castShadow position={[0.82, 0.204, 0.08]}>
+          <boxGeometry args={[0.018, 0.012, 0.72]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[0.72, 0.205, -0.34]}>
+          <boxGeometry args={[0.17, 0.012, 0.018]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
+        </mesh>
+        <mesh castShadow position={[0.72, 0.195, 0.53]}>
+          <boxGeometry args={[0.2, 0.018, 0.055]} />
+          <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.16} />
         </mesh>
         <mesh castShadow position={[0, 0.18, -0.36]}>
           <boxGeometry args={[0.54, 0.36, 0.54]} />
@@ -4976,9 +5026,16 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
           <meshStandardMaterial color="#07090c" roughness={0.5} />
         </mesh>
         <mesh castShadow position={[0, 0.35, 0.35]} rotation={[0.9, 0, 0]}>
-          <cylinderGeometry args={[0.024, 0.024, 0.48, 8]} />
-          <meshStandardMaterial color="#111418" roughness={0.44} metalness={0.28} />
+          <cylinderGeometry args={[0.032, 0.032, 0.58, 10]} />
+          <meshStandardMaterial color="#111418" roughness={0.44} metalness={0.32} />
         </mesh>
+        <mesh castShadow position={[0, 0.46, 0.18]} rotation={[0.9, 0, 0]}>
+          <boxGeometry args={[0.28, 0.05, 0.06]} />
+          <meshStandardMaterial color="#111418" roughness={0.44} metalness={0.26} />
+        </mesh>
+        <group position={[0, 0.52, 0.1]} scale={[0.48, 0.48, 0.48]}>
+          <KartDataLogger speed={car.speed} throttle={car.throttle} />
+        </group>
         {[-1, 1].map((side) => (
           <mesh key={`pedal-${side}`} castShadow position={[side * 0.16, 0.18, 0.55]} rotation={[-0.2, 0, 0]}>
             <boxGeometry args={[0.12, 0.035, 0.18]} />
@@ -5288,6 +5345,10 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         <boxGeometry args={[0.14, 0.09, 0.48]} />
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.18} />
       </mesh>
+      <mesh castShadow visible={visible} position={[0, 0.11, 2.12]}>
+        <boxGeometry args={[0.18, 0.035, 1.0]} />
+        <meshStandardMaterial color="#111318" roughness={0.46} metalness={0.16} />
+      </mesh>
       <mesh castShadow visible={visible} position={[0, 0.18, 1.45]}>
         <boxGeometry args={[0.12, 0.045, 1.85]} />
         <meshStandardMaterial color="#fffaf0" roughness={0.42} metalness={0.08} />
@@ -5303,6 +5364,18 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
       <mesh castShadow visible={visible} position={[0, 0.36, -0.78]}>
         <boxGeometry args={[0.12, 0.62, 0.9]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
+      </mesh>
+      <mesh castShadow position={[0, 0.72, -0.86]} rotation={[0.08, 0, 0]} visible={visible}>
+        <boxGeometry args={[0.34, 0.18, 0.44]} />
+        <meshStandardMaterial color="#111318" roughness={0.42} metalness={0.14} />
+      </mesh>
+      <mesh castShadow position={[0, 0.73, -0.64]} visible={visible}>
+        <boxGeometry args={[0.18, 0.08, 0.055]} />
+        <meshStandardMaterial color="#050608" roughness={0.52} metalness={0.08} />
+      </mesh>
+      <mesh castShadow position={[0, 0.5, -0.58]} visible={visible}>
+        <boxGeometry args={[0.48, 0.22, 0.22]} />
+        <meshStandardMaterial color="#15181d" roughness={0.42} metalness={0.1} />
       </mesh>
       <mesh castShadow position={[0, 0.24, -0.48]} visible={visible}>
         <boxGeometry args={[0.72, 0.34, 0.72]} />
@@ -5345,6 +5418,18 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
           <boxGeometry args={[0.045, 0.16, 0.44]} />
           <meshStandardMaterial color="#101214" roughness={0.48} metalness={0.08} />
         </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <group key={`formula-sidepod-sweep-${side}`} visible={visible}>
+          <mesh castShadow position={[side * 0.64, 0.11, 0.34]} rotation={[0, side * 0.28, 0]}>
+            <boxGeometry args={[0.04, 0.18, 0.36]} />
+            <meshStandardMaterial color="#111318" roughness={0.48} metalness={0.08} />
+          </mesh>
+          <mesh castShadow position={[side * 0.68, 0.2, 0.28]} rotation={[0, side * -0.12, side * 0.08]}>
+            <boxGeometry args={[0.28, 0.035, 0.46]} />
+            <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
+          </mesh>
+        </group>
       ))}
       <mesh castShadow position={[0, 0.22, 2.05]} visible={visible}>
         <boxGeometry args={[2.25, 0.08, 0.34]} />
@@ -5413,11 +5498,19 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
       {[-1, 1].map((side) => (
         <group key={`suspension-${side}`} visible={visible}>
           <mesh position={[side * 0.54, 0.03, 0.9]} rotation={[0, side * 0.22, side * 0.16]}>
-            <boxGeometry args={[0.045, 0.045, 1.15]} />
+            <boxGeometry args={[0.032, 0.034, 1.15]} />
             <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
           </mesh>
           <mesh position={[side * 0.54, 0.03, -0.9]} rotation={[0, side * -0.2, side * -0.14]}>
-            <boxGeometry args={[0.045, 0.045, 1.05]} />
+            <boxGeometry args={[0.032, 0.034, 1.05]} />
+            <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
+          </mesh>
+          <mesh position={[side * 0.62, 0.09, 0.88]} rotation={[0, side * 0.18, side * -0.08]}>
+            <boxGeometry args={[0.026, 0.03, 1.02]} />
+            <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
+          </mesh>
+          <mesh position={[side * 0.62, 0.09, -0.86]} rotation={[0, side * -0.17, side * 0.08]}>
+            <boxGeometry args={[0.026, 0.03, 0.92]} />
             <meshStandardMaterial color="#15181d" roughness={0.44} metalness={0.18} />
           </mesh>
         </group>
@@ -5496,27 +5589,27 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
         <boxGeometry args={[0.1, 0.055, 2.5]} />
         <meshStandardMaterial color="#fffaf0" roughness={0.45} metalness={0.08} />
       </mesh>
-      <mesh position={[0, 0.0, 2.45]}>
+      <mesh position={[0, -0.1, 2.45]}>
         <boxGeometry args={[1.72, 0.08, 0.42]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
       </mesh>
-      <mesh position={[0, -0.12, 2.78]}>
+      <mesh position={[0, -0.2, 2.78]}>
         <boxGeometry args={[2.02, 0.055, 0.18]} />
         <meshStandardMaterial color="#111318" roughness={0.5} />
       </mesh>
-      <mesh position={[-0.92, -0.02, 2.45]}>
+      <mesh position={[-0.92, -0.1, 2.45]}>
         <boxGeometry args={[0.08, 0.26, 0.46]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
-      <mesh position={[0.92, -0.02, 2.45]}>
+      <mesh position={[0.92, -0.1, 2.45]}>
         <boxGeometry args={[0.08, 0.26, 0.46]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
-      <mesh position={[-1.06, -0.05, 2.68]}>
+      <mesh position={[-1.06, -0.13, 2.68]}>
         <boxGeometry args={[0.08, 0.38, 0.32]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
-      <mesh position={[1.06, -0.05, 2.68]}>
+      <mesh position={[1.06, -0.13, 2.68]}>
         <boxGeometry args={[0.08, 0.38, 0.32]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
@@ -5560,16 +5653,133 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
         <boxGeometry args={[0.42, 0.04, 0.1]} />
         <meshStandardMaterial color="#101214" roughness={0.42} />
       </mesh>
-      <CockpitWheel steer={car.steer} style={cockpitStyle} />
-      <CockpitRevLights speed={car.speed} throttle={car.throttle} />
-      <mesh position={[0, 0.08, 1.0]}>
-        <boxGeometry args={[0.82, 0.18, 0.42]} />
+      <mesh position={[0, 0.25, 0.68]} rotation={[0.52, 0, 0]}>
+        <boxGeometry args={[0.06, 0.06, 0.48]} />
+        <meshStandardMaterial color="#101214" roughness={0.46} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 0.21, 0.84]} rotation={[0.42, 0, 0]}>
+        <boxGeometry args={[0.22, 0.045, 0.08]} />
+        <meshStandardMaterial color="#151922" roughness={0.44} metalness={0.2} />
+      </mesh>
+      <FormulaSteeringWheel steer={car.steer} style={cockpitStyle} speed={car.speed} throttle={car.throttle} />
+      <mesh position={[0, -0.06, 1.02]}>
+        <boxGeometry args={[0.56, 0.055, 0.28]} />
         <meshStandardMaterial color="#101214" roughness={0.52} />
       </mesh>
-      <mesh position={[0, 0.2, 0.8]}>
-        <torusGeometry args={[0.55, 0.035, 8, 28, Math.PI]} />
-        <meshStandardMaterial color="#111318" />
+      <mesh position={[0, 0.07, 0.82]}>
+        <boxGeometry args={[0.62, 0.045, 0.07]} />
+        <meshStandardMaterial color="#111318" roughness={0.48} metalness={0.08} />
       </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`formula-cockpit-rim-${side}`} position={[side * 0.42, 0.08, 0.78]} rotation={[0, side * 0.16, side * 0.12]}>
+          <boxGeometry args={[0.055, 0.055, 0.76]} />
+          <meshStandardMaterial color="#111318" roughness={0.48} metalness={0.08} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FormulaSteeringWheel({ steer, style, speed, throttle }: { steer: number; style: CockpitStyle; speed: number; throttle: number }) {
+  const turn = -clamp(steer, -1, 1) * 0.62;
+  const hands = useRef<THREE.Group>(null);
+  const handTurn = useRef(turn);
+  const level = clamp(speed / 42 + throttle * 0.22, 0, 1);
+  const lit = Math.round(level * 7);
+  useFrame((_, delta) => {
+    handTurn.current = THREE.MathUtils.lerp(handTurn.current, turn, smoothingAmount(delta, 10));
+    if (hands.current) hands.current.rotation.z = handTurn.current;
+  });
+  return (
+    <group position={[0, 0.5, 0.54]} scale={[0.78, 0.78, 0.78]}>
+      <group rotation={[0, 0, turn]}>
+        <mesh position={[0, 0, -0.006]}>
+          <boxGeometry args={[0.34, 0.18, 0.058]} />
+          <meshStandardMaterial color="#121821" roughness={0.44} metalness={0.12} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`formula-wheel-grip-${side}`} position={[side * 0.245, -0.01, -0.008]} rotation={[0, 0, side * 0.12]}>
+            <capsuleGeometry args={[0.032, 0.18, 4, 10]} />
+            <meshStandardMaterial color="#07090c" roughness={0.5} metalness={0.08} />
+          </mesh>
+        ))}
+        {[-1, 1].map((side) => (
+          <mesh key={`formula-wheel-spoke-${side}`} position={[side * 0.14, -0.02, -0.002]} rotation={[0, 0, side * 0.22]}>
+            <boxGeometry args={[0.18, 0.03, 0.038]} />
+            <meshStandardMaterial color="#151922" roughness={0.48} metalness={0.12} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.002, -0.042]}>
+          <boxGeometry args={[0.25, 0.096, 0.01]} />
+          <meshStandardMaterial color="#10212b" emissive="#07151b" emissiveIntensity={0.24} roughness={0.34} metalness={0.05} />
+        </mesh>
+        <mesh position={[0, -0.12, 0.018]}>
+          <boxGeometry args={[0.14, 0.046, 0.052]} />
+          <meshStandardMaterial color="#151922" roughness={0.44} metalness={0.16} />
+        </mesh>
+        <mesh position={[0, 0.012, -0.049]}>
+          <boxGeometry args={[0.13, 0.016, 0.006]} />
+          <meshStandardMaterial color="#86f2d1" emissive="#1b6753" emissiveIntensity={0.44} roughness={0.34} metalness={0.04} />
+        </mesh>
+        <mesh position={[-0.045, -0.028, -0.05]}>
+          <boxGeometry args={[0.052, 0.014, 0.006]} />
+          <meshStandardMaterial color="#7fc7ff" emissive="#1b4f6b" emissiveIntensity={0.38} roughness={0.34} metalness={0.04} />
+        </mesh>
+        <mesh position={[0.052, -0.028, -0.05]}>
+          <boxGeometry args={[0.066, 0.014, 0.006]} />
+          <meshStandardMaterial color="#ffd166" emissive="#6a4b11" emissiveIntensity={0.34} roughness={0.34} metalness={0.04} />
+        </mesh>
+        {Array.from({ length: 7 }).map((_, index) => {
+          const active = index < lit;
+          const color = index < 3 ? "#24c06f" : index < 5 ? "#ffd166" : "#ff3b5c";
+          return (
+            <mesh key={index} position={[-0.126 + index * 0.042, 0.1, -0.046]}>
+              <boxGeometry args={[0.026, 0.014, 0.01]} />
+              <meshStandardMaterial color={active ? color : "#28303a"} emissive={active ? color : "#000000"} emissiveIntensity={active ? 1.25 : 0} roughness={0.36} metalness={0.04} />
+            </mesh>
+          );
+        })}
+      </group>
+      {style !== "none" && (
+        <group ref={hands} rotation={[0, 0, handTurn.current]}>
+          <FormulaWheelHand side={-1} style={style} />
+          <FormulaWheelHand side={1} style={style} />
+        </group>
+      )}
+    </group>
+  );
+}
+
+function FormulaWheelHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
+  const isPaws = style === "paws";
+  const skin = isPaws ? "#f2c8a4" : "#d4a06f";
+  return (
+    <group position={[side * 0.255, -0.02, -0.055]} rotation={[0.08, side * -0.12, side * -0.1]}>
+      <mesh scale={isPaws ? [0.72, 0.5, 0.32] : [0.64, 0.38, 0.28]}>
+        <sphereGeometry args={[isPaws ? 0.11 : 0.095, 16, 10]} />
+        <meshStandardMaterial color={skin} roughness={0.76} />
+      </mesh>
+      {isPaws ? (
+        <>
+          {[-0.05, 0, 0.05].map((offset) => (
+            <mesh key={offset} position={[offset, 0.04, -0.035]} scale={[0.66, 0.42, 0.3]}>
+              <sphereGeometry args={[0.022, 9, 6]} />
+              <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
+            </mesh>
+          ))}
+          <mesh position={[0, -0.018, -0.036]} scale={[0.92, 0.55, 0.28]}>
+            <sphereGeometry args={[0.035, 10, 7]} />
+            <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
+          </mesh>
+        </>
+      ) : (
+        [-0.05, -0.017, 0.017, 0.05].map((offset) => (
+          <mesh key={offset} position={[offset * 0.8, 0.052, -0.03]} rotation={[0.56, 0, offset * -1.0]} scale={[1, 0.72, 0.54]}>
+            <capsuleGeometry args={[0.013, 0.074, 3, 8]} />
+            <meshStandardMaterial color={skin} roughness={0.72} />
+          </mesh>
+        ))
+      )}
     </group>
   );
 }
@@ -5588,15 +5798,128 @@ function KartCockpit({ car, color, cockpitStyle }: { car: CarState; color: strin
         <boxGeometry args={[0.68, 0.18, 0.5]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.12} />
       </mesh>
+      <mesh position={[0, -0.052, 1.38]}>
+        <boxGeometry args={[0.48, 0.018, 0.28]} />
+        <meshStandardMaterial color={color} roughness={0.34} metalness={0.14} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`kart-cockpit-nose-seam-${side}`} position={[side * 0.25, -0.038, 1.38]}>
+          <boxGeometry args={[0.014, 0.01, 0.26]} />
+          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.12} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.037, 1.24]}>
+        <boxGeometry args={[0.42, 0.01, 0.016]} />
+        <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.12} />
+      </mesh>
+      <mesh position={[0, -0.042, 1.61]}>
+        <boxGeometry args={[0.58, 0.016, 0.052]} />
+        <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, -0.21, 1.28]}>
+        <boxGeometry args={[1.58, 0.055, 0.055]} />
+        <meshStandardMaterial color="#242a31" roughness={0.42} metalness={0.24} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={`kart-cockpit-frame-${side}`}>
+          <mesh position={[side * 0.34, -0.205, 0.78]} rotation={[0, side * 0.1, 0]}>
+            <boxGeometry args={[0.055, 0.055, 1.26]} />
+            <meshStandardMaterial color="#242a31" roughness={0.42} metalness={0.24} />
+          </mesh>
+          <mesh position={[side * 0.46, -0.16, 0.95]} rotation={[0, side * 0.55, 0]}>
+            <boxGeometry args={[0.035, 0.035, 0.76]} />
+            <meshStandardMaterial color="#15191f" roughness={0.44} metalness={0.26} />
+          </mesh>
+          <mesh position={[side * 0.68, -0.16, 1.12]} rotation={[0, side * 0.2, 0]}>
+            <boxGeometry args={[0.05, 0.05, 0.34]} />
+            <meshStandardMaterial color="#15191f" roughness={0.44} metalness={0.26} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 0.0, 0.72]} rotation={[0.52, 0, 0]}>
+        <boxGeometry args={[0.07, 0.07, 0.86]} />
+        <meshStandardMaterial color="#15191f" roughness={0.44} metalness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.14, 0.62]} rotation={[0.5, 0, 0]}>
+        <boxGeometry args={[0.28, 0.045, 0.06]} />
+        <meshStandardMaterial color="#12171d" roughness={0.44} metalness={0.28} />
+      </mesh>
+      <mesh position={[0, -0.18, 0.42]}>
+        <boxGeometry args={[0.52, 0.05, 0.18]} />
+        <meshStandardMaterial color="#101214" roughness={0.52} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`kart-pedal-${side}`} position={[side * 0.16, -0.12, 0.5]} rotation={[-0.28, 0, 0]}>
+          <boxGeometry args={[0.12, 0.035, 0.16]} />
+          <meshStandardMaterial color="#303640" roughness={0.5} metalness={0.22} />
+        </mesh>
+      ))}
       {[[-0.74, 1.28], [0.74, 1.28]].map(([x, z]) => (
         <group key={x} position={[x, -0.2, z]}>
           <VehicleWheel radius={0.25} width={0.18} spin={wheelSpin} side={x < 0 ? -1 : 1} steer={frontSteer} />
         </group>
       ))}
-      <group position={[0, -0.04, 0.36]} scale={[0.68, 0.68, 0.68]}>
+      <group position={[0, -0.09, 0.36]} scale={[0.68, 0.68, 0.68]}>
         <CockpitWheel steer={car.steer} style={cockpitStyle} />
       </group>
-      <CockpitRevLights speed={car.speed} throttle={car.throttle} />
+      <group position={[0, 0.215, 0.59]} scale={[0.62, 0.62, 0.62]}>
+        <mesh position={[0, -0.09, 0.04]} rotation={[0.42, 0, 0]}>
+          <boxGeometry args={[0.045, 0.045, 0.22]} />
+          <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.28} />
+        </mesh>
+        <mesh position={[0, -0.035, 0.01]}>
+          <boxGeometry args={[0.32, 0.035, 0.035]} />
+          <meshStandardMaterial color="#151a21" roughness={0.42} metalness={0.26} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <mesh key={`kart-logger-stay-${side}`} position={[side * 0.1, -0.13, 0.08]} rotation={[0.48, side * 0.1, side * 0.32]}>
+            <boxGeometry args={[0.034, 0.034, 0.25]} />
+            <meshStandardMaterial color="#2a333c" roughness={0.4} metalness={0.34} />
+          </mesh>
+        ))}
+        <mesh position={[0, -0.18, 0.15]} rotation={[0.58, 0, 0]}>
+          <boxGeometry args={[0.052, 0.052, 0.26]} />
+          <meshStandardMaterial color="#2a333c" roughness={0.4} metalness={0.34} />
+        </mesh>
+        <KartDataLogger speed={car.speed} throttle={car.throttle} />
+      </group>
+    </group>
+  );
+}
+
+function KartDataLogger({ speed, throttle }: { speed: number; throttle: number }) {
+  const level = clamp(speedToKmh(speed) / 125 + throttle * 0.22, 0, 1);
+  const litBars = Math.max(1, Math.round(level * 6));
+  return (
+    <group>
+      <mesh>
+        <boxGeometry args={[0.3, 0.16, 0.045]} />
+        <meshStandardMaterial color="#090d12" roughness={0.44} metalness={0.14} />
+      </mesh>
+      <mesh position={[0, 0.008, -0.028]}>
+        <boxGeometry args={[0.218, 0.078, 0.008]} />
+        <meshStandardMaterial color="#14222a" emissive="#07141a" emissiveIntensity={0.22} roughness={0.38} metalness={0.04} />
+      </mesh>
+      {Array.from({ length: 6 }).map((_, index) => {
+        const active = index < litBars;
+        const color = index < 4 ? "#89f7c3" : "#ffb347";
+        return (
+          <mesh key={index} position={[-0.078 + index * 0.031, 0.024, -0.035]}>
+            <boxGeometry args={[0.02, active ? 0.03 : 0.012, 0.006]} />
+            <meshStandardMaterial color={active ? color : "#26313a"} emissive={active ? color : "#000000"} emissiveIntensity={active ? 0.6 : 0} roughness={0.36} metalness={0.04} />
+          </mesh>
+        );
+      })}
+      <mesh position={[0, -0.034, -0.035]}>
+        <boxGeometry args={[0.13, 0.012, 0.006]} />
+        <meshStandardMaterial color="#7fc7ff" emissive="#1b4f6b" emissiveIntensity={0.34} roughness={0.36} metalness={0.04} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * 0.118, 0.056, -0.028]}>
+          <sphereGeometry args={[0.012, 8, 6]} />
+          <meshStandardMaterial color="#55616c" roughness={0.34} metalness={0.3} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -5606,29 +5929,153 @@ function TruckCockpit({ car, color, cockpitStyle }: { car: CarState; color: stri
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
       <mesh position={[0, -0.28, 1.25]}>
-        <boxGeometry args={[1.55, 0.22, 2.2]} />
+        <boxGeometry args={[2.08, 0.22, 2.2]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.12} />
       </mesh>
       <mesh position={[0, -0.1, 2.05]}>
-        <boxGeometry args={[1.42, 0.06, 0.28]} />
+        <boxGeometry args={[1.88, 0.06, 0.28]} />
         <meshStandardMaterial color="#fffaf0" roughness={0.45} />
       </mesh>
       <mesh position={[0, 0.02, 0.52]}>
-        <boxGeometry args={[1.52, 0.26, 0.46]} />
+        <boxGeometry args={[2.22, 0.26, 0.46]} />
         <meshStandardMaterial color="#101214" roughness={0.54} />
       </mesh>
-      <mesh position={[-0.72, 0.36, 0.48]} rotation={[0, 0, -0.15]}>
-        <boxGeometry args={[0.06, 0.95, 0.06]} />
+      <mesh position={[0, -0.08, 0.78]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[2.32, 0.1, 0.58]} />
+        <meshStandardMaterial color="#252b33" roughness={0.46} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, -0.02, 0.86]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[2.28, 0.035, 0.5]} />
+        <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+      </mesh>
+      <mesh position={[0, -0.04, 0.86]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[2.2, 0.06, 0.16]} />
+        <meshStandardMaterial color="#181b21" roughness={0.44} metalness={0.12} />
+      </mesh>
+      <mesh position={[0, 0.04, 0.96]}>
+        <boxGeometry args={[2.08, 0.035, 0.055]} />
+        <meshStandardMaterial color="#101214" roughness={0.48} metalness={0.14} />
+      </mesh>
+      <mesh position={[-0.84, 0.58, 0.5]} rotation={[0, 0, -0.11]}>
+        <boxGeometry args={[0.06, 1.36, 0.06]} />
         <meshStandardMaterial color="#181b21" roughness={0.42} />
       </mesh>
-      <mesh position={[0.72, 0.36, 0.48]} rotation={[0, 0, 0.15]}>
-        <boxGeometry args={[0.06, 0.95, 0.06]} />
+      <mesh position={[0.84, 0.58, 0.5]} rotation={[0, 0, 0.11]}>
+        <boxGeometry args={[0.06, 1.36, 0.06]} />
         <meshStandardMaterial color="#181b21" roughness={0.42} />
       </mesh>
-      <group position={[0, -0.02, 0.28]} scale={[0.92, 0.92, 0.92]}>
+      <mesh position={[0, 1.32, 0.52]}>
+        <boxGeometry args={[1.74, 0.045, 0.045]} />
+        <meshStandardMaterial color="#181b21" roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 1.34, 0.4]} rotation={[-0.08, 0, 0]}>
+        <boxGeometry args={[1.82, 0.045, 0.1]} />
+        <meshStandardMaterial color="#101214" roughness={0.46} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={`truck-cage-side-${side}`} position={[side * 0.82, 0.94, 0.46]} rotation={[0.2, side * -0.04, side * 0.14]}>
+          <boxGeometry args={[0.035, 1.1, 0.035]} />
+          <meshStandardMaterial color="#20252d" roughness={0.42} metalness={0.16} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.2, 0.74]} rotation={[0.84, 0, 0]}>
+        <boxGeometry args={[0.07, 0.07, 0.46]} />
+        <meshStandardMaterial color="#171b22" roughness={0.44} metalness={0.22} />
+      </mesh>
+      <TruckGaugeCluster speed={car.speed} throttle={car.throttle} />
+      <group position={[0, -0.02, 0.28]} rotation={[-0.14, 0, 0]} scale={[0.92, 0.92, 0.92]}>
         <CockpitWheel steer={car.steer} style={cockpitStyle} />
       </group>
-      <CockpitRevLights speed={car.speed} throttle={car.throttle} />
+    </group>
+  );
+}
+
+function TruckGaugeCluster({ speed, throttle }: { speed: number; throttle: number }) {
+  const revNeedle = -0.7 + clamp(throttle, 0, 1) * 1.4;
+  return (
+    <group position={[0, 0.33, 0.58]} rotation={[-0.08, 0, 0]}>
+      <TruckAnalogGauge x={-0.2} needle={revNeedle} accent="#ff8c3a" />
+      <TruckDigitalSpeedometer speed={speed} />
+    </group>
+  );
+}
+
+function TruckAnalogGauge({ x, needle, accent }: { x: number; needle: number; accent: string }) {
+  return (
+    <group position={[x, 0, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.062, 0.062, 0.024, 22]} />
+        <meshStandardMaterial color="#080a0d" roughness={0.5} metalness={0.1} />
+      </mesh>
+      <mesh position={[0, 0, -0.016]} rotation={[0, 0, needle]}>
+        <boxGeometry args={[0.009, 0.075, 0.007]} />
+        <meshStandardMaterial color={accent} roughness={0.38} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, 0, -0.022]}>
+        <sphereGeometry args={[0.01, 8, 6]} />
+        <meshStandardMaterial color="#d9dde4" roughness={0.4} metalness={0.12} />
+      </mesh>
+    </group>
+  );
+}
+
+const TRUCK_DIGIT_SEGMENTS: Record<string, readonly string[]> = {
+  "0": ["a", "b", "c", "d", "e", "f"],
+  "1": ["b", "c"],
+  "2": ["a", "b", "g", "e", "d"],
+  "3": ["a", "b", "g", "c", "d"],
+  "4": ["f", "g", "b", "c"],
+  "5": ["a", "f", "g", "c", "d"],
+  "6": ["a", "f", "g", "c", "d", "e"],
+  "7": ["a", "b", "c"],
+  "8": ["a", "b", "c", "d", "e", "f", "g"],
+  "9": ["a", "b", "c", "d", "f", "g"],
+  " ": []
+};
+
+const TRUCK_SEGMENT_LAYOUT: Record<string, { position: [number, number, number]; args: [number, number, number] }> = {
+  a: { position: [0, 0.032, -0.017], args: [0.034, 0.006, 0.006] },
+  b: { position: [0.019, 0.017, -0.017], args: [0.006, 0.032, 0.006] },
+  c: { position: [0.019, -0.017, -0.017], args: [0.006, 0.032, 0.006] },
+  d: { position: [0, -0.032, -0.017], args: [0.034, 0.006, 0.006] },
+  e: { position: [-0.019, -0.017, -0.017], args: [0.006, 0.032, 0.006] },
+  f: { position: [-0.019, 0.017, -0.017], args: [0.006, 0.032, 0.006] },
+  g: { position: [0, 0, -0.017], args: [0.032, 0.006, 0.006] }
+};
+
+function TruckDigitalSpeedometer({ speed }: { speed: number }) {
+  const kmh = Math.min(999, Math.max(0, Math.round(speedToKmh(speed))));
+  const digits = kmh.toString().padStart(3, " ").split("");
+  return (
+    <group position={[0.2, 0, 0]}>
+      <mesh position={[0, 0, -0.004]}>
+        <boxGeometry args={[0.19, 0.096, 0.014]} />
+        <meshStandardMaterial color="#06090b" roughness={0.48} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, -0.057, -0.014]}>
+        <boxGeometry args={[0.13, 0.006, 0.005]} />
+        <meshStandardMaterial color="#26313a" roughness={0.44} metalness={0.08} />
+      </mesh>
+      {digits.map((digit, index) => (
+        <TruckDigitalDigit key={`${digit}-${index}`} digit={digit} position={[0.056 - index * 0.056, 0.008, 0]} />
+      ))}
+    </group>
+  );
+}
+
+function TruckDigitalDigit({ digit, position }: { digit: string; position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {(TRUCK_DIGIT_SEGMENTS[digit] ?? []).map((segment) => {
+        const layout = TRUCK_SEGMENT_LAYOUT[segment];
+        const position = [-layout.position[0], layout.position[1], layout.position[2]] as [number, number, number];
+        return (
+          <mesh key={segment} position={position}>
+            <boxGeometry args={layout.args} />
+            <meshStandardMaterial color="#8eddbd" emissive="#315f4e" emissiveIntensity={0.5} roughness={0.38} metalness={0.04} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }
@@ -5639,19 +6086,181 @@ function TukTukCockpit({ car, color, cockpitStyle }: { car: CarState; color: str
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
       <group rotation={[0, 0, roll]}>
-        <mesh position={[0, -0.04, 0.66]} rotation={[-0.08, 0, 0]}>
-          <boxGeometry args={[0.82, 0.045, 0.44]} />
-          <meshStandardMaterial color="#142022" roughness={0.18} />
+        <mesh position={[0, -0.16, 0.86]} rotation={[-0.12, 0, 0]}>
+          <boxGeometry args={[0.88, 0.22, 0.62]} />
+          <meshStandardMaterial color={color} roughness={0.42} metalness={0.08} />
         </mesh>
-        <mesh position={[0, 0.0, 0.46]} rotation={[0.16, 0, 0]}>
-          <boxGeometry args={[0.78, 0.05, 0.08]} />
+        <mesh position={[0, -0.02, 0.72]} rotation={[-0.12, 0, 0]}>
+          <boxGeometry args={[0.82, 0.1, 0.44]} />
+          <meshStandardMaterial color="#142022" roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0.06, 0.54]} rotation={[0.08, 0, 0]}>
+          <boxGeometry args={[0.68, 0.1, 0.2]} />
           <meshStandardMaterial color="#101214" roughness={0.48} />
         </mesh>
-        <group position={[0, 0.16, 0.05]} scale={[0.82, 0.82, 0.82]}>
-          <CockpitWheel steer={car.steer} style={cockpitStyle} />
-        </group>
+        <TukTukSpeedometer speed={car.speed} />
+        {[-1, 1].map((side) => (
+          <group key={`tuktuk-windscreen-post-${side}`}>
+            <mesh position={[side * 0.56, 0.64, 0.72]} rotation={[0.08, 0, side * 0.08]}>
+              <boxGeometry args={[0.03, 1.1, 0.03]} />
+              <meshStandardMaterial color="#101214" roughness={0.44} metalness={0.12} />
+            </mesh>
+            <mesh position={[side * 0.56, 1.18, 0.75]} rotation={[0.04, 0, side * 0.08]}>
+              <boxGeometry args={[0.036, 0.09, 0.036]} />
+              <meshStandardMaterial color="#101214" roughness={0.44} metalness={0.12} />
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0, 1.19, 0.72]} rotation={[0.02, 0, 0]}>
+          <boxGeometry args={[1.12, 0.032, 0.048]} />
+          <meshStandardMaterial color="#101214" roughness={0.44} metalness={0.12} />
+        </mesh>
+        <mesh position={[0, 1.225, 0.72]} rotation={[0.04, 0, 0]}>
+          <boxGeometry args={[1.14, 0.035, 0.28]} />
+          <meshStandardMaterial color="#f1d25d" roughness={0.52} metalness={0.04} />
+        </mesh>
+        <TukTukHandlebar steer={car.steer} cockpitStyle={cockpitStyle} />
         <CockpitRevLights speed={car.speed} throttle={car.throttle} />
       </group>
+    </group>
+  );
+}
+
+const TUK_TUK_SPEEDO_MAX_KMH = 80;
+const TUK_TUK_SPEEDO_TICKS = [0, 10, 20, 30, 40, 50, 60, 70, 80] as const;
+const TUK_TUK_SPEEDO_LABELS = [
+  { label: "0", angle: -2.18, radius: 0.052 },
+  { label: "40", angle: 0, radius: 0.054 },
+  { label: "80", angle: 2.18, radius: 0.052 }
+] as const;
+
+function TukTukSpeedometer({ speed }: { speed: number }) {
+  const kmh = Math.max(0, Math.round(speedToKmh(speed)));
+  const needle = -2.18 + clamp(kmh / TUK_TUK_SPEEDO_MAX_KMH, 0, 1) * 4.36;
+  return (
+    <group position={[0, 0.4, 0.55]} scale={[0.82, 0.82, 0.82]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.105, 0.105, 0.026, 28]} />
+        <meshStandardMaterial color="#07090d" roughness={0.48} metalness={0.08} />
+      </mesh>
+      <mesh position={[0, 0, -0.018]}>
+        <torusGeometry args={[0.106, 0.006, 8, 28]} />
+        <meshStandardMaterial color="#d8dde4" roughness={0.36} metalness={0.22} />
+      </mesh>
+      {TUK_TUK_SPEEDO_TICKS.map((tick) => {
+        const angle = -2.18 + (tick / TUK_TUK_SPEEDO_MAX_KMH) * 4.36;
+        const radius = tick % 20 === 0 ? 0.078 : 0.083;
+        return (
+          <mesh key={tick} position={[-Math.sin(angle) * radius, Math.cos(angle) * radius, -0.021]} rotation={[0, 0, angle]}>
+            <boxGeometry args={[0.006, tick % 20 === 0 ? 0.026 : 0.018, 0.005]} />
+            <meshStandardMaterial color="#dce4e8" emissive="#dce4e8" emissiveIntensity={0.1} roughness={0.4} metalness={0.05} />
+          </mesh>
+        );
+      })}
+      {TUK_TUK_SPEEDO_LABELS.map((label) => <TukTukSpeedometerNumber key={label.label} {...label} />)}
+      <group rotation={[0, 0, needle]}>
+        <mesh position={[0, 0.038, -0.032]}>
+          <boxGeometry args={[0.008, 0.082, 0.006]} />
+          <meshStandardMaterial color="#ff6b3d" emissive="#69210f" emissiveIntensity={0.22} roughness={0.38} metalness={0.08} />
+        </mesh>
+        <mesh position={[0, -0.014, -0.032]}>
+          <boxGeometry args={[0.006, 0.028, 0.005]} />
+          <meshStandardMaterial color="#9b3420" emissive="#371008" emissiveIntensity={0.12} roughness={0.42} metalness={0.08} />
+        </mesh>
+      </group>
+      <mesh position={[0, 0, -0.034]}>
+        <sphereGeometry args={[0.015, 10, 8]} />
+        <meshStandardMaterial color="#eef3f7" roughness={0.34} metalness={0.16} />
+      </mesh>
+    </group>
+  );
+}
+
+function TukTukSpeedometerNumber({ label, angle, radius }: { label: string; angle: number; radius: number }) {
+  const digits = label.split("");
+  return (
+    <group position={[-Math.sin(angle) * radius, Math.cos(angle) * radius, -0.032]} scale={[0.34, 0.34, 0.34]}>
+      {digits.map((digit, index) => (
+        <group key={`${label}-${digit}-${index}`} position={[((digits.length - 1) / 2 - index) * 0.052, 0, 0]}>
+          {(TRUCK_DIGIT_SEGMENTS[digit] ?? []).map((segment) => {
+            const layout = TRUCK_SEGMENT_LAYOUT[segment];
+            const position = [-layout.position[0], layout.position[1], 0] as [number, number, number];
+            const args = [layout.args[0], layout.args[1], 0.005] as [number, number, number];
+            return (
+              <mesh key={segment} position={position}>
+                <boxGeometry args={args} />
+                <meshStandardMaterial color="#e8edf0" emissive="#586269" emissiveIntensity={0.16} roughness={0.42} metalness={0.04} />
+              </mesh>
+            );
+          })}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function TukTukHandlebar({ steer, cockpitStyle }: { steer: number; cockpitStyle: CockpitStyle }) {
+  const turn = -clamp(steer, -1, 1) * 0.42;
+  return (
+    <group position={[0, 0.25, 0.36]} rotation={[0, turn, 0]}>
+      <mesh position={[0, -0.08, 0.22]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.05, 0.05, 0.5]} />
+        <meshStandardMaterial color="#101214" roughness={0.42} metalness={0.18} />
+      </mesh>
+      <mesh position={[0, 0.06, 0.02]}>
+        <boxGeometry args={[0.58, 0.05, 0.05]} />
+        <meshStandardMaterial color="#101214" roughness={0.42} metalness={0.18} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={`tuktuk-grip-${side}`} position={[side * 0.36, 0.06, 0.02]}>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.042, 0.042, 0.18, 16]} />
+            <meshStandardMaterial color="#07090c" roughness={0.5} />
+          </mesh>
+          <mesh position={[side * 0.1, -0.01, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.022, 0.022, 0.12, 12]} />
+            <meshStandardMaterial color="#20242a" roughness={0.45} metalness={0.18} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, 0.07, 0.15]} rotation={[-0.16, 0, 0]}>
+        <boxGeometry args={[0.15, 0.038, 0.07]} />
+        <meshStandardMaterial color="#181b21" roughness={0.5} metalness={0.08} />
+      </mesh>
+      {cockpitStyle !== "none" && (
+        <>
+          <TukTukGripHand side={-1} style={cockpitStyle} />
+          <TukTukGripHand side={1} style={cockpitStyle} />
+        </>
+      )}
+    </group>
+  );
+}
+
+function TukTukGripHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
+  const isPaws = style === "paws";
+  const skin = isPaws ? "#f2c8a4" : "#d4a06f";
+  return (
+    <group position={[side * 0.36, 0.078, 0.0]} rotation={[0.04, side * -0.08, side * -0.14]}>
+      <mesh scale={isPaws ? [0.9, 0.52, 0.46] : [0.78, 0.42, 0.32]}>
+        <sphereGeometry args={[isPaws ? 0.1 : 0.086, 16, 10]} />
+        <meshStandardMaterial color={skin} roughness={0.76} />
+      </mesh>
+      {isPaws ? (
+        [-0.055, 0, 0.055].map((offset) => (
+          <mesh key={offset} position={[offset * 0.78, 0.044, -0.038]} scale={[0.72, 0.4, 0.3]}>
+            <sphereGeometry args={[0.02, 9, 6]} />
+            <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
+          </mesh>
+        ))
+      ) : (
+        [-0.048, -0.016, 0.016, 0.048].map((offset) => (
+          <mesh key={offset} position={[offset * 0.78, 0.052, -0.038]} rotation={[0.7, 0, offset * -1.4]} scale={[1, 0.7, 0.5]}>
+            <capsuleGeometry args={[0.013, 0.068, 3, 8]} />
+            <meshStandardMaterial color={skin} roughness={0.72} />
+          </mesh>
+        ))
+      )}
     </group>
   );
 }

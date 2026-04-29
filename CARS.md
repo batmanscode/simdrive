@@ -57,7 +57,7 @@ Source links:
 
 | Vehicle | External Visual | Cockpit Visual |
 | --- | --- | --- |
-| Formula Prototype | Open-wheel formula body, wings, exposed tyres | Formula nose, front tyres, wheel, rev lights |
-| KZ Kart | Low kart chassis, side pods, exposed small wheels | Low kart floor, nose pod, front wheels, small wheel |
-| Stock Truck | Stock pickup body, cab, bed, fenders, spoiler | Hood, dash, windshield pillars, wheel |
-| Tuk-Tuk | Three-wheeler body, canopy, single front wheel | Narrow nose, canopy, handlebar-like dash, wheel |
+| Formula Prototype | Open-wheel formula body, wings, exposed tyres, slimmer suspension, airbox/headrest detail | Formula nose, front tyres, compact formula wheel with integrated display and shift lights |
+| KZ Kart | Low kart chassis, layered nose/side pod panels, exposed small wheels | Low kart floor, layered nose pod, front wheels, visible steering column, mounted kart data logger, small wheel |
+| Stock Truck | Stock pickup body, cab, bed, fenders, spoiler | Centered driver POV for gameplay readability, broad hood/cowl, roll-cage pillars, wheel, steering column, analog gauge, subtle digital speedometer |
+| Tuk-Tuk | Three-wheeler body, canopy, single front wheel | Narrow nose, canopy, handlebar-like dash, small analog speedometer, wheel |
