@@ -54,6 +54,7 @@ function DisplayApp() {
   const game = useGameSocket();
   const [joinCode, setJoinCode] = useState("");
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [themeMode, setThemeMode] = useStoredDisplayTheme();
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
   const themeClass = `display-theme theme-${resolvedTheme}`;
@@ -63,9 +64,14 @@ function DisplayApp() {
   if (!game.room) {
     return (
       <main className={`landing ${themeClass}`}>
-        <button className="landing-about-link" type="button" onClick={() => setIsAboutOpen(true)}>
-          <Info size={15} /> About
-        </button>
+        <div className="landing-top-actions">
+          <button className="landing-about-link" type="button" onClick={() => setIsTutorialOpen(true)}>
+            <Info size={15} /> How to play
+          </button>
+          <button className="landing-about-link" type="button" onClick={() => setIsAboutOpen(true)}>
+            <Info size={15} /> About
+          </button>
+        </div>
         <section className="hero">
           <div className="hero-copy-wrap">
             <p className="eyebrow">Real sim-racing energy, no rig required.</p>
@@ -126,6 +132,7 @@ function DisplayApp() {
           </div>
           <HeroShowcase />
         </section>
+        {isTutorialOpen && <HowToPlayModal onClose={() => setIsTutorialOpen(false)} />}
         {isAboutOpen && <HomeAboutModal onClose={() => setIsAboutOpen(false)} />}
       </main>
     );
@@ -140,6 +147,84 @@ function DisplayApp() {
   }
 
   return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
+}
+
+function HowToPlayModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="about-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="about-modal tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+        <button className="about-close" type="button" onClick={onClose}>
+          Close
+        </button>
+        <p className="eyebrow about-eyebrow">quick start</p>
+        <h2 id="tutorial-title">how to play</h2>
+        <div className="tutorial-body">
+          <p className="tutorial-intro">
+            Welcome! Sim Drive is simple: your computer is the race screen, and each phone is a controller.
+          </p>
+
+          <p className="tutorial-note"><Flag size={17} /> Try the Sakura track first :D</p>
+
+          <div className="tutorial-steps">
+            <section className="tutorial-step">
+              <span className="tutorial-icon"><Smartphone size={21} /></span>
+              <div>
+                <h3>Solo or same-screen friends</h3>
+                <p>Scan the QR with your phone and press Start. Friends on this screen scan the same QR.</p>
+              </div>
+            </section>
+
+            <section className="tutorial-step">
+              <span className="tutorial-icon"><Monitor size={21} /></span>
+              <div>
+                <h3>More screens</h3>
+                <p>Friends can enter the room code from another computer to get their own race screen plus phone controllers.</p>
+              </div>
+            </section>
+
+            <section className="tutorial-step">
+              <span className="tutorial-icon"><Grid2X2 size={21} /></span>
+              <div>
+                <h3>Split screen</h3>
+                <p>Each display can show up to 4 local players, so a full room can be two 4-player split screens.</p>
+              </div>
+            </section>
+
+            <section className="tutorial-step">
+              <span className="tutorial-icon"><Gamepad2 size={21} /></span>
+              <div>
+                <h3>Phone controls</h3>
+                <p>Tilt to steer. Slide up anywhere on the right side to accelerate, and down anywhere on the left side to brake. Pedals are proportional.</p>
+              </div>
+            </section>
+
+            <section className="tutorial-step">
+              <span className="tutorial-icon"><Gauge size={21} /></span>
+              <div>
+                <h3>Calibration</h3>
+                <p>Steering auto-calibrates your phone to center. You probably will not need to adjust it, but if it feels off, use the bottom level or top-left Calibrate button.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function HomeAboutModal({ onClose }: { onClose: () => void }) {
@@ -269,6 +354,7 @@ function LobbyDisplay({
   themeClass: string;
   themeToggle: ReactNode;
 }) {
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const controllerUrl = makeControllerUrl(room.roomCode, displayGroupId);
   const track = TRACKS[room.settings.trackId];
   const readyCount = room.players.filter((player) => player.isReady || player.isVIP).length;
@@ -285,6 +371,9 @@ function LobbyDisplay({
         <div className="room-code">{room.roomCode}</div>
         <p>Scan with your phone. Tilt to steer.</p>
         <small className="screen-note">Your friends can have their own view. Tell them to join on their computer with your room code.</small>
+        <button className="join-help-button" type="button" onClick={() => setIsTutorialOpen(true)}>
+          <Info size={16} /> How to play
+        </button>
         <div className="join-card-stats">
           <span>{localPlayerCount}/4 this screen</span>
           <span>{room.players.length}/8 room</span>
@@ -331,6 +420,7 @@ function LobbyDisplay({
         </div>
         <PlayerGrid room={room} />
       </section>
+      {isTutorialOpen && <HowToPlayModal onClose={() => setIsTutorialOpen(false)} />}
     </main>
   );
 }

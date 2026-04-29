@@ -39,11 +39,18 @@ button {
   color: #fffaf0;
 }
 
-.landing-about-link {
+.landing-top-actions {
   position: absolute;
   top: 24px;
   right: 24px;
   z-index: 2;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.landing-about-link {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -342,6 +349,75 @@ input {
 .about-body .about-signoff {
   color: #101214;
   font-weight: 900;
+}
+
+.tutorial-modal {
+  width: min(780px, 100%);
+}
+
+.tutorial-body {
+  display: grid;
+  gap: 18px;
+}
+
+.tutorial-intro {
+  margin: 0;
+  color: rgba(16, 18, 20, 0.78);
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.tutorial-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.tutorial-step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.045);
+  border: 1px solid rgba(16, 18, 20, 0.08);
+}
+
+.tutorial-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #101214;
+  color: #ffd166;
+}
+
+.tutorial-step h3 {
+  margin: 0 0 5px;
+  color: #101214;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.tutorial-step p {
+  margin: 0;
+  color: rgba(16, 18, 20, 0.72);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.tutorial-note {
+  min-height: 42px;
+  margin: 0;
+  padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  background: #fff2b8;
+  color: #101214;
+  border: 1px solid rgba(16, 18, 20, 0.08);
+  font-weight: 950;
 }
 
 .display-theme {
@@ -713,6 +789,27 @@ input {
   margin-top: 8px;
   color: var(--display-muted);
   line-height: 1.35;
+}
+
+.join-help-button {
+  align-self: center;
+  min-height: 42px;
+  margin-top: 16px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  background: var(--display-chip);
+  color: var(--display-chip-text);
+  border: 1px solid var(--display-card-border);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.join-help-button svg {
+  color: #ffd166;
 }
 
 .lobby-main {
@@ -2104,6 +2201,17 @@ input {
 }
 
 @media (max-width: 800px) {
+  .landing {
+    place-items: start center;
+    padding: 86px 32px 32px;
+  }
+
+  .landing-top-actions {
+    top: 14px;
+    right: 14px;
+    left: 14px;
+  }
+
   .hero,
   .lobby,
   .track-preview {
@@ -2128,8 +2236,56 @@ input {
     font-size: 28px;
   }
 
+  .tutorial-modal {
+    padding-top: 48px;
+  }
+
+  .tutorial-modal h2 {
+    margin-bottom: 12px;
+  }
+
+  .tutorial-body {
+    gap: 10px;
+  }
+
+  .tutorial-intro {
+    font-size: 16px;
+    line-height: 1.42;
+  }
+
+  .tutorial-steps {
+    gap: 8px;
+  }
+
+  .tutorial-step {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 9px;
+    padding: 8px;
+  }
+
+  .tutorial-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .tutorial-step p {
+    font-size: 14px;
+    line-height: 1.38;
+  }
+
+  .tutorial-step h3 {
+    margin-bottom: 3px;
+    font-size: 15px;
+  }
+
+  .tutorial-note {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
   .lobby {
-    padding: 12px;
+    padding: 64px 12px 12px;
   }
 
   .dev-assets {
