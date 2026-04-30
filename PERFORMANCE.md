@@ -263,7 +263,7 @@ Tradeoff:
 
 ## Bundle Size Note
 
-`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build was about 1.20 MB minified and about 338 kB gzipped for the main JS asset.
+`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build was about 1.30 MB minified and about 357 kB gzipped for the main JS asset.
 
 This is not a build failure and is expected with the current architecture because React, Three.js, React Three Fiber, QR code rendering, icons, the display app, controller app, and race scene all ship in one client bundle.
 

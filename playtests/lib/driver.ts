@@ -1,6 +1,7 @@
 import WebSocket from "ws";
+import { DEFAULT_VEHICLE_ID, resolveCarSetupId, VEHICLES } from "../../src/shared/cars.js";
 import { nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "../../src/shared/tracks.js";
-import type { CarSetupId, CarState, ClientMessage, CockpitStyle, RaceResult, RaceSettings, ServerMessage, TrackDef, TrackId } from "../../src/shared/types.js";
+import type { CarSetupId, CarState, ClientMessage, CockpitStyle, RaceResult, RaceSettings, ServerMessage, TrackDef, TrackId, VehicleId } from "../../src/shared/types.js";
 
 type Input = {
   steer: number;
@@ -39,6 +40,7 @@ type RaceDriverOptions = {
   stabilityAssist?: boolean;
   resetEnabled?: boolean;
   rain?: boolean;
+  vehicleId?: VehicleId;
   carSetupId?: CarSetupId;
   cockpitStyle?: CockpitStyle;
   inputHz?: number;
@@ -59,6 +61,12 @@ export function sleep(ms: number) {
 export function parseTrackId(value: string | undefined): TrackId {
   if (value && value in TRACKS) return value as TrackId;
   throw new Error(`Expected --track to be one of: ${Object.keys(TRACKS).join(", ")}`);
+}
+
+export function parseVehicleId(value: string | undefined): VehicleId {
+  if (!value) return DEFAULT_VEHICLE_ID;
+  if (value in VEHICLES) return value as VehicleId;
+  throw new Error(`Expected --vehicle to be one of: ${Object.keys(VEHICLES).join(", ")}`);
 }
 
 export function readArg(args: string[], name: string, fallback?: string) {
@@ -218,7 +226,8 @@ export class RaceDriver {
       stabilityAssist: options.stabilityAssist ?? true,
       resetEnabled: options.resetEnabled ?? true,
       rain: options.rain ?? false,
-      carSetupId: options.carSetupId ?? "highGrip",
+      vehicleId: options.vehicleId ?? DEFAULT_VEHICLE_ID,
+      carSetupId: resolveCarSetupId(options.vehicleId ?? DEFAULT_VEHICLE_ID, options.carSetupId ?? ((options.vehicleId ?? DEFAULT_VEHICLE_ID) === "tukTuk" || (options.vehicleId ?? DEFAULT_VEHICLE_ID) === "kart" ? "balanced" : "highGrip")),
       cockpitStyle: options.cockpitStyle ?? "hands",
       inputHz: options.inputHz ?? 30,
       speedScale: options.speedScale ?? 1
@@ -239,6 +248,7 @@ export class RaceDriver {
     await joined;
     await sleep(250);
     this.send({ type: "set_cockpit_style", cockpitStyle: this.options.cockpitStyle });
+    this.send({ type: "set_vehicle", vehicleId: this.options.vehicleId });
     this.send({ type: "set_car_setup", carSetupId: this.options.carSetupId });
     this.send({
       type: "vip_set_settings",

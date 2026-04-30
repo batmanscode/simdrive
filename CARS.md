@@ -1,107 +1,63 @@
-# Cars
+# Vehicles
 
-Quick reference for car definitions and tuning values. Use this as the human-facing place to see and adjust car parameters. Right now there is one formula-style car with three driver-selectable setups.
+Quick reference for vehicle definitions and tuning values. Player-facing names, stat bars, vehicle physics, audio profiles, haptic profiles, and setup availability live in `src/shared/cars.ts`. The step loop that applies those values lives in `src/shared/physics.ts`.
 
-Implementation note: player-facing setup names, stat bars, and setup multipliers live in `src/shared/cars.ts`. The base physics values live in `src/shared/physics.ts`.
+Speed note: physics uses internal speed units. The speedometer displays `1 internal speed unit = 8 km/h`, so a `365 km/h` vehicle cap is `45.625` internal speed units.
 
-Speed note: physics uses internal speed units. The speedometer displays `1 internal speed unit = 8 km/h`, so the dry road cap of `50` displays as `400 km/h`.
+## Research Anchors
 
-## Formula Prototype
+These are simulation anchors, not exact rulebook replicas.
 
-### Selectable Setups
+| Vehicle | Anchor |
+| --- | --- |
+| Formula Prototype | Modern F1-style car. FIA 2025 technical rules list an 800 kg minimum car mass without fuel plus driver mass rules, and the hybrid MGU-K limit is 120 kW. Real speed-trap context keeps race-trim top speed below 400 km/h on normal circuits. |
+| KZ Kart | FIA KZ kart reference: 125 cc two-stroke, six-speed gearbox, power approaching 50 hp, 175 kg minimum including driver, and top speed approaching 180 km/h. The game uses a tighter sprint gearing top speed so it fits the tracks. |
+| Stock Truck | NASCAR Craftsman Truck Series / Ilmor reference: purpose-built racing pickup with truck-series Ilmor engine support and roughly 180 mph straight-line context. Exact current NASCAR truck parameters are not fully public, so this is a NASCAR-style road-course truck tune. |
+| Tuk-Tuk | Bajaj RE-style three-wheeler reference: 236.2 cc petrol engine, 7.6 kW, 19.2 Nm, 2000 mm wheelbase, 1300 mm width, 1700 mm height, about 362 kg kerb weight, and about 65 km/h top speed. |
 
-| Setup | Dry Road Top Speed | Accel | Grip | Brake | Difficulty | Physics Multipliers | Notes |
-| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| Balanced | `400 km/h` | `7/10` | `7/10` | `7/10` | `5/10` | speed `1.00`, accel `1.00`, brake `1.00`, grip `1.00`, drag `1.00` | Neutral default. |
-| High Grip | `376 km/h` | `6/10` | `9/10` | `8/10` | `4/10` | speed `0.94`, accel `0.96`, brake `1.08`, grip `1.12`, drag `1.08` | Easier cornering and braking, slower on straights. |
-| High Speed | `432 km/h` | `8/10` | `6/10` | `6/10` | `7/10` | speed `1.08`, accel `1.05`, brake `0.95`, grip `0.93`, drag `0.88` | Faster on straights, less settled through corners. |
+Source links:
 
-### Base Physics
+- Formula: [FIA 2025 Formula 1 Technical Regulations](https://www.fia.com/sites/default/files/fia_2025_formula_1_technical_regulations_-_issue_01_-_2024-12-11_1.pdf), [FIA speed-trap context](https://www.fia.com/sites/default/files/speed_trap_37.pdf), and [Red Bull's F1 speed overview](https://www.redbull.com/us-en/how-fast-do-f1-cars-go).
+- Kart: [FIA Karting technical regulations](https://www.fiakarting.com/sites/default/files/2024-02/2024%20Karting%20Technical%20Regulations_v1.1_Clean_0.pdf) and [FIA KZ championship context](https://www.fia.com/events/karting/season-2019/fia-karting-kz-championships).
+- Stock Truck: [NASCAR Craftsman Truck Series context](https://www.nascar.com/series/craftsman-truck-series/) and [Ilmor NASCAR engine information](https://www.ilmor.com/Racing/NASCAR).
+- Tuk-Tuk: [Bajaj RE official specifications](https://www.bajajauto.com/three-wheelers/re/specifications).
 
-| Parameter | Current Value | Notes |
-| --- | ---: | --- |
-| Player differences | Selected setup | Balanced, High Grip, or High Speed multipliers are applied per player. |
-| Dry road max speed | `50` / `400 km/h` speedometer | Base road cap. |
-| Rain road max speed | `44` / `352 km/h` speedometer | Used when rain is on. |
-| Extra speed cap margin | `0` | Absolute cap is the current surface max. |
-| Grass max speed multiplier | `0.64` | Applied to dry/rain max speed. |
-| Acceleration | `22.5` | Multiplied by throttle and reduced near max speed. |
-| Braking | `35` | Multiplied by brake and forward-speed bias. |
-| Aero drag | `speed^2 * 0.003` | Always active. |
-| Road drag | `0.05` | Surface drag term. |
-| Curb drag | `0.12` | Surface drag term. |
-| Grass drag | `0.55` | Surface drag term. |
-| Dry grip multiplier | `1.0` | Global grip in dry mode. |
-| Rain grip multiplier | `0.72` | Global grip in rain mode. |
-| Road grip | `1.0` | Surface grip. |
-| Curb grip | `0.84` | Surface grip. |
-| Grass grip | `0.42` | Surface grip. |
-| Road lateral damping | `8.5` | Multiplied by rain grip. |
-| Curb lateral damping | `5.6` | Multiplied by rain grip. |
-| Grass lateral damping | `2.7` | Multiplied by rain grip. |
-| Downforce grip ramp | starts at `8`, full by `44` internal speed | Adds speed-based grip as the car gets faster. |
-| Road downforce grip bonus | up to `+32%` | Applied to steering authority, gentle assist, and lateral damping. |
-| Curb downforce grip bonus | up to `+22%` | Lower than road so curbs remain unsettled. |
-| Grass downforce grip bonus | up to `+8%` | Small by design so off-track remains punishing. |
-| Brake lateral grip reduction | `brake * 0.18` | Reduces lateral damping while braking. |
-| Steering base | `0.62` | Part of steering authority. |
-| Steering speed scale | `speed / 34`, capped `1.35` | Part of steering authority. |
-| Steering speed gain | `1.42` | Part of steering authority. |
-| Slip steering reduction | `slipRatio * 0.28` | Reduces steering authority while sliding. |
-| Road gentle assist | `0.3` | Only if gentle assist is on. |
-| Curb gentle assist | `0.13` | Only if gentle assist is on. |
-| Grass gentle assist | `0.2` | Only if gentle assist is on. |
-| Collision radius | `2.1` | Car-to-car contact threshold. |
-| Crash impact threshold | `13.2` | Directional impact above this crashes both cars. |
-| Explosive wall-hit visual threshold | `24` / `192 km/h` speedometer | Hard wall hits at or above this emit a shared visual crash event, but do not add blast physics. |
-| Heavy contact threshold | `4.5` | Above this uses stronger velocity damping. |
-| Heavy contact damping | `0.8` | Velocity multiplier. |
-| Light contact damping | `0.92` | Velocity multiplier. |
-| Wall hit damping | `0.22` | Velocity multiplier on wall contact. |
-| Finish slowdown | `0.35` | Velocity multiplier after race finish. |
+## Vehicle Setups
+
+| Vehicle | Setups | Dry Top Speeds | Intended Feel |
+| --- | --- | --- | --- |
+| Formula Prototype | Balanced, High Grip, High Speed | `365`, `343`, `391 km/h` | High downforce, huge brakes, grip that builds with speed. |
+| KZ Kart | Fixed Sprint | `125 km/h` | Fast steering, strong low-speed response, no meaningful downforce, curb-sensitive. |
+| Stock Truck | Balanced, High Grip, High Speed | `285`, `268`, `305 km/h` | Heavy, powerful, draggy, slower to stop, easy to slide if overdriven. |
+| Tuk-Tuk | City Stock | `65 km/h` | Slow and narrow with modest grip/brakes; hard high-speed steering can roll it. |
+
+## Shared Setup Rules
+
+| Rule | Value |
+| --- | --- |
+| Default vehicle | `formula` |
+| Default setup | Vehicle default, usually `balanced` |
+| Multi-setup vehicles | `formula`, `stockTruck` |
+| Fixed-setup vehicles | `kart`, `tukTuk` |
+| Colour choices | Same controller palette for every vehicle |
+| Cockpit cosmetics | None, Hands, or Paws; visual only |
+
+## Physics Notes
+
+| Area | Behavior |
+| --- | --- |
+| Top speed | Each vehicle has dry/rain caps in km/h; setup max-speed multipliers apply after that. |
+| Grip | Each vehicle has separate road, curb, grass, and rain grip values. Formula has the strongest downforce ramp; kart and tuk-tuk have nearly none. |
+| Steering | Vehicle-specific steering authority, speed scaling, lateral damping, and slip reduction. Kart reacts quickly; truck and tuk-tuk need earlier inputs. |
+| Contact | Collision radius and crash threshold are vehicle-specific. Trucks can absorb more; kart and tuk-tuk crash more easily. |
+| Rollover | Tuk-tuk checks speed, steer angle, slip, and curb load. If over-limit load persists, it crashes and visually tips. A provisional accumulating `TIP RISK` cockpit toast appears before the haptic threshold, with extra cockpit/body lean and a short phone haptic pattern warning nearer the limit; tune or remove this if it feels too noisy after playtesting. |
+| Feedback | Audio and vibration profiles vary by vehicle: formula high and smooth, kart buzzy, truck lower/heavier, tuk-tuk rattlier. |
 
 ## Visual Params
 
-| Parameter | Current Value | Notes |
-| --- | ---: | --- |
-| Car visual type | Procedural formula-style open wheel | Built in `CarModel`. |
-| Cockpit visual type | Procedural nose/front tyres/cockpit/wheel | Built in `Cockpit`. |
-| Cockpit cosmetics | None, Hands, or Paws | Per-driver preference; does not affect physics or car setup. |
-| Wheel spin scale | `wheelDistance * 3.1` | Visual only. |
-| External visual wheel steer | `0.48 rad` | Binary left/right/straight. |
-| Cockpit tyre steer | `0.52 rad` | Binary left/right/straight. |
-| Cockpit steering wheel steer | up to `0.8 rad` | Proportional to steering input; hands/paws rotate with the wheel. |
-| Shared crash explosion | `1.4 sec` visual event | Triggered by actual car-to-car crashes and very hard wall hits. Visual/audio/haptic only; it does not change physics. |
-
-## Future Structure
-
-If/when multiple car models are added, keep setup data structured and add car model definitions with fields like:
-
-```ts
-type CarDefinition = {
-  id: string;
-  name: string;
-  maxSpeedDry: number;
-  maxSpeedRain: number;
-  acceleration: number;
-  braking: number;
-  grip: {
-    road: number;
-    curb: number;
-    grass: number;
-    rainMultiplier: number;
-  };
-  drag: {
-    aero: number;
-    road: number;
-    curb: number;
-    grass: number;
-  };
-  steering: {
-    base: number;
-    speedGain: number;
-    speedDivisor: number;
-    slipReduction: number;
-  };
-};
-```
+| Vehicle | External Visual | Cockpit Visual |
+| --- | --- | --- |
+| Formula Prototype | Open-wheel formula body, wings, exposed tyres, slimmer suspension, airbox/headrest detail | Formula nose, front tyres, compact formula wheel with integrated display and shift lights |
+| KZ Kart | Low kart chassis, layered nose/side pod panels, exposed small wheels | Low kart floor, layered nose pod, front wheels, visible steering column, mounted kart data logger, small wheel |
+| Stock Truck | Stock pickup body, cab, bed, fenders, spoiler | Centered driver POV for gameplay readability, broad hood/cowl, roll-cage pillars, wheel, steering column, analog gauge, subtle digital speedometer |
+| Tuk-Tuk | Three-wheeler body, canopy, single front wheel | Narrow nose, canopy, handlebar-like dash, small analog speedometer, wheel |

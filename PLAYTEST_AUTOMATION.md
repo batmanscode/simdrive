@@ -26,6 +26,7 @@ Reusable playtest scripts live under `playtests/`.
 
 - `npm run playtest:lap -- --track alpine` runs a pure WebSocket full-lap completion check. It creates a room through the server protocol, joins a controller, drives one lap, and prints JSON with finish state, surfaces, max center distance, progress marks, and results.
 - `npm run playtest:lap -- --track sakura --json` does the same with quieter output.
+- Add `--vehicle formula`, `--vehicle kart`, `--vehicle stockTruck`, or `--vehicle tukTuk` to test a specific vehicle class. Add `--setup balanced`, `--setup highGrip`, or `--setup highSpeed` for vehicles that support multiple setups.
 - `npm run playtest:capture -- --track alpine --target 0.24:vista` runs one browser visual capture. It creates the display in Playwright, drives to the target progress, briefly brakes, saves a screenshot under `playtest-captures/`, and prints JSON. Target values are `0-1` fractions or `1-100` percents, optionally followed by `:label`.
 - Add `--speed-scale 1.55` when a very long track needs a faster automation pass. The default is `1`, so existing Sakura/Alpine behavior is unchanged.
 - Add `--progress-log-ms 30000` to `playtest:lap` for long maps. It writes progress heartbeats to stderr so long runs do not sit silent for many minutes.
@@ -57,7 +58,7 @@ npm run dev
 
 Then visit `http://127.0.0.1:5173/dev-assets`.
 
-- The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, and vehicle/cockpit props.
+- The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, standalone driver hands/paws, and vehicle/cockpit props. It also includes a vehicle colour lineup for checking every controller-selectable colour across the roster.
 - It uses one WebGL canvas for the visible set so the `All` view can show every asset without hitting browser context limits.
 - The theme control defaults to `System`, which follows `prefers-color-scheme`; switch to explicit dark or light only when comparing a specific mode.
 - Use search for quick identification, click either the rendered asset or the side index card to focus it, and use the side index for crisp component names.

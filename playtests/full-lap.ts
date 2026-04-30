@@ -1,4 +1,5 @@
-import { createDisplayRoom, hasFlag, parseTrackId, RaceDriver, readArg, readNumberArg } from "./lib/driver.js";
+import { createDisplayRoom, hasFlag, parseTrackId, parseVehicleId, RaceDriver, readArg, readNumberArg } from "./lib/driver.js";
+import type { CarSetupId } from "../src/shared/types.js";
 
 const args = process.argv.slice(2);
 
@@ -9,6 +10,8 @@ let progressLogTimer: ReturnType<typeof setInterval> | undefined;
 try {
   const serverUrl = readArg(args, "--server", "http://127.0.0.1:8787/")!;
   const trackId = parseTrackId(readArg(args, "--track", "alpine"));
+  const vehicleId = parseVehicleId(readArg(args, "--vehicle", "formula"));
+  const setupId = readArg(args, "--setup") as CarSetupId | undefined;
   const timeoutMs = readNumberArg(args, "--timeout-ms", "120000", { integer: true, min: 1 });
   const lapCount = readNumberArg(args, "--laps", "1", { integer: true, min: 1, max: 9 });
   const speedScale = readNumberArg(args, "--speed-scale", "1", { min: 0.2, max: 3 });
@@ -21,9 +24,11 @@ try {
     roomCode: display.roomCode,
     displayGroupId: display.displayGroupId,
     trackId,
+    vehicleId,
+    carSetupId: setupId,
     lapCount,
     speedScale,
-    name: `${trackId} full-lap`,
+    name: `${vehicleId} ${trackId} full-lap`,
     color: "#ff8f3d"
   });
   await driver.start();

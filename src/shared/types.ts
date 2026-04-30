@@ -6,6 +6,8 @@ export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
 export type CarSetupId = "balanced" | "highGrip" | "highSpeed";
 
+export type VehicleId = "formula" | "kart" | "stockTruck" | "tukTuk";
+
 export type CockpitStyle = "none" | "hands" | "paws";
 
 export type Vec2 = {
@@ -48,6 +50,7 @@ export type Player = {
   displayGroupId: string;
   name: string;
   color: string;
+  vehicleId: VehicleId;
   carSetupId: CarSetupId;
   cockpitStyle: CockpitStyle;
   isReady: boolean;
@@ -66,6 +69,7 @@ export type InputFrame = {
 
 export type CarState = {
   playerId: string;
+  vehicleId: VehicleId;
   carSetupId: CarSetupId;
   x: number;
   y: number;
@@ -99,6 +103,7 @@ export type CarState = {
   resetInvulnerableUntil?: number;
   impact: number;
   slip: number;
+  rolloverRisk: number;
 };
 
 export type CrashEvent = {
@@ -152,6 +157,7 @@ export type ClientMessage =
   | { type: "create_room" }
   | { type: "join_display"; roomCode: string; displayGroupId?: string }
   | { type: "set_profile"; roomCode: string; displayGroupId: string; token?: string; name: string; color: string }
+  | { type: "set_vehicle"; vehicleId: VehicleId }
   | { type: "set_car_setup"; carSetupId: CarSetupId }
   | { type: "set_cockpit_style"; cockpitStyle: CockpitStyle }
   | { type: "set_ready"; ready: boolean }

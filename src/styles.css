@@ -1529,6 +1529,41 @@ input {
   gap: 8px;
 }
 
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vehicle-card {
+  min-height: 58px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  padding: 10px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #24272d;
+  color: #fffaf0;
+  text-align: left;
+}
+
+.vehicle-card.active {
+  border-color: #35a7ff;
+  background: #2d3138;
+}
+
+.vehicle-card strong,
+.vehicle-card small {
+  overflow-wrap: anywhere;
+}
+
+.vehicle-card small {
+  color: rgba(255, 250, 240, 0.66);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .setup-card {
   display: grid;
   gap: 7px;
@@ -1544,6 +1579,10 @@ input {
 .setup-card.active {
   border-color: #e84f5f;
   background: #2f3035;
+}
+
+.setup-card.locked {
+  border-color: rgba(255, 250, 240, 0.14);
 }
 
 .setup-card small {
@@ -1628,6 +1667,36 @@ input {
   background: rgba(255, 250, 240, 0.92);
   color: #101214;
   font-weight: 900;
+}
+
+.tip-risk-toast {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(180px, 31vh, 300px);
+  transform: translateX(-50%);
+  z-index: 4;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 209, 102, 0.74);
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.72);
+  color: #ffd166;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.tip-risk-toast.high {
+  border-color: rgba(255, 107, 61, 0.82);
+  background: rgba(61, 24, 18, 0.78);
+  color: #ffb08f;
 }
 
 .telemetry {

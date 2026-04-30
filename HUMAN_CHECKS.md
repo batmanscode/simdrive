@@ -25,16 +25,17 @@ Things that need real-device playtesting before we trust the tuning.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.
 - Test the 1-10 phone motion sensitivity control: default level 6 should feel slightly tighter than the original steering, and the range should cover both relaxed and sensitive steering.
-- Test all three car setups in dry mode: Balanced should feel neutral, High Grip should corner/brake easier, and High Speed should be quicker but less settled.
+- Test all selectable car setups in dry mode: Balanced should feel neutral, High Grip should corner/brake easier, and High Speed should be quicker but less settled. Confirm KZ Kart and Tuk-Tuk show stats but do not expose setup switching.
 - Test sliding/lateral slip: tire sound and vibration should match moments where the car feels loose.
 - Test visible front-wheel direction: left input should show left lock, right input should show right lock, with no confusing partial-turn animation.
-- Test cockpit/nose view: front wing, nose, tyres, cockpit shapes, and the None/Hands/Paws per-driver cockpit styles should read clearly without blocking the road.
-- Test lobby readability: QR code, room code, race settings, selected track, driver lineup, driver setups, and cockpit styles should be obvious at a glance.
+- Test vehicle/cockpit view: formula, kart, stock truck, and tuk-tuk cockpits should each read as their own vehicle class, and the None/Hands/Paws per-driver cockpit styles should read clearly without blocking the road.
+- Test lobby readability: QR code, room code, race settings, selected track, driver lineup, vehicles, driver setups, and cockpit styles should be obvious at a glance.
 - Test warm-up/flying start: first pass should show `Warm-up`, timed lap 1 and total race time should begin at the line, and hard car-to-car contact during warm-up should not crash players out.
 - Test race presentation: countdown lights, first-place banner, live leaderboard, top-left minimap, and podium results should feel useful without obstructing driving.
 - Test haptics on Android Chrome/Chromium and Samsung Internet if available. If a supported browser reports a requested pulse but the phone does not buzz, check Silent mode, Do Not Disturb, power saving, and Android/Samsung touch vibration or system haptics before treating it as an app bug.
 - Test haptics on Firefox Android if available, but treat failure as likely browser support rather than an app bug unless the test pulse reports a clear app-side error.
-- Test whether normal fast cornering produces enough tire sound/slip feedback; current web haptics mostly pulse for slip/curbs/grass/braking/impacts, not continuous true g-force.
+- Test whether normal fast cornering produces enough tire sound/slip feedback; current web haptics mostly pulse for slip/curbs/grass/braking/impacts and tuk-tuk tip risk, not continuous true g-force.
+- Test tuk-tuk tip risk on a sharp high-speed bend: the lower-center `TIP RISK` toast should be noticeable without blocking the racing line, haptics should arrive closer to real danger, and a quick steering correction should usually avoid rollover.
 - Test collisions with another player if possible: light touches should bump, hard directional hits should crash.
 - Test reset mode off: hard crashes should still kick players out of the race.
 - Test reset mode on: a crashed car should pause briefly, respawn near the last valid track point, and avoid instant re-crash during the brief invulnerable window.

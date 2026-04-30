@@ -102,3 +102,29 @@ Ready / start should handle this automatically so players do not have to press c
 Actually this should happen on the phone countdown screen, not in the lobby
 
 Countdown should start from 5 so players have time to turn the phone sideways and see quick controls
+
+Changes 30/04/2026
+
+Vehicle selection is now bigger than the original single F1-style car idea
+
+Current playable vehicles are Formula Prototype, KZ Kart, Stock Truck, and Tuk-Tuk
+
+Formula Prototype and Stock Truck have three setup options: Balanced, High Grip, and High Speed
+
+KZ Kart and Tuk-Tuk are simpler fixed-setup vehicles, but players should still see their stats
+
+All vehicles use the same controller colour choices
+
+Players can still choose cockpit style: none, hands, paws
+
+The asset viewer now shows hands/paws separately from vehicles and shows all available vehicle colours
+
+Cockpit views have been polished per vehicle so the player should feel like they are inside that vehicle, not just looking at a generic steering wheel
+
+Stock Truck POV is intentionally centered for gameplay readability, even though real trucks are left-hand drive
+
+Tuk-Tuk can roll/tip from risky high-speed cornering and now has a provisional TIP RISK cockpit warning, extra lean, and phone haptic warning
+
+Phone audio and haptics are now vehicle-specific enough to give each vehicle a different feel
+
+The gameplay poster / social image has been refreshed using current gameplay captures
