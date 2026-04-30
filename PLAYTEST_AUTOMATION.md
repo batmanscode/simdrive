@@ -58,7 +58,7 @@ npm run dev
 
 Then visit `http://127.0.0.1:5173/dev-assets`.
 
-- The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, and vehicle/cockpit props.
+- The gallery renders the live procedural prop components with their component names, grouped by generic track props, map props, standalone driver hands/paws, and vehicle/cockpit props. It also includes a vehicle colour lineup for checking every controller-selectable colour across the roster.
 - It uses one WebGL canvas for the visible set so the `All` view can show every asset without hitting browser context limits.
 - The theme control defaults to `System`, which follows `prefers-color-scheme`; switch to explicit dark or light only when comparing a specific mode.
 - Use search for quick identification, click either the rendered asset or the side index card to focus it, and use the side index for crisp component names.
