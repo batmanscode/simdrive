@@ -38,6 +38,7 @@ Speed thresholds below use the same km/h scale shown on the in-game speedometer.
 - Curb: `18ms` pulse while on curbs above about `18 km/h`.
 - Grass/off-road: `24ms` pulse while on grass above about `20 km/h`.
 - High slip: `16ms` pulse when slip is high above about `25 km/h`.
+- Tuk-tuk tip risk: provisional `[14, 38, 20]` warning pattern when speed, steering, slip, and curb load are close to rollover. Keep this under review; it should feel like a useful warning, not a constant alarm.
 
 ## Current Gap
 

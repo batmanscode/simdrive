@@ -50,7 +50,7 @@ Source links:
 | Grip | Each vehicle has separate road, curb, grass, and rain grip values. Formula has the strongest downforce ramp; kart and tuk-tuk have nearly none. |
 | Steering | Vehicle-specific steering authority, speed scaling, lateral damping, and slip reduction. Kart reacts quickly; truck and tuk-tuk need earlier inputs. |
 | Contact | Collision radius and crash threshold are vehicle-specific. Trucks can absorb more; kart and tuk-tuk crash more easily. |
-| Rollover | Tuk-tuk checks speed, steer angle, slip, and curb load. If the load is too high, it crashes and visually tips. |
+| Rollover | Tuk-tuk checks speed, steer angle, slip, and curb load. If over-limit load persists, it crashes and visually tips. A provisional accumulating `TIP RISK` cockpit toast appears before the haptic threshold, with extra cockpit/body lean and a short phone haptic pattern warning nearer the limit; tune or remove this if it feels too noisy after playtesting. |
 | Feedback | Audio and vibration profiles vary by vehicle: formula high and smooth, kart buzzy, truck lower/heavier, tuk-tuk rattlier. |
 
 ## Visual Params

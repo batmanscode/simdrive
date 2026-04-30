@@ -22,6 +22,7 @@ const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
 const MOTION_STEERING_DEADZONE = 0.06;
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
+const TIP_RISK_TOAST_THRESHOLD = 0.22;
 const DEV_ASSET_ROUTE = "/dev-assets";
 const IS_DEV_BUILD = import.meta.env.DEV;
 
@@ -478,6 +479,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
             <RaceCanvas room={room} focusPlayerId={player.id} paneCount={paneCount} />
             {room.settings.rain && <div className="rain-visor" aria-hidden />}
             <RaceHud room={room} focusPlayerId={player.id} />
+            <RaceTipRiskToast room={room} focusPlayerId={player.id} />
             <RaceMiniMap room={room} focusPlayerId={player.id} />
             <RaceLeaderboard room={room} focusPlayerId={player.id} />
           </div>
@@ -536,6 +538,36 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
       <div><span className="swatch" style={{ background: player?.color }} />{player?.name}</div>
       <div>{lapText}</div>
       <div>{speed} km/h</div>
+    </div>
+  );
+}
+
+function RaceTipRiskToast({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+  const car = room.cars.find((item) => item.playerId === focusPlayerId);
+  const activeTukTuk = room.phase === "racing" && car?.vehicleId === "tukTuk" && !car.crashed && !car.finished && !car.dnf;
+  const tipRisk = activeTukTuk ? car.rolloverRisk : 0;
+  const [latchedTipRisk, setLatchedTipRisk] = useState(0);
+  const latchTimeout = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (tipRisk <= TIP_RISK_TOAST_THRESHOLD) return;
+    setLatchedTipRisk((current) => Math.max(current, tipRisk));
+    if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
+    latchTimeout.current = window.setTimeout(() => setLatchedTipRisk(0), 900);
+  }, [tipRisk]);
+  useEffect(() => {
+    if (activeTukTuk) return;
+    if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
+    latchTimeout.current = undefined;
+    setLatchedTipRisk(0);
+  }, [activeTukTuk]);
+  useEffect(() => () => {
+    if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
+  }, []);
+  const displayedTipRisk = Math.max(tipRisk, latchedTipRisk);
+  if (displayedTipRisk <= TIP_RISK_TOAST_THRESHOLD) return null;
+  return (
+    <div className={displayedTipRisk > 0.72 ? "tip-risk-toast high" : "tip-risk-toast"} aria-live="polite">
+      TIP RISK
     </div>
   );
 }
@@ -1075,7 +1107,8 @@ function CarPreviewScene({ vehicleId, color }: { vehicleId: VehicleId; color: st
     dnf: false,
     resetAvailable: false,
     impact: 0,
-    slip: 0
+    slip: 0,
+    rolloverRisk: 0
   }), [vehicleId]);
   const group = useRef<THREE.Group>(null);
 
@@ -1573,7 +1606,8 @@ const DEV_ASSET_CAR: CarState = {
   dnf: false,
   resetAvailable: false,
   impact: 0,
-  slip: 0.12
+  slip: 0.12,
+  rolloverRisk: 0
 };
 
 function devAssetCar(vehicleId: VehicleId, setupId = getVehicle(vehicleId).defaultSetupId): CarState {
@@ -5183,7 +5217,9 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
   const ghosted = visible && Boolean(car.resetInvulnerableUntil);
   const wheelSpin = car.wheelDistance * 4.9;
   const frontSteer = visualWheelSteer(car.steer, 0.62);
-  const roll = car.crashed ? (car.steer < 0 ? 1.28 : -1.28) : -car.steer * clamp(car.speed / 8, 0, 1) * 0.18;
+  const riskLean = car.steer === 0 ? 0 : -Math.sign(car.steer) * car.rolloverRisk * 0.12;
+  const riskWobble = Math.sin(car.wheelDistance * 14) * car.rolloverRisk * 0.035;
+  const roll = car.crashed ? (car.steer < 0 ? 1.28 : -1.28) : -car.steer * clamp(car.speed / 8, 0, 1) * 0.18 + riskLean + riskWobble;
   useFrame((_, delta) => {
     if (!group.current) return;
     const amount = smoothingAmount(delta, 14);
@@ -6082,7 +6118,9 @@ function TruckDigitalDigit({ digit, position }: { digit: string; position: [numb
 
 function TukTukCockpit({ car, color, cockpitStyle }: { car: CarState; color: string; cockpitStyle: CockpitStyle }) {
   const group = useCockpitPose(car, 0.7);
-  const roll = car.crashed ? (car.steer < 0 ? 0.8 : -0.8) : -car.steer * clamp(car.speed / 8, 0, 1) * 0.1;
+  const riskLean = car.steer === 0 ? 0 : -Math.sign(car.steer) * car.rolloverRisk * 0.13;
+  const riskWobble = Math.sin(car.wheelDistance * 16) * car.rolloverRisk * 0.026;
+  const roll = car.crashed ? (car.steer < 0 ? 0.8 : -0.8) : -car.steer * clamp(car.speed / 8, 0, 1) * 0.1 + riskLean + riskWobble;
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
       <group rotation={[0, 0, roll]}>
@@ -7510,6 +7548,10 @@ function driveHaptics(
   const speedKmh = speedToKmh(car.speed);
   if (car.impact > 0.2 && now - lastHapticAtRef.current > 240) {
     if (pulseHaptic(Math.round(profile.impactMs + car.impact * profile.impactScale))) lastHapticAtRef.current = now;
+    return;
+  }
+  if (profile.rolloverWarningPattern && car.rolloverRisk > 0.44 && speedKmh > 30 && now - lastHapticAtRef.current > 300) {
+    if (pulseHaptic(profile.rolloverWarningPattern)) lastHapticAtRef.current = now;
     return;
   }
   if (pedals.brake > 0.72 && speedKmh > 35 && now - lastHapticAtRef.current > 260) {

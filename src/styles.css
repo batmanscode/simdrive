@@ -1669,6 +1669,36 @@ input {
   font-weight: 900;
 }
 
+.tip-risk-toast {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(180px, 31vh, 300px);
+  transform: translateX(-50%);
+  z-index: 4;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 209, 102, 0.74);
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.72);
+  color: #ffd166;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.tip-risk-toast.high {
+  border-color: rgba(255, 107, 61, 0.82);
+  background: rgba(61, 24, 18, 0.78);
+  color: #ffb08f;
+}
+
 .telemetry {
   top: 12px;
   right: 12px;

@@ -103,6 +103,7 @@ export type CarState = {
   resetInvulnerableUntil?: number;
   impact: number;
   slip: number;
+  rolloverRisk: number;
 };
 
 export type CrashEvent = {

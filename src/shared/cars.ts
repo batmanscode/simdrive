@@ -100,6 +100,7 @@ export type VehicleHapticProfile = {
   curbMs: number;
   grassMs: number;
   slipMs: number;
+  rolloverWarningPattern?: number[];
 };
 
 export type VehicleDefinition = {
@@ -436,7 +437,8 @@ export const VEHICLES: Record<VehicleId, VehicleDefinition> = {
       brakePattern: [20, 32, 20],
       curbMs: 28,
       grassMs: 30,
-      slipMs: 24
+      slipMs: 24,
+      rolloverWarningPattern: [14, 38, 20]
     },
     camera: { height: 1.42, back: 0.25, lateral: 0.05, lookAhead: 14, lookHeight: 1.08 }
   }
