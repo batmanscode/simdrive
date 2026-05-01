@@ -33,6 +33,54 @@ type MotionCalibration = {
   capturedAt: number;
 };
 
+type MotionSample = {
+  raw: number;
+  angle: number;
+  source: MotionSource;
+};
+
+type MotionSource = "orientation" | "motion" | "gravity" | "accelerometer";
+
+type MotionPermissionConstructor = {
+  requestPermission?: () => Promise<PermissionState>;
+};
+
+type MotionSensorName = "GravitySensor" | "Accelerometer";
+
+type MotionSensorConstructor = new (options?: {
+  frequency?: number;
+  referenceFrame?: "device" | "screen";
+}) => MotionSensorInstance;
+
+type MotionSensorInstance = EventTarget & {
+  x: number | null;
+  y: number | null;
+  z: number | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type MotionDebugEvent =
+  | { kind: "request"; message: string }
+  | { kind: "permissions"; status: string }
+  | { kind: "event"; source: MotionSource | "orientation-null" | "motion-empty" }
+  | { kind: "sample"; source: MotionSource; raw: number; angle: number }
+  | { kind: "sensor-error"; source: "gravity" | "accelerometer"; message: string };
+
+type MotionDebugState = {
+  secure: boolean;
+  policy: string;
+  permissions: string;
+  request: string;
+  orientationEvents: number;
+  motionEvents: number;
+  gravityReadings: number;
+  accelerometerReadings: number;
+  emptyEvents: number;
+  errors: number;
+  last: string;
+};
+
 let latestMotionCalibration: MotionCalibration | undefined;
 let latestServerClockOffsetMs = 0;
 
@@ -932,49 +980,89 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
   const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
+  const [motionListenToken, setMotionListenToken] = useState(0);
+  const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
   const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const settings = room?.settings;
+  const motionCheckRef = useRef<number | undefined>(undefined);
+  const motionRequestInFlightRef = useRef(false);
+
+  const noteMotionDebug = (event: MotionDebugEvent) => {
+    setMotionDebug((current) => updateMotionDebug(current, event));
+    if (event.kind === "event" && (event.source === "orientation-null" || event.source === "motion-empty")) {
+      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" ? "Tap Enable Motion" : current);
+    }
+  };
+
+  const markMotionAwaitingEvents = () => {
+    window.clearTimeout(motionCheckRef.current);
+    motionCheckRef.current = window.setTimeout(() => {
+      setMotionStatus((current) => current === "Motion ready" ? "Move phone; no motion events yet" : current);
+    }, 1800);
+  };
+
+  const applyMotionResult = (motion: Awaited<ReturnType<typeof enableControllerDevice>>) => {
+    setMotionEnabled(motion.enabled);
+    setMotionStatus(motion.message);
+    noteMotionDebug({ kind: "permissions", status: motion.permissions });
+    noteMotionDebug({ kind: "request", message: motion.message });
+    if (motion.enabled) {
+      setMotionListenToken((current) => current + 1);
+      markMotionAwaitingEvents();
+    }
+  };
+
+  const requestLobbyMotion = async () => {
+    if (motionRequestInFlightRef.current) return;
+    motionRequestInFlightRef.current = true;
+    try {
+      const motion = await enableControllerDevice({ landscape: false });
+      applyMotionResult(motion);
+    } finally {
+      motionRequestInFlightRef.current = false;
+    }
+  };
 
   const prepareToDrive = async () => {
     if (audioEnabled) unlockControllerAudio();
-    const motion = await enableControllerDevice();
-    setMotionEnabled(motion.enabled);
-    setMotionStatus(motion.message);
+    await requestLobbyMotion();
+    await requestLandscape();
     return true;
   };
 
   useEffect(() => {
     const neutral = { current: undefined as number | undefined };
-    const onOrientation = (event: DeviceOrientationEvent) => {
-      if (event.beta === null && event.gamma === null) return;
-      const angle = getScreenAngle();
-      const raw = readSteeringTilt(event, angle);
-      const calibration = readMotionCalibration(motionOrientationFrameKey(angle));
+    return listenToSteeringMotion(({ raw, angle, source }) => {
+      window.clearTimeout(motionCheckRef.current);
+      const calibration = readMotionCalibration(motionOrientationFrameKey(angle, source));
       neutral.current = calibration?.neutral ?? neutral.current ?? raw;
       setMotionLevel(steeringFromTilt(raw, neutral.current, steeringSensitivity, motionSteeringDirection));
-      setMotionStatus("Motion live");
-    };
-    window.addEventListener("deviceorientation", onOrientation);
-    return () => window.removeEventListener("deviceorientation", onOrientation);
-  }, [motionSteeringDirection, steeringSensitivity]);
+      setMotionStatus(motionLiveStatus(source));
+    }, noteMotionDebug);
+  }, [motionListenToken, motionSteeringDirection, steeringSensitivity]);
+
+  useEffect(() => () => window.clearTimeout(motionCheckRef.current), []);
 
   return (
-    <main className="phone controller-lobby">
+    <main
+      className="phone controller-lobby"
+      onPointerDownCapture={() => {
+        if (!motionEnabled && motionDebug.request === "not requested") void requestLobbyMotion();
+      }}
+    >
       <h1>{player?.isVIP ? "VIP Settings" : "Ready Room"}</h1>
       {joinStatus && <small className="phone-note">{joinStatus}</small>}
       <button
         className="secondary"
         onClick={() => {
-          enableControllerDevice().then((result) => {
-            setMotionEnabled(result.enabled);
-            setMotionStatus(result.message);
-          });
+          void requestLobbyMotion();
         }}
       >
         <Activity size={18} /> {motionEnabled ? "Motion Enabled" : "Enable Motion"}
       </button>
       <small className="phone-note">{motionStatus}</small>
+      <MotionDebugDetails debug={motionDebug} />
       <div className="motion-test">
         <span>Motion test</span>
         <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
@@ -1366,6 +1454,8 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
   const [motionStatus, setMotionStatus] = useState(initialMotionCalibrationRef.current ? "Motion steering" : motionInitialStatus());
   const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
+  const [motionListenToken, setMotionListenToken] = useState(0);
+  const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
   const steerRef = useRef(0);
   const hasMotionRef = useRef(false);
   const lastRawSteerRef = useRef(initialMotionCalibrationRef.current?.neutral ?? 0);
@@ -1383,6 +1473,8 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   const touchSteerOverrideUntilRef = useRef(0);
   const neutralRef = useRef<number | undefined>(initialMotionCalibrationRef.current?.neutral);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
+  const motionCheckRef = useRef<number | undefined>(undefined);
+  const motionRequestInFlightRef = useRef(false);
   const brakeStart = readStoredNumber("sim-drive-brake-start", 0);
   const throttleStart = readStoredNumber("sim-drive-throttle-start", 0);
   const audioEnabled = readStoredBoolean("sim-drive-audio-enabled", true);
@@ -1393,10 +1485,47 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   const car = feedback ?? room.cars.find((item) => item.playerId === playerId);
   const resetAvailable = Boolean(car?.resetAvailable);
 
+  const noteMotionDebug = (event: MotionDebugEvent) => {
+    setMotionDebug((current) => updateMotionDebug(current, event));
+    if (event.kind === "event" && (event.source === "orientation-null" || event.source === "motion-empty")) {
+      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" ? "Tap motion button" : current);
+    }
+  };
+
+  const markRaceMotionAwaitingEvents = () => {
+    window.clearTimeout(motionCheckRef.current);
+    motionCheckRef.current = window.setTimeout(() => {
+      setMotionStatus((current) => current === "Motion ready" ? "Move phone; no motion events yet" : current);
+    }, 1800);
+  };
+
+  const applyRaceMotionResult = (motion: Awaited<ReturnType<typeof enableControllerDevice>>) => {
+    setMotionStatus(motion.message);
+    noteMotionDebug({ kind: "permissions", status: motion.permissions });
+    noteMotionDebug({ kind: "request", message: motion.message });
+    if (motion.enabled) {
+      setMotionListenToken((current) => current + 1);
+      markRaceMotionAwaitingEvents();
+    }
+  };
+
+  const requestRaceMotion = () => {
+    if (hasMotionRef.current || motionRequestInFlightRef.current) {
+      void requestLandscape();
+      return;
+    }
+    motionRequestInFlightRef.current = true;
+    enableControllerDevice()
+      .then(applyRaceMotionResult)
+      .finally(() => {
+        motionRequestInFlightRef.current = false;
+      });
+  };
+
   useEffect(() => {
     void requestLandscape();
-    const onOrientation = (event: DeviceOrientationEvent) => {
-      if (event.beta === null && event.gamma === null) return;
+    return listenToSteeringMotion(({ raw, angle, source }) => {
+      window.clearTimeout(motionCheckRef.current);
       hasMotionRef.current = true;
       if (!phoneIsLandscape()) {
         neutralRef.current = undefined;
@@ -1406,9 +1535,7 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
         setMotionStatus("Turn phone sideways");
         return;
       }
-      const angle = getScreenAngle();
-      const raw = readSteeringTilt(event, angle);
-      const orientationFrame = motionOrientationFrameKey(angle);
+      const orientationFrame = motionOrientationFrameKey(angle, source);
       if (orientationFrame !== lastOrientationFrameRef.current) {
         neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
         neutralCaptureRef.current = undefined;
@@ -1431,25 +1558,27 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
           neutralRef.current = median(capture.samples);
           writeMotionCalibration({ frame: orientationFrame, neutral: neutralRef.current, capturedAt: Date.now() });
           neutralCaptureRef.current = undefined;
-          setMotionStatus("Motion steering");
+          setMotionStatus(motionRaceStatus(source));
         }
         return;
       }
       const targetSteer = steeringFromTilt(raw, neutralRef.current, steeringSensitivity, motionSteeringDirection);
       steerRef.current = THREE.MathUtils.lerp(steerRef.current, targetSteer, 0.42);
       if (Math.abs(steerRef.current) < 0.01) steerRef.current = 0;
-      setMotionStatus("Motion steering");
-    };
-    window.addEventListener("deviceorientation", onOrientation);
-    return () => window.removeEventListener("deviceorientation", onOrientation);
-  }, [motionSteeringDirection, steeringSensitivity]);
+      setMotionStatus(motionRaceStatus(source));
+    }, noteMotionDebug);
+  }, [motionListenToken, motionSteeringDirection, steeringSensitivity]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (!hasMotionRef.current) setMotionStatus("Touch steering");
+      if (!hasMotionRef.current) {
+        setMotionStatus((current) => current === "Motion waiting" ? "Touch steering" : current);
+      }
     }, 1800);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => () => window.clearTimeout(motionCheckRef.current), []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setSteerUi(steerRef.current), 80);
@@ -1513,13 +1642,16 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
     setTouchSteer(value);
   };
 
+  const armControllerDevice = () => {
+    if (audioEnabled) audioRef.current = unlockControllerAudio();
+    requestRaceMotion();
+  };
+
   return (
     <main
       className="phone race-controller"
-      onPointerDown={() => {
-        if (audioEnabled) audioRef.current = unlockControllerAudio();
-        void requestLandscape();
-      }}
+      onPointerDown={armControllerDevice}
+      onClick={armControllerDevice}
     >
       <div className="rotate-warning">
         <Smartphone size={42} />
@@ -1533,7 +1665,7 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
         <span>{car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
         <button
           onClick={() => {
-            enableControllerDevice().then((result) => setMotionStatus(result.message));
+            requestRaceMotion();
           }}
         >
           {motionStatus}
@@ -1579,6 +1711,15 @@ function ControllerCountdownHints({ motionStatus }: { motionStatus: string }) {
       <span className="hint throttle-hint">Throttle: slide up</span>
       <span className="hint steer-hint">{steerHint}</span>
     </div>
+  );
+}
+
+function MotionDebugDetails({ debug }: { debug: MotionDebugState }) {
+  return (
+    <details className="motion-debug">
+      <summary>things for nerds</summary>
+      <code>{formatMotionDebug(debug)}</code>
+    </details>
   );
 }
 
@@ -7300,32 +7441,75 @@ function wsUrl() {
   return `${protocol}//${location.host}/ws`;
 }
 
-async function enableControllerDevice() {
+async function enableControllerDevice(options: { landscape?: boolean } = {}) {
   const motion = await requestMotion();
-  await requestLandscape();
+  if (options.landscape ?? true) await requestLandscape();
   return motion;
 }
 
-function phoneIsLandscape() {
-  return window.innerWidth > window.innerHeight;
+function phoneIsLandscape(angle = getScreenAngle()) {
+  return window.innerWidth > window.innerHeight || screenAngleIsLandscape(angle);
 }
 
 async function requestMotion() {
+  const permissions = await readSensorPermissionStatus();
   if (!sensorSupported()) {
-    return { enabled: false, message: "Motion unavailable in this browser" };
+    return { enabled: false, message: "Motion unavailable in this browser", permissions };
   }
   if (!motionContextAllowed()) {
-    return { enabled: false, message: "Motion needs HTTPS on this phone" };
+    return { enabled: false, message: "Motion needs HTTPS on this phone", permissions };
   }
-  const orientation = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<PermissionState> };
-  if (typeof orientation.requestPermission === "function") {
-    const permission = await orientation.requestPermission();
-    return {
-      enabled: permission === "granted",
-      message: permission === "granted" ? "Motion ready" : "Motion permission denied"
-    };
+  if (permissions.includes("denied")) {
+    return { enabled: false, message: "Chrome motion sensors blocked", permissions };
   }
-  return { enabled: true, message: "Motion ready" };
+
+  try {
+    const permissionRequests = await requestSensorPermissions();
+    if (permissionRequests.length > 0 && !permissionRequests.some((permission) => permission.status === "fulfilled" && permission.value === "granted")) {
+      if (permissionRequests.some((permission) => permission.status === "rejected")) {
+        return { enabled: false, message: "Tap Enable Motion again", permissions };
+      }
+      return { enabled: false, message: "Motion permission denied", permissions };
+    }
+  } catch {
+    return { enabled: false, message: "Tap Enable Motion again", permissions };
+  }
+
+  return { enabled: true, message: "Motion ready", permissions };
+}
+
+async function requestSensorPermissions() {
+  const permissionRequests = [
+    motionPermissionRequest("DeviceMotionEvent"),
+    motionPermissionRequest("DeviceOrientationEvent")
+  ].filter((request): request is Promise<PermissionState> => Boolean(request));
+
+  if (permissionRequests.length === 0) return [];
+  return Promise.allSettled(permissionRequests);
+}
+
+function motionPermissionRequest(eventName: "DeviceMotionEvent" | "DeviceOrientationEvent") {
+  const eventConstructor = (window as Window & Record<typeof eventName, MotionPermissionConstructor | undefined>)[eventName];
+  if (typeof eventConstructor?.requestPermission !== "function") return undefined;
+  return eventConstructor.requestPermission();
+}
+
+async function readSensorPermissionStatus() {
+  if (typeof navigator === "undefined" || !navigator.permissions?.query) return "perm ?";
+  const names = [
+    ["a", "accelerometer"],
+    ["g", "gyroscope"],
+    ["m", "magnetometer"]
+  ] as const;
+  const states = await Promise.all(names.map(async ([label, name]) => {
+    try {
+      const status = await navigator.permissions.query({ name: name as PermissionName });
+      return `${label}:${status.state}`;
+    } catch {
+      return `${label}:?`;
+    }
+  }));
+  return `perm ${states.join(" ")}`;
 }
 
 function motionInitialStatus() {
@@ -7341,7 +7525,12 @@ function motionLobbyStatus() {
 }
 
 function sensorSupported() {
-  return typeof window !== "undefined" && "DeviceOrientationEvent" in window;
+  return typeof window !== "undefined" && (
+    "DeviceOrientationEvent" in window
+    || "DeviceMotionEvent" in window
+    || "GravitySensor" in window
+    || "Accelerometer" in window
+  );
 }
 
 function motionContextAllowed() {
@@ -7381,9 +7570,14 @@ function getScreenAngle() {
   return screen.orientation?.angle ?? legacyWindow.orientation ?? 0;
 }
 
-function motionOrientationFrameKey(angle = getScreenAngle()) {
+function screenAngleIsLandscape(angle: number) {
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  return `${normalizedAngle}:${phoneIsLandscape() ? "landscape" : "portrait"}`;
+  return normalizedAngle === 90 || normalizedAngle === 270;
+}
+
+function motionOrientationFrameKey(angle = getScreenAngle(), source: MotionSource = "orientation") {
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  return `${source}:${normalizedAngle}:${phoneIsLandscape(angle) ? "landscape" : "portrait"}`;
 }
 
 function readMotionCalibration(frame = motionOrientationFrameKey()) {
@@ -7397,11 +7591,114 @@ function writeMotionCalibration(calibration: MotionCalibration) {
   latestMotionCalibration = calibration;
 }
 
+function listenToSteeringMotion(onSample: (sample: MotionSample) => void, onDebug?: (event: MotionDebugEvent) => void) {
+  let lastOrientationAt = 0;
+  let lastMotionAt = 0;
+  let lastGravitySensorAt = 0;
+  const sensors: MotionSensorInstance[] = [];
+
+  const onOrientation = (event: DeviceOrientationEvent) => {
+    onDebug?.({ kind: "event", source: event.beta === null && event.gamma === null ? "orientation-null" : "orientation" });
+    if (event.beta === null && event.gamma === null) return;
+    const angle = getScreenAngle();
+    lastOrientationAt = performance.now();
+    const sample = { raw: readSteeringTilt(event, angle), angle, source: "orientation" as const };
+    onDebug?.({ kind: "sample", ...sample });
+    onSample(sample);
+  };
+
+  const onMotion = (event: DeviceMotionEvent) => {
+    if (performance.now() - lastOrientationAt < 500) return;
+    const angle = getScreenAngle();
+    const raw = readSteeringMotion(event, angle);
+    onDebug?.({ kind: "event", source: raw === undefined ? "motion-empty" : "motion" });
+    if (raw === undefined) return;
+    lastMotionAt = performance.now();
+    onDebug?.({ kind: "sample", raw, angle, source: "motion" });
+    onSample({ raw, angle, source: "motion" });
+  };
+
+  if ("DeviceOrientationEvent" in window) window.addEventListener("deviceorientation", onOrientation);
+  if ("DeviceMotionEvent" in window) window.addEventListener("devicemotion", onMotion);
+  startMotionSensor("GravitySensor", "gravity", sensors, () => Math.max(lastOrientationAt, lastMotionAt), onDebug, (raw, angle) => {
+    lastGravitySensorAt = performance.now();
+    onSample({ raw, angle, source: "gravity" });
+  });
+  startMotionSensor("Accelerometer", "accelerometer", sensors, () => Math.max(lastOrientationAt, lastMotionAt, lastGravitySensorAt), onDebug, (raw, angle) => {
+    onSample({ raw, angle, source: "accelerometer" });
+  });
+
+  return () => {
+    window.removeEventListener("deviceorientation", onOrientation);
+    window.removeEventListener("devicemotion", onMotion);
+    sensors.forEach((sensor) => sensor.stop());
+  };
+}
+
+function startMotionSensor(
+  sensorName: MotionSensorName,
+  source: "gravity" | "accelerometer",
+  sensors: MotionSensorInstance[],
+  higherPriorityLastSampleAt: () => number,
+  onDebug: ((event: MotionDebugEvent) => void) | undefined,
+  onSample: (raw: number, angle: number) => void
+) {
+  const SensorConstructor = (window as unknown as Record<MotionSensorName, MotionSensorConstructor | undefined>)[sensorName];
+  if (typeof SensorConstructor !== "function") return;
+
+  try {
+    const sensor = new SensorConstructor({ frequency: 45, referenceFrame: "device" });
+    sensor.addEventListener("reading", () => {
+      if (performance.now() - higherPriorityLastSampleAt() < 500) return;
+      const angle = getScreenAngle();
+      const raw = readSteeringGravity(sensor.x, sensor.y, sensor.z, angle);
+      onDebug?.({ kind: "event", source });
+      if (raw === undefined) return;
+      onDebug?.({ kind: "sample", source, raw, angle });
+      onSample(raw, angle);
+    });
+    sensor.addEventListener("error", () => {
+      onDebug?.({ kind: "sensor-error", source, message: `${sensorName} error` });
+      sensor.stop();
+    });
+    sensor.start();
+    sensors.push(sensor);
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "blocked";
+    onDebug?.({ kind: "sensor-error", source, message: `${sensorName} ${name}` });
+    // Generic Sensor is a Chrome-only fallback here; legacy events still cover other browsers.
+  }
+}
+
 function readSteeringTilt(event: DeviceOrientationEvent, angle: number) {
   const beta = event.beta ?? 0;
   const gamma = event.gamma ?? 0;
+  return readSteeringTiltValues(beta, gamma, angle);
+}
+
+function readSteeringMotion(event: DeviceMotionEvent, angle: number) {
+  const gravity = event.accelerationIncludingGravity;
+  if (!gravity) return undefined;
+
+  return readSteeringGravity(gravity.x, gravity.y, gravity.z, angle);
+}
+
+function readSteeringGravity(gravityX: number | null | undefined, gravityY: number | null | undefined, gravityZ: number | null | undefined, angle: number) {
+  const x = gravityX ?? 0;
+  const y = gravityY ?? 0;
+  const z = gravityZ ?? 0;
+  if (Math.hypot(x, y, z) < 1) return undefined;
+
+  // Chrome can withhold fused orientation events on some phones. The gravity
+  // projection gives us the same small-angle tilt signal from motion sensors.
+  const beta = THREE.MathUtils.radToDeg(Math.atan2(y, Math.hypot(x, z)));
+  const gamma = THREE.MathUtils.radToDeg(Math.atan2(x, Math.hypot(y, z)));
+  return readSteeringTiltValues(beta, gamma, angle);
+}
+
+function readSteeringTiltValues(beta: number, gamma: number, angle: number) {
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  const isLandscape = phoneIsLandscape();
+  const isLandscape = phoneIsLandscape(angle);
 
   if (isLandscape && normalizedAngle === 270) return beta;
   if (isLandscape) return -beta;
@@ -7416,6 +7713,93 @@ function steeringFromTilt(raw: number, neutral: number, sensitivity: number, dir
   const magnitude = Math.abs(value);
   if (magnitude < MOTION_STEERING_DEADZONE) return 0;
   return Math.sign(value) * ((magnitude - MOTION_STEERING_DEADZONE) / (1 - MOTION_STEERING_DEADZONE));
+}
+
+function motionLiveStatus(source: MotionSource) {
+  if (source === "orientation") return "Motion live";
+  if (source === "motion") return "Motion fallback live";
+  return "Motion sensor live";
+}
+
+function motionRaceStatus(source: MotionSource) {
+  if (source === "orientation") return "Motion steering";
+  if (source === "motion") return "Motion fallback steering";
+  return "Motion sensor steering";
+}
+
+function motionDebugInitial(): MotionDebugState {
+  return {
+    secure: motionContextAllowed(),
+    policy: motionPolicyStatus(),
+    permissions: "perm ?",
+    request: "not requested",
+    orientationEvents: 0,
+    motionEvents: 0,
+    gravityReadings: 0,
+    accelerometerReadings: 0,
+    emptyEvents: 0,
+    errors: 0,
+    last: "waiting"
+  };
+}
+
+function updateMotionDebug(current: MotionDebugState, event: MotionDebugEvent): MotionDebugState {
+  const next = {
+    ...current,
+    secure: motionContextAllowed(),
+    policy: motionPolicyStatus()
+  };
+
+  if (event.kind === "request") {
+    return { ...next, request: event.message, last: event.message };
+  }
+
+  if (event.kind === "permissions") {
+    return { ...next, permissions: event.status };
+  }
+
+  if (event.kind === "sensor-error") {
+    return { ...next, errors: next.errors + 1, last: event.message };
+  }
+
+  if (event.kind === "event") {
+    if (event.source === "orientation") return { ...next, orientationEvents: next.orientationEvents + 1 };
+    if (event.source === "motion") return { ...next, motionEvents: next.motionEvents + 1 };
+    if (event.source === "gravity") return { ...next, gravityReadings: next.gravityReadings + 1 };
+    if (event.source === "accelerometer") return { ...next, accelerometerReadings: next.accelerometerReadings + 1 };
+    return { ...next, emptyEvents: next.emptyEvents + 1, last: event.source };
+  }
+
+  return {
+    ...next,
+    last: `${event.source} ${event.raw.toFixed(1)} @ ${Math.round(event.angle)}`
+  };
+}
+
+function formatMotionDebug(debug: MotionDebugState) {
+  const context = debug.secure ? "secure" : "not secure";
+  return `Motion debug: ${context}; ${debug.policy}; ${debug.permissions}; request ${debug.request}; events o${debug.orientationEvents} m${debug.motionEvents} g${debug.gravityReadings} a${debug.accelerometerReadings} empty${debug.emptyEvents} err${debug.errors}; last ${debug.last}`;
+}
+
+function motionPolicyStatus() {
+  if (typeof document === "undefined") return "policy ?";
+  const policyHost = document as Document & {
+    featurePolicy?: { allowsFeature?: (feature: string) => boolean };
+    permissionsPolicy?: { allowsFeature?: (feature: string) => boolean };
+  };
+  const policy = policyHost.permissionsPolicy ?? policyHost.featurePolicy;
+  if (typeof policy?.allowsFeature !== "function") return "policy ?";
+
+  try {
+    const features = [
+      ["a", "accelerometer"],
+      ["g", "gyroscope"],
+      ["m", "magnetometer"]
+    ] as const;
+    return features.map(([label, feature]) => `${label}${policy.allowsFeature?.(feature) ? "+" : "-"}`).join(" ");
+  } catch {
+    return "policy ?";
+  }
 }
 
 function motionSamplesStable(values: number[]) {

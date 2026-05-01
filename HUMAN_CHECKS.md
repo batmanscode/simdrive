@@ -15,7 +15,9 @@ Things that need real-device playtesting before we trust the tuning.
 - Test uphill/downhill sections on Fjord and Cloudline: grade physics should feel like a hill effect without snapping the car to the wrong elevated road layer.
 - Test steering at low speed and high speed: the car should feel responsive without snapping.
 - Test hard wall hits and hard car-to-car crashes: all displays should see a short fireball/smoke crash effect, and the crashing phone should get the strongest boom/vibration cue without changing collision physics.
-- Test motion steering from a secure phone URL. Android Chrome/Chromium may not deliver device orientation over plain LAN `http://` URLs.
+- Test motion steering from a secure phone URL. Android/iOS Chrome may not deliver device orientation over plain LAN `http://` URLs even when Firefox does.
+- Test the lobby motion meter in Chrome after tapping `Enable Motion`: it should move if `deviceorientation`, the `devicemotion` gravity fallback, or Chrome's Generic Sensor fallback is firing.
+- Refresh the phone controller during countdown/racing in Chrome, then tap the race controller: motion steering should re-arm, report `Motion fallback steering`/`Motion sensor steering` if it uses a fallback, or keep the `Motion needs HTTPS`/`Move phone; no motion events yet` status visible if Chrome is still blocking sensors.
 - Test motion steering direction. If the browser/device reports landscape orientation with the opposite sign, the saved invert-motion-steering toggle should make the motion test meter and race steering match the physical tilt direction.
 - Test race countdown while the phone is still portrait: the phone should ask to turn sideways instead of saving a portrait steering center.
 - Test race countdown while holding the phone straight in landscape: the phone should briefly show `Hold steady, centering :D`.
