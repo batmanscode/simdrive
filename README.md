@@ -22,7 +22,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - VIP can choose track, laps, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
 - Each driver can choose a vehicle: Formula Prototype, KZ Kart, Stock Truck, or Tuk-Tuk.
 - Formula Prototype and Stock Truck offer Balanced, High Grip, and High Speed setups; KZ Kart and Tuk-Tuk use a fixed setup.
-- Each driver can choose a personal cockpit style: None, Hands, or Paws.
+- Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's vehicle, setup, and cockpit style.
 - Display landing/lobby/results screens support System, Light, and Dark themes.
 - The home screen shows a live active-driver count only when at least one driver is online.

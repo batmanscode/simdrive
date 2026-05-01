@@ -12,7 +12,7 @@ This file tracks the current build. `SPEC_rough.md` is unchanged and remains the
 - Display lobby shows current track, lap count, rain, warm-up/flying start, collision/ghost mode, gentle stability assist, reset mode, connected players in the current driver lineup, each player's vehicle, each player's car setup, and each player's cockpit style so non-VIP users can see race settings.
 - Display refresh resumes the same display group. If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are notified so abandoned games do not keep running.
 - Display results can return the room to lobby without requiring the VIP controller.
-- Controller flow: room-code join, name/color setup, per-player vehicle selection, per-player car setup selection where available, per-player cockpit style selection, VIP settings, race controller.
+- Controller flow: room-code join, name/color setup, per-player vehicle selection, per-player car setup selection where available, per-player cockpit style selection with new players defaulting to None, VIP settings, race controller.
 - Controller sessions store the last room token locally and auto-resume the saved driver after phone refreshes or QR rescans when the room still exists. The setup screen shows reconnecting, reconnected, and error messages.
 - One-player practice works with one display and one phone/browser controller.
 - Up to 8 players per room are represented in server state.

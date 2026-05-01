@@ -16,7 +16,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed_
 - VIP controller can choose track, laps, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
 - Warm-up/flying start is on by default. The first pass is untimed, and each driver's timed lap 1 and total race timer start when they cross the line.
 - Each driver can choose a vehicle: Formula Prototype, KZ Kart, Stock Truck, or Tuk-Tuk. Formula Prototype and Stock Truck have Balanced, High Grip, and High Speed setups; KZ Kart and Tuk-Tuk use one fixed setup.
-- Each driver can choose a personal cockpit style: None, Hands, or Paws.
+- Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Non-VIP players can see the chosen race settings, vehicles, and driver setups in the lobby.
 - Five tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#vibejam` sponsor board, weather visuals, dust/spray effects, vehicle-specific cockpit silhouettes, and per-driver cockpit Hands/Paws/None display cosmetics.
