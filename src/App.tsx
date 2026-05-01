@@ -1371,9 +1371,10 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
       }}
     >
       <div className="rotate-warning">
+        <Smartphone size={42} />
         <strong>Turn your phone sideways</strong>
-        <span>Landscape keeps the pedal zones wide and makes tilt steering use the correct axis.</span>
-        <button onClick={() => void requestLandscape()}>Lock Landscape</button>
+        <span>Rotate to landscape before the start. Pedals, touch steering, and motion steering work best sideways.</span>
+        <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
       </div>
       <button className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">

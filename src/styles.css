@@ -2441,13 +2441,22 @@ input {
     color: #fffaf0;
   }
 
+  .rotate-warning svg {
+    justify-self: center;
+    color: #ffd166;
+    transform: rotate(90deg);
+  }
+
   .rotate-warning strong {
     font-size: 28px;
+    line-height: 1;
   }
 
   .rotate-warning span {
-    max-width: 320px;
+    max-width: 340px;
     color: rgba(255, 250, 240, 0.76);
+    font-size: 15px;
+    line-height: 1.35;
   }
 
   .rotate-warning button {
