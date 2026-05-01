@@ -1371,9 +1371,10 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
       }}
     >
       <div className="rotate-warning">
+        <Smartphone size={42} />
         <strong>Turn your phone sideways</strong>
-        <span>Landscape keeps the pedal zones wide and makes tilt steering use the correct axis.</span>
-        <button onClick={() => void requestLandscape()}>Lock Landscape</button>
+        <span>Rotate to landscape before the start. Pedals, touch steering, and motion steering work best sideways.</span>
+        <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
       </div>
       <button className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">
@@ -2757,30 +2758,34 @@ function RoadsideBoardModel({ rain }: { rain: boolean }) {
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <>
+    <group scale={[1.7, 1.7, 1.25]}>
       <mesh castShadow>
         <boxGeometry args={[1.9, 1.16, 0.12]} />
         <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
       </mesh>
-      <mesh position={[0, 0, 0.071]}>
-        <planeGeometry args={[1.72, 0.86]} />
-        <meshBasicMaterial map={texture} toneMapped={false} transparent />
-      </mesh>
+      {[-1, 1].map((face) => (
+        <group key={face}>
+          <mesh position={[0, 0, face * 0.071]} rotation={[0, face < 0 ? Math.PI : 0, 0]}>
+            <planeGeometry args={[1.72, 0.86]} />
+            <meshBasicMaterial map={texture} toneMapped={false} transparent />
+          </mesh>
+          <mesh position={[0, 0.47, face * 0.073]}>
+            <boxGeometry args={[1.68, 0.035, 0.018]} />
+            <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+          </mesh>
+          <mesh position={[0, -0.47, face * 0.073]}>
+            <boxGeometry args={[1.68, 0.035, 0.018]} />
+            <meshStandardMaterial color="#e84f5f" roughness={0.42} />
+          </mesh>
+        </group>
+      ))}
       {[-0.52, 0.52].map((x) => (
         <mesh key={x} position={[x, -0.82, 0]}>
           <boxGeometry args={[0.1, 1.18, 0.1]} />
           <meshStandardMaterial color="#22262c" roughness={0.5} />
         </mesh>
       ))}
-      <mesh position={[0, 0.47, 0.073]}>
-        <boxGeometry args={[1.68, 0.035, 0.018]} />
-        <meshStandardMaterial color="#35a7ff" roughness={0.42} />
-      </mesh>
-      <mesh position={[0, -0.47, 0.073]}>
-        <boxGeometry args={[1.68, 0.035, 0.018]} />
-        <meshStandardMaterial color="#e84f5f" roughness={0.42} />
-      </mesh>
-    </>
+    </group>
   );
 }
 
@@ -2818,12 +2823,12 @@ function BrakingBoardModel() {
         <boxGeometry args={[1.0, 1.0, 0.1]} />
         <meshStandardMaterial color="#fffaf0" roughness={0.62} />
       </mesh>
-      {[0, 1, 2].map((stripe) => (
-        <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
+      {[-1, 1].flatMap((face) => [0, 1, 2].map((stripe) => (
+        <mesh key={`${face}-${stripe}`} position={[-0.28 + stripe * 0.28, 0.0, face * 0.06]}>
           <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
           <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
         </mesh>
-      ))}
+      )))}
       <mesh position={[0, -0.76, 0]}>
         <boxGeometry args={[0.1, 1.1, 0.1]} />
         <meshStandardMaterial color="#22262c" roughness={0.5} />
@@ -2839,10 +2844,12 @@ function TrackBarrierModel({ rain, accent = "#e04a54" }: { rain: boolean; accent
         <boxGeometry args={[2.4, 0.68, 0.22]} />
         <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
       </mesh>
-      <mesh position={[0, 0.18, 0.13]}>
-        <boxGeometry args={[2.1, 0.08, 0.04]} />
-        <meshStandardMaterial color={accent} roughness={0.5} />
-      </mesh>
+      {[-1, 1].map((face) => (
+        <mesh key={face} position={[0, 0.18, face * 0.13]}>
+          <boxGeometry args={[2.1, 0.08, 0.04]} />
+          <meshStandardMaterial color={accent} roughness={0.5} />
+        </mesh>
+      ))}
     </>
   );
 }
@@ -2851,7 +2858,7 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
   const texture = useMemo(() => createSponsorTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
   return (
-    <>
+    <group scale={[1.75, 1.75, 1.25]}>
       <mesh castShadow>
         <planeGeometry args={[5.25, 1.68]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
@@ -2862,7 +2869,7 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
           <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
         </mesh>
       ))}
-    </>
+    </group>
   );
 }
 
@@ -2871,7 +2878,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     const progress = trackMetrics(track).totalLength * (track.id === "sakura" ? 0.6 : 0.36);
     const sample = sampleTrack(track, progress);
     const side = track.id === "sakura" ? 1 : -1;
-    const position = tracksidePropPosition(track, sample, side, 1.2, 2.6, 0.8);
+    const position = tracksidePropPosition(track, sample, side, 1.2, 4.7, 0.8);
     return {
       ...position,
       heading: sample.heading - side * (Math.PI / 2 - 0.18)
@@ -2879,7 +2886,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   }, [track]);
 
   return (
-    <group position={[placement.x, placement.y + 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
+    <group position={[placement.x, placement.y + 2.35, placement.z]} rotation={[0, placement.heading, 0]}>
       <SponsorBoardModel rain={rain} />
     </group>
   );
@@ -2902,7 +2909,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * offset;
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * offset;
         return (
-          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.62, z]} rotation={[0, sample.heading - side * (Math.PI / 2 - 0.18), 0]}>
+          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 1.08, z]} rotation={[0, sample.heading - side * (Math.PI / 2 - 0.18), 0]}>
             <RoadsideBoardModel rain={rain} />
           </group>
         );
@@ -2912,7 +2919,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         return (
-          <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + (side < 0 ? 0.42 : -0.42), 0]}>
+          <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + Math.PI + side * 0.42, 0]}>
             <BrakingBoardModel />
           </group>
         );
@@ -2923,7 +2930,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         return (
-          <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading, 0]}>
+          <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading - side * Math.PI / 2, 0]}>
             <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
           </group>
         );
@@ -3043,22 +3050,25 @@ function SakuraTunnelTree({ position, side, heading, seed, rain }: { position: [
   const blossomShade = rain ? "#c77d96" : "#ffc1cf";
   const height = 3.35 + seededUnit(seed * 13) * 0.75;
   const inward = -side;
+  const leanAngle = 0.08;
+  const trunkCenterX = inward * (height / 2) * Math.sin(leanAngle);
+  const canopyX = inward * height * Math.sin(leanAngle);
 
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, height * 0.45, 0]} rotation={[0, 0, inward * 0.11]} castShadow>
+      <mesh position={[trunkCenterX, height / 2, 0]} rotation={[0, 0, -inward * leanAngle]} castShadow>
         <cylinderGeometry args={[0.15, 0.26, height, 7]} />
         <meshStandardMaterial color="#5d4037" roughness={0.78} />
       </mesh>
-      <mesh position={[inward * 0.74, height + 0.1, 0]} scale={[1.55, 0.9, 1.18]} castShadow>
+      <mesh position={[canopyX, height + 0.08, 0]} scale={[1.5, 0.9, 1.18]} castShadow>
         <sphereGeometry args={[0.86, 14, 8]} />
         <meshStandardMaterial color={blossom} roughness={0.86} />
       </mesh>
-      <mesh position={[inward * 1.22, height - 0.25, 0.38]} scale={[1.18, 0.72, 0.94]} castShadow>
+      <mesh position={[canopyX + inward * 0.36, height - 0.25, 0.38]} scale={[1.12, 0.72, 0.94]} castShadow>
         <sphereGeometry args={[0.78, 12, 8]} />
         <meshStandardMaterial color={blossomShade} roughness={0.86} />
       </mesh>
-      <mesh position={[inward * 1.08, height - 0.28, -0.42]} scale={[1.08, 0.68, 0.88]} castShadow>
+      <mesh position={[canopyX - inward * 0.3, height - 0.26, -0.42]} scale={[1.04, 0.68, 0.88]} castShadow>
         <sphereGeometry args={[0.72, 12, 8]} />
         <meshStandardMaterial color={blossom} roughness={0.86} />
       </mesh>
@@ -3460,11 +3470,11 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
         }
         if (index % 4 === 2) {
           const bannerSide = Math.floor(index / 4) % 2 === 0 ? -1 : 1;
-          const position = tracksidePropPosition(track, sample, bannerSide, 0.3 + seededUnit(index * 5) * 0.75, 1.85, 0.8);
+          const position = tracksidePropPosition(track, sample, bannerSide, 0.3 + seededUnit(index * 5) * 0.75, 3, 0.8);
           return (
             <SakuraBanner
               key={`sakura-banner-${index}`}
-              position={[position.x, position.y + 1.24, position.z]}
+              position={[position.x, position.y + 1.75, position.z]}
               heading={sample.heading - bannerSide * (Math.PI / 2 - 0.18)}
               rain={rain}
             />
@@ -3528,28 +3538,30 @@ function SakuraBanner({ position, heading, rain }: { position: [number, number, 
 
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh castShadow>
-        <boxGeometry args={[3.8, 1.06, 0.1]} />
-        <meshStandardMaterial color={rain ? "#c7798b" : "#ef92a8"} roughness={0.72} />
-      </mesh>
-      <mesh position={[0, 0, 0.061]}>
-        <planeGeometry args={[3.48, 0.74]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
-      </mesh>
-      {[-1.48, 1.48].map((x) => (
-        <mesh key={x} position={[x, -0.8, -0.01]} castShadow>
-          <boxGeometry args={[0.11, 1.48, 0.11]} />
-          <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+      <group scale={[1.6, 1.6, 1.2]}>
+        <mesh castShadow>
+          <boxGeometry args={[3.8, 1.06, 0.1]} />
+          <meshStandardMaterial color={rain ? "#c7798b" : "#ef92a8"} roughness={0.72} />
         </mesh>
-      ))}
-      <mesh position={[0, 0.42, 0.064]}>
-        <boxGeometry args={[3.3, 0.05, 0.018]} />
-        <meshStandardMaterial color={rain ? "#b64058" : "#d84763"} roughness={0.46} />
-      </mesh>
-      <mesh position={[0, -0.42, 0.064]}>
-        <boxGeometry args={[3.3, 0.05, 0.018]} />
-        <meshStandardMaterial color={rain ? "#343237" : "#27242b"} roughness={0.5} />
-      </mesh>
+        <mesh position={[0, 0, 0.061]}>
+          <planeGeometry args={[3.48, 0.74]} />
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        </mesh>
+        {[-1.48, 1.48].map((x) => (
+          <mesh key={x} position={[x, -0.8, -0.01]} castShadow>
+            <boxGeometry args={[0.11, 1.48, 0.11]} />
+            <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.42, 0.064]}>
+          <boxGeometry args={[3.3, 0.05, 0.018]} />
+          <meshStandardMaterial color={rain ? "#b64058" : "#d84763"} roughness={0.46} />
+        </mesh>
+        <mesh position={[0, -0.42, 0.064]}>
+          <boxGeometry args={[3.3, 0.05, 0.018]} />
+          <meshStandardMaterial color={rain ? "#343237" : "#27242b"} roughness={0.5} />
+        </mesh>
+      </group>
     </group>
   );
 }
