@@ -2818,12 +2818,12 @@ function BrakingBoardModel() {
         <boxGeometry args={[1.0, 1.0, 0.1]} />
         <meshStandardMaterial color="#fffaf0" roughness={0.62} />
       </mesh>
-      {[0, 1, 2].map((stripe) => (
-        <mesh key={stripe} position={[-0.28 + stripe * 0.28, 0.0, 0.06]}>
+      {[-1, 1].flatMap((face) => [0, 1, 2].map((stripe) => (
+        <mesh key={`${face}-${stripe}`} position={[-0.28 + stripe * 0.28, 0.0, face * 0.06]}>
           <boxGeometry args={[0.11, 0.78 - stripe * 0.18, 0.025]} />
           <meshStandardMaterial color={stripe === 0 ? "#e84f5f" : "#101214"} roughness={0.5} />
         </mesh>
-      ))}
+      )))}
       <mesh position={[0, -0.76, 0]}>
         <boxGeometry args={[0.1, 1.1, 0.1]} />
         <meshStandardMaterial color="#22262c" roughness={0.5} />
@@ -2839,10 +2839,12 @@ function TrackBarrierModel({ rain, accent = "#e04a54" }: { rain: boolean; accent
         <boxGeometry args={[2.4, 0.68, 0.22]} />
         <meshStandardMaterial color={rain ? "#b8c1c4" : "#d7d7d2"} roughness={0.58} metalness={0.08} />
       </mesh>
-      <mesh position={[0, 0.18, 0.13]}>
-        <boxGeometry args={[2.1, 0.08, 0.04]} />
-        <meshStandardMaterial color={accent} roughness={0.5} />
-      </mesh>
+      {[-1, 1].map((face) => (
+        <mesh key={face} position={[0, 0.18, face * 0.13]}>
+          <boxGeometry args={[2.1, 0.08, 0.04]} />
+          <meshStandardMaterial color={accent} roughness={0.5} />
+        </mesh>
+      ))}
     </>
   );
 }
@@ -2912,7 +2914,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + 4.3);
         return (
-          <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + (side < 0 ? 0.42 : -0.42), 0]}>
+          <group key={`${sample.x}-${sample.z}-brake`} position={[x, sample.y + 0.72, z]} rotation={[0, sample.heading + Math.PI + side * 0.42, 0]}>
             <BrakingBoardModel />
           </group>
         );
@@ -2923,7 +2925,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         return (
-          <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading, 0]}>
+          <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading - side * Math.PI / 2, 0]}>
             <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
           </group>
         );
