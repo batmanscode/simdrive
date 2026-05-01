@@ -877,6 +877,63 @@ input {
   color: rgba(255, 250, 240, 0.66);
 }
 
+.motion-debug {
+  display: block;
+  color: rgba(255, 250, 240, 0.66);
+}
+
+.motion-debug summary {
+  width: fit-content;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 8px;
+  padding: 0 9px;
+  background: rgba(255, 250, 240, 0.14);
+  color: rgba(255, 250, 240, 0.78);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+
+.motion-debug summary::-webkit-details-marker {
+  display: none;
+}
+
+.motion-debug summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.motion-debug[open] summary {
+  margin-bottom: 6px;
+}
+
+.motion-debug[open] summary::after {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.motion-debug code {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.32);
+  color: rgba(255, 250, 240, 0.74);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .swatch {
   width: 18px;
   height: 18px;

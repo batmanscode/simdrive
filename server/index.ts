@@ -25,6 +25,7 @@ const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
 const DEFAULT_COCKPIT_STYLE: CockpitStyle = "none";
 const VEHICLE_IDS = new Set<VehicleId>(Object.keys(VEHICLES) as VehicleId[]);
+const SENSOR_PERMISSIONS_POLICY = "accelerometer=(self), gyroscope=(self), magnetometer=(self)";
 
 type ClientRole = "unknown" | "display" | "controller";
 
@@ -67,6 +68,10 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 const distPath = path.resolve(process.cwd(), "dist");
 
+app.use((_req, res, next) => {
+  res.setHeader("Permissions-Policy", SENSOR_PERMISSIONS_POLICY);
+  next();
+});
 app.use(express.static(distPath));
 app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(distPath, "index.html"));

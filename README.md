@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the display at `http://localhost:5173/`. The dev server also prints a LAN URL, which is the best URL to use when joining from a real phone on the same network.
+Open the display at `http://localhost:5173/`. The dev server also prints a LAN URL, which is useful for joining from a real phone on the same network. Chrome/Chromium phone motion sensors require a secure origin, so use the HTTPS Codespaces/forwarded URL, production HTTPS URL, or an HTTPS tunnel when testing tilt steering in Chrome; plain LAN `http://` may only work in Firefox.
 
 In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSockets through the same forwarded origin, so you do not need to separately open port `8787` for normal dev use.
 
@@ -31,7 +31,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, vehicle-specific cockpit silhouettes, countdown lights, and a short first-place banner.
 - Race view includes a minimap, live global leaderboard, and display-side auto-spectate for finished racers while others are still active.
 - Results include podium-style placement, total time, and best lap.
-- Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, vehicle-specific audio, and vibration where supported.
+- Phone controller supports tilt steering with Chrome-friendly `devicemotion`/Generic Sensor fallbacks, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, vehicle-specific audio, and vibration where supported.
 - Controller setup/lobby screens show a recommended-browser notice when the phone is not on the preferred Android Chromium-style browser path.
 - Web vibration depends on browser support. Android Chromium/Samsung-style browsers are the main target; iOS Safari does not support it; Firefox Android may expose partial/no-op support.
 - Server owns room state, race phase, vehicle-specific velocity-based movement, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, elevation/grade effects, tuk-tuk rollover risk, optional crash/off-track reset, checkpoint-gated lap completion, directional collisions, DNF handling, and results.
