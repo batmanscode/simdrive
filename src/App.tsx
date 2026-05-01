@@ -23,6 +23,7 @@ const MOTION_STEERING_DEADZONE = 0.06;
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
 const TIP_RISK_TOAST_THRESHOLD = 0.22;
+const AUTO_SPECTATE_AFTER_FINISH_MS = 2500;
 const DEV_ASSET_ROUTE = "/dev-assets";
 const IS_DEV_BUILD = import.meta.env.DEV;
 
@@ -475,19 +476,139 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
       </button>
       <div className={className}>
         {panes.map((player) => (
-          <div className="race-pane" key={player.id}>
-            <RaceCanvas room={room} focusPlayerId={player.id} paneCount={paneCount} />
-            {room.settings.rain && <div className="rain-visor" aria-hidden />}
-            <RaceHud room={room} focusPlayerId={player.id} />
-            <RaceTipRiskToast room={room} focusPlayerId={player.id} />
-            <RaceMiniMap room={room} focusPlayerId={player.id} />
-            <RaceLeaderboard room={room} focusPlayerId={player.id} />
-          </div>
+          <RacePane key={player.id} room={room} sourcePlayer={player} paneCount={paneCount} />
         ))}
       </div>
       {room.phase === "countdown" && <StartLights countdown={countdown} />}
       <RaceFinishBanner room={room} />
     </main>
+  );
+}
+
+function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePlayer: Player; paneCount: number }) {
+  const sourceCar = room.cars.find((item) => item.playerId === sourcePlayer.id);
+  const [spectatePlayerId, setSpectatePlayerId] = useState<string>();
+  const [autoSpectateSuppressed, setAutoSpectateSuppressed] = useState(false);
+  const spectateTargets = useMemo(() => raceSpectateTargets(room, sourcePlayer.id), [room, sourcePlayer.id]);
+  const spectateTargetsRef = useRef(spectateTargets);
+  const resolvedSpectatePlayerId = spectatePlayerId
+    ? spectateTargets.find((item) => item.id === spectatePlayerId)?.id ?? spectateTargets[0]?.id
+    : undefined;
+  const focusPlayerId = resolvedSpectatePlayerId ?? sourcePlayer.id;
+  const spectatedPlayer = resolvedSpectatePlayerId ? room.players.find((item) => item.id === resolvedSpectatePlayerId) : undefined;
+  const showWatchRacePrompt = Boolean(sourceCar?.finished && autoSpectateSuppressed && !resolvedSpectatePlayerId && spectateTargets[0]);
+
+  useEffect(() => {
+    spectateTargetsRef.current = spectateTargets;
+  }, [spectateTargets]);
+
+  useEffect(() => {
+    if (room.phase === "racing" && sourceCar?.finished) return;
+    setSpectatePlayerId(undefined);
+    setAutoSpectateSuppressed(false);
+  }, [room.phase, sourceCar?.finished, sourcePlayer.id]);
+
+  useEffect(() => {
+    if (!spectatePlayerId) return;
+    if (spectateTargets.some((player) => player.id === spectatePlayerId)) return;
+    setSpectatePlayerId(spectateTargets[0]?.id);
+  }, [spectatePlayerId, spectateTargets]);
+
+  useEffect(() => {
+    if (room.phase !== "racing" || !sourceCar?.finished || autoSpectateSuppressed || spectatePlayerId) return;
+    const timeout = window.setTimeout(() => {
+      const target = spectateTargetsRef.current[0];
+      if (target) setSpectatePlayerId(target.id);
+    }, AUTO_SPECTATE_AFTER_FINISH_MS);
+    return () => window.clearTimeout(timeout);
+  }, [autoSpectateSuppressed, room.phase, sourceCar?.finished, sourcePlayer.id, spectatePlayerId]);
+
+  const watchLeadingTarget = () => {
+    const target = spectateTargetsRef.current[0];
+    if (!target) return;
+    setAutoSpectateSuppressed(false);
+    setSpectatePlayerId(target.id);
+  };
+
+  return (
+    <div className="race-pane">
+      <RaceCanvas room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} />
+      {room.settings.rain && <div className="rain-visor" aria-hidden />}
+      <RaceHud room={room} focusPlayerId={focusPlayerId} />
+      <RaceTipRiskToast room={room} focusPlayerId={focusPlayerId} />
+      <RaceMiniMap room={room} focusPlayerId={focusPlayerId} />
+      <RaceLeaderboard room={room} focusPlayerId={focusPlayerId} />
+      {spectatedPlayer && (
+        <RaceSpectateControls
+          activePlayers={spectateTargets}
+          spectatedPlayer={spectatedPlayer}
+          onSelect={setSpectatePlayerId}
+          onReturn={() => {
+            setSpectatePlayerId(undefined);
+            setAutoSpectateSuppressed(true);
+          }}
+        />
+      )}
+      {showWatchRacePrompt && spectateTargets[0] && (
+        <RaceSpectatePrompt targetPlayer={spectateTargets[0]} onWatch={watchLeadingTarget} />
+      )}
+    </div>
+  );
+}
+
+function RaceSpectateControls({
+  activePlayers,
+  spectatedPlayer,
+  onSelect,
+  onReturn
+}: {
+  activePlayers: Player[];
+  spectatedPlayer: Player;
+  onSelect: (playerId: string) => void;
+  onReturn: () => void;
+}) {
+  const currentIndex = Math.max(0, activePlayers.findIndex((player) => player.id === spectatedPlayer.id));
+  const canSwitch = activePlayers.length > 1;
+  const selectOffset = (offset: number) => {
+    if (!canSwitch) return;
+    const next = activePlayers[(currentIndex + offset + activePlayers.length) % activePlayers.length];
+    if (next) onSelect(next.id);
+  };
+
+  return (
+    <div className={canSwitch ? "race-spectate-controls" : "race-spectate-controls single"} aria-live="polite">
+      {canSwitch && (
+        <button type="button" aria-label="Previous racer" title="Previous racer" onClick={() => selectOffset(-1)}>
+          <ArrowLeft size={18} />
+        </button>
+      )}
+      <div className="race-spectate-driver">
+        <span>Spectating</span>
+        <strong>{spectatedPlayer.name}</strong>
+      </div>
+      {canSwitch && (
+        <button type="button" aria-label="Next racer" title="Next racer" onClick={() => selectOffset(1)}>
+          <ArrowRight size={18} />
+        </button>
+      )}
+      <button type="button" className="race-spectate-return" onClick={onReturn}>
+        <RotateCcw size={14} /> My finish
+      </button>
+    </div>
+  );
+}
+
+function RaceSpectatePrompt({ targetPlayer, onWatch }: { targetPlayer: Player; onWatch: () => void }) {
+  return (
+    <div className="race-spectate-controls prompt">
+      <div className="race-spectate-driver">
+        <span>Race still live</span>
+        <strong>{targetPlayer.name}</strong>
+      </div>
+      <button type="button" className="race-spectate-return" onClick={onWatch}>
+        <ArrowRight size={14} /> Watch
+      </button>
+    </div>
   );
 }
 
@@ -514,7 +635,7 @@ function RaceFinishBanner({ room }: { room: RoomState }) {
   useEffect(() => {
     if (!player) return;
     setVisibleFor(player.id);
-    const timeout = window.setTimeout(() => setVisibleFor(undefined), 4200);
+    const timeout = window.setTimeout(() => setVisibleFor(undefined), AUTO_SPECTATE_AFTER_FINISH_MS);
     return () => window.clearTimeout(timeout);
   }, [player?.id]);
 
@@ -532,7 +653,7 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
   const player = room.players.find((item) => item.id === focusPlayerId);
   const car = room.cars.find((item) => item.playerId === focusPlayerId);
   const speed = car ? Math.round(speedToKmh(car.speed)) : 0;
-  const lapText = car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`;
+  const lapText = raceHudStatusText(car, room.settings.lapCount);
   return (
     <div className="race-hud">
       <div><span className="swatch" style={{ background: player?.color }} />{player?.name}</div>
@@ -609,7 +730,7 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
   const rows = room.players
     .map((player) => {
       const car = room.cars.find((item) => item.playerId === player.id);
-      const distance = car ? (car.timedLapStarted ? (Math.min(car.lap, room.settings.lapCount + 1) - 1) * totalLength + car.progress : car.progress - totalLength) : 0;
+      const distance = raceDistance(car, room.settings.lapCount, totalLength);
       return { player, car, distance };
     })
     .sort((a, b) => {
@@ -629,6 +750,36 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
       ))}
     </ol>
   );
+}
+
+function raceSpectateTargets(room: RoomState, sourcePlayerId: string) {
+  const totalLength = trackMetrics(TRACKS[room.settings.trackId]).totalLength;
+  return room.players
+    .map((player) => {
+      const car = room.cars.find((item) => item.playerId === player.id);
+      return { player, car, distance: raceDistance(car, room.settings.lapCount, totalLength) };
+    })
+    .filter((item): item is { player: Player; car: CarState; distance: number } => item.player.id !== sourcePlayerId && isActiveRacingCar(item.car))
+    .sort((a, b) => b.distance - a.distance)
+    .map(({ player }) => player);
+}
+
+function isActiveRacingCar(car: CarState | undefined): car is CarState {
+  return Boolean(car && !car.finished && !car.crashed && !car.dnf);
+}
+
+function raceDistance(car: CarState | undefined, lapCount: number, totalLength: number) {
+  if (!car) return 0;
+  return car.timedLapStarted ? (Math.min(car.lap, lapCount + 1) - 1) * totalLength + car.progress : car.progress - totalLength;
+}
+
+function raceHudStatusText(car: CarState | undefined, lapCount: number) {
+  if (!car) return `Lap 1/${lapCount}`;
+  if (car.finished) return "Finished";
+  if (car.crashed) return "Crashed";
+  if (car.dnf) return "DNF";
+  if (!car.timedLapStarted) return "Warm-up";
+  return `Lap ${car.lap}/${lapCount}`;
 }
 
 function ResultsDisplay({ room, send, themeClass }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string }) {

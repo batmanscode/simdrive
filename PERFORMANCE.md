@@ -280,6 +280,7 @@ Before implementing, decide which bucket the feature belongs to:
 
 - Lobby/results/static UI: normal React state is fine.
 - Race HUD: keep derived work memoized and per-pane cost low.
+- Race pane camera/overlay features: keep display-only view state local to the pane unless the server genuinely needs to know about it.
 - Race 3D visual: assume split-screen multiplies the cost.
 - Controller feature: use input/feedback streams, not display snapshots.
 - Server race behavior: keep tick-loop cost bounded and deterministic.

@@ -83,7 +83,7 @@ Reset mode can respawn crashed cars and lets off-track players reset after 5 sec
 
 Phone controller has audio, haptics, motion test, calibration, and sensitivity
 
-Race screen now has minimap and live leaderboard
+Race screen now has minimap, live leaderboard, and finished-player auto-spectate on the display
 
 Phone controllers can reconnect after refresh
 

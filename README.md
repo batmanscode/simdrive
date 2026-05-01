@@ -29,7 +29,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - One-player practice works.
 - Five tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, vehicle-specific cockpit silhouettes, countdown lights, and a short first-place banner.
-- Race view includes a minimap and live global leaderboard.
+- Race view includes a minimap, live global leaderboard, and display-side auto-spectate for finished racers while others are still active.
 - Results include podium-style placement, total time, and best lap.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, vehicle-specific audio, and vibration where supported.
 - Controller setup/lobby screens show a recommended-browser notice when the phone is not on the preferred Android Chromium-style browser path.
