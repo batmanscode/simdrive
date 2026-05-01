@@ -3043,22 +3043,25 @@ function SakuraTunnelTree({ position, side, heading, seed, rain }: { position: [
   const blossomShade = rain ? "#c77d96" : "#ffc1cf";
   const height = 3.35 + seededUnit(seed * 13) * 0.75;
   const inward = -side;
+  const leanAngle = 0.08;
+  const trunkCenterX = inward * (height / 2) * Math.sin(leanAngle);
+  const canopyX = inward * height * Math.sin(leanAngle);
 
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, height * 0.45, 0]} rotation={[0, 0, inward * 0.11]} castShadow>
+      <mesh position={[trunkCenterX, height / 2, 0]} rotation={[0, 0, -inward * leanAngle]} castShadow>
         <cylinderGeometry args={[0.15, 0.26, height, 7]} />
         <meshStandardMaterial color="#5d4037" roughness={0.78} />
       </mesh>
-      <mesh position={[inward * 0.74, height + 0.1, 0]} scale={[1.55, 0.9, 1.18]} castShadow>
+      <mesh position={[canopyX, height + 0.08, 0]} scale={[1.5, 0.9, 1.18]} castShadow>
         <sphereGeometry args={[0.86, 14, 8]} />
         <meshStandardMaterial color={blossom} roughness={0.86} />
       </mesh>
-      <mesh position={[inward * 1.22, height - 0.25, 0.38]} scale={[1.18, 0.72, 0.94]} castShadow>
+      <mesh position={[canopyX + inward * 0.36, height - 0.25, 0.38]} scale={[1.12, 0.72, 0.94]} castShadow>
         <sphereGeometry args={[0.78, 12, 8]} />
         <meshStandardMaterial color={blossomShade} roughness={0.86} />
       </mesh>
-      <mesh position={[inward * 1.08, height - 0.28, -0.42]} scale={[1.08, 0.68, 0.88]} castShadow>
+      <mesh position={[canopyX - inward * 0.3, height - 0.26, -0.42]} scale={[1.04, 0.68, 0.88]} castShadow>
         <sphereGeometry args={[0.72, 12, 8]} />
         <meshStandardMaterial color={blossom} roughness={0.86} />
       </mesh>
