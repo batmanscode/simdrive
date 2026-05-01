@@ -2757,30 +2757,34 @@ function RoadsideBoardModel({ rain }: { rain: boolean }) {
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <>
+    <group scale={[1.7, 1.7, 1.25]}>
       <mesh castShadow>
         <boxGeometry args={[1.9, 1.16, 0.12]} />
         <meshStandardMaterial color={rain ? "#c8d2d7" : "#f2efe4"} roughness={0.7} />
       </mesh>
-      <mesh position={[0, 0, 0.071]}>
-        <planeGeometry args={[1.72, 0.86]} />
-        <meshBasicMaterial map={texture} toneMapped={false} transparent />
-      </mesh>
+      {[-1, 1].map((face) => (
+        <group key={face}>
+          <mesh position={[0, 0, face * 0.071]} rotation={[0, face < 0 ? Math.PI : 0, 0]}>
+            <planeGeometry args={[1.72, 0.86]} />
+            <meshBasicMaterial map={texture} toneMapped={false} transparent />
+          </mesh>
+          <mesh position={[0, 0.47, face * 0.073]}>
+            <boxGeometry args={[1.68, 0.035, 0.018]} />
+            <meshStandardMaterial color="#35a7ff" roughness={0.42} />
+          </mesh>
+          <mesh position={[0, -0.47, face * 0.073]}>
+            <boxGeometry args={[1.68, 0.035, 0.018]} />
+            <meshStandardMaterial color="#e84f5f" roughness={0.42} />
+          </mesh>
+        </group>
+      ))}
       {[-0.52, 0.52].map((x) => (
         <mesh key={x} position={[x, -0.82, 0]}>
           <boxGeometry args={[0.1, 1.18, 0.1]} />
           <meshStandardMaterial color="#22262c" roughness={0.5} />
         </mesh>
       ))}
-      <mesh position={[0, 0.47, 0.073]}>
-        <boxGeometry args={[1.68, 0.035, 0.018]} />
-        <meshStandardMaterial color="#35a7ff" roughness={0.42} />
-      </mesh>
-      <mesh position={[0, -0.47, 0.073]}>
-        <boxGeometry args={[1.68, 0.035, 0.018]} />
-        <meshStandardMaterial color="#e84f5f" roughness={0.42} />
-      </mesh>
-    </>
+    </group>
   );
 }
 
@@ -2853,7 +2857,7 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
   const texture = useMemo(() => createSponsorTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
   return (
-    <>
+    <group scale={[1.75, 1.75, 1.25]}>
       <mesh castShadow>
         <planeGeometry args={[5.25, 1.68]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
@@ -2864,7 +2868,7 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
           <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
         </mesh>
       ))}
-    </>
+    </group>
   );
 }
 
@@ -2873,7 +2877,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
     const progress = trackMetrics(track).totalLength * (track.id === "sakura" ? 0.6 : 0.36);
     const sample = sampleTrack(track, progress);
     const side = track.id === "sakura" ? 1 : -1;
-    const position = tracksidePropPosition(track, sample, side, 1.2, 2.6, 0.8);
+    const position = tracksidePropPosition(track, sample, side, 1.2, 4.7, 0.8);
     return {
       ...position,
       heading: sample.heading - side * (Math.PI / 2 - 0.18)
@@ -2881,7 +2885,7 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   }, [track]);
 
   return (
-    <group position={[placement.x, placement.y + 1.35, placement.z]} rotation={[0, placement.heading, 0]}>
+    <group position={[placement.x, placement.y + 2.35, placement.z]} rotation={[0, placement.heading, 0]}>
       <SponsorBoardModel rain={rain} />
     </group>
   );
@@ -2904,7 +2908,7 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * offset;
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * offset;
         return (
-          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 0.62, z]} rotation={[0, sample.heading - side * (Math.PI / 2 - 0.18), 0]}>
+          <group key={`${sample.x}-${sample.z}-prop`} position={[x, sample.y + 1.08, z]} rotation={[0, sample.heading - side * (Math.PI / 2 - 0.18), 0]}>
             <RoadsideBoardModel rain={rain} />
           </group>
         );
@@ -3465,11 +3469,11 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
         }
         if (index % 4 === 2) {
           const bannerSide = Math.floor(index / 4) % 2 === 0 ? -1 : 1;
-          const position = tracksidePropPosition(track, sample, bannerSide, 0.3 + seededUnit(index * 5) * 0.75, 1.85, 0.8);
+          const position = tracksidePropPosition(track, sample, bannerSide, 0.3 + seededUnit(index * 5) * 0.75, 3, 0.8);
           return (
             <SakuraBanner
               key={`sakura-banner-${index}`}
-              position={[position.x, position.y + 1.24, position.z]}
+              position={[position.x, position.y + 1.75, position.z]}
               heading={sample.heading - bannerSide * (Math.PI / 2 - 0.18)}
               rain={rain}
             />
@@ -3533,28 +3537,30 @@ function SakuraBanner({ position, heading, rain }: { position: [number, number, 
 
   return (
     <group position={position} rotation={[0, heading, 0]}>
-      <mesh castShadow>
-        <boxGeometry args={[3.8, 1.06, 0.1]} />
-        <meshStandardMaterial color={rain ? "#c7798b" : "#ef92a8"} roughness={0.72} />
-      </mesh>
-      <mesh position={[0, 0, 0.061]}>
-        <planeGeometry args={[3.48, 0.74]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
-      </mesh>
-      {[-1.48, 1.48].map((x) => (
-        <mesh key={x} position={[x, -0.8, -0.01]} castShadow>
-          <boxGeometry args={[0.11, 1.48, 0.11]} />
-          <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+      <group scale={[1.6, 1.6, 1.2]}>
+        <mesh castShadow>
+          <boxGeometry args={[3.8, 1.06, 0.1]} />
+          <meshStandardMaterial color={rain ? "#c7798b" : "#ef92a8"} roughness={0.72} />
         </mesh>
-      ))}
-      <mesh position={[0, 0.42, 0.064]}>
-        <boxGeometry args={[3.3, 0.05, 0.018]} />
-        <meshStandardMaterial color={rain ? "#b64058" : "#d84763"} roughness={0.46} />
-      </mesh>
-      <mesh position={[0, -0.42, 0.064]}>
-        <boxGeometry args={[3.3, 0.05, 0.018]} />
-        <meshStandardMaterial color={rain ? "#343237" : "#27242b"} roughness={0.5} />
-      </mesh>
+        <mesh position={[0, 0, 0.061]}>
+          <planeGeometry args={[3.48, 0.74]} />
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        </mesh>
+        {[-1.48, 1.48].map((x) => (
+          <mesh key={x} position={[x, -0.8, -0.01]} castShadow>
+            <boxGeometry args={[0.11, 1.48, 0.11]} />
+            <meshStandardMaterial color="#2b2f35" roughness={0.58} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.42, 0.064]}>
+          <boxGeometry args={[3.3, 0.05, 0.018]} />
+          <meshStandardMaterial color={rain ? "#b64058" : "#d84763"} roughness={0.46} />
+        </mesh>
+        <mesh position={[0, -0.42, 0.064]}>
+          <boxGeometry args={[3.3, 0.05, 0.018]} />
+          <meshStandardMaterial color={rain ? "#343237" : "#27242b"} roughness={0.5} />
+        </mesh>
+      </group>
     </group>
   );
 }
