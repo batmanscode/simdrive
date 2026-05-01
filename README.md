@@ -22,14 +22,14 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - VIP can choose track, laps, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
 - Each driver can choose a vehicle: Formula Prototype, KZ Kart, Stock Truck, or Tuk-Tuk.
 - Formula Prototype and Stock Truck offer Balanced, High Grip, and High Speed setups; KZ Kart and Tuk-Tuk use a fixed setup.
-- Each driver can choose a personal cockpit style: None, Hands, or Paws.
+- Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's vehicle, setup, and cockpit style.
 - Display landing/lobby/results screens support System, Light, and Dark themes.
 - The home screen shows a live active-driver count only when at least one driver is online.
 - One-player practice works.
 - Five tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, vehicle-specific cockpit silhouettes, countdown lights, and a short first-place banner.
-- Race view includes a minimap and live global leaderboard.
+- Race view includes a minimap, live global leaderboard, and display-side auto-spectate for finished racers while others are still active.
 - Results include podium-style placement, total time, and best lap.
 - Phone controller supports tilt steering, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, vehicle-specific audio, and vibration where supported.
 - Controller setup/lobby screens show a recommended-browser notice when the phone is not on the preferred Android Chromium-style browser path.

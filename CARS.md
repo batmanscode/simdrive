@@ -40,7 +40,7 @@ Source links:
 | Multi-setup vehicles | `formula`, `stockTruck` |
 | Fixed-setup vehicles | `kart`, `tukTuk` |
 | Colour choices | Same controller palette for every vehicle |
-| Cockpit cosmetics | None, Hands, or Paws; visual only |
+| Cockpit cosmetics | None, Hands, or Paws; visual only; new players default to None |
 
 ## Physics Notes
 

@@ -128,3 +128,13 @@ Tuk-Tuk can roll/tip from risky high-speed cornering and now has a provisional T
 Phone audio and haptics are now vehicle-specific enough to give each vehicle a different feel
 
 The gameplay poster / social image has been refreshed using current gameplay captures
+
+Changes 01/05/2026
+
+Finished players on the display can auto-spectate active racers after the finish view delay
+
+Finished players can switch between active racers, return to their own finish view, and re-enter spectate
+
+New players default to cockpit style none
+
+Playtests keep cockpit style hands explicitly

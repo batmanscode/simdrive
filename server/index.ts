@@ -23,6 +23,7 @@ const CRASH_EVENT_TTL_MS = 1_600;
 const CRASH_EVENT_COOLDOWN_MS = 1_200;
 const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
+const DEFAULT_COCKPIT_STYLE: CockpitStyle = "none";
 const VEHICLE_IDS = new Set<VehicleId>(Object.keys(VEHICLES) as VehicleId[]);
 
 type ClientRole = "unknown" | "display" | "controller";
@@ -369,7 +370,7 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     color: defaultColors[room.players.size % defaultColors.length],
     vehicleId: DEFAULT_VEHICLE_ID,
     carSetupId: getDefaultSetupIdForVehicle(DEFAULT_VEHICLE_ID) ?? DEFAULT_CAR_SETUP_ID,
-    cockpitStyle: "hands",
+    cockpitStyle: DEFAULT_COCKPIT_STYLE,
     isReady: false,
     isVIP: false,
     connected: true,
