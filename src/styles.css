@@ -196,6 +196,144 @@ h2 {
   font-weight: 850;
 }
 
+.codex-benchmarks {
+  margin: 0;
+}
+
+.codex-benchmarks-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 78px;
+}
+
+.codex-benchmarks-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #ffd166;
+  color: #101214;
+}
+
+.codex-benchmarks-title .eyebrow {
+  margin: 0 0 3px;
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.codex-benchmarks .codex-benchmarks-title h2 {
+  margin: 0;
+  padding: 0;
+  color: #101214;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.codex-benchmarks-copy {
+  margin: 10px 0 12px;
+  color: rgba(16, 18, 20, 0.76);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.codex-benchmark-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.codex-benchmark-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  align-items: center;
+  padding: 9px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.045);
+  border: 1px solid rgba(16, 18, 20, 0.08);
+}
+
+.codex-benchmark-main {
+  min-width: 0;
+}
+
+.codex-benchmark-main strong,
+.codex-benchmark-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-benchmark-main strong {
+  color: #101214;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.codex-benchmark-main span {
+  margin-top: 2px;
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.codex-benchmark-time {
+  color: #8a4f00;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.codex-benchmark-detail {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(16, 18, 20, 0.66);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.codex-benchmark-line {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 18, 20, 0.08);
+  color: #101214;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: lowercase;
+}
+
+.codex-benchmark-line.road {
+  background: rgba(22, 199, 132, 0.18);
+}
+
+.codex-benchmark-line.curb {
+  background: rgba(255, 209, 102, 0.34);
+}
+
+.codex-benchmark-line.grass {
+  background: rgba(232, 79, 95, 0.16);
+}
+
+.about-modal.codex-benchmarks-modal {
+  width: min(920px, 100%);
+}
+
 .hero-actions,
 .join-form,
 .stat,
@@ -2419,6 +2557,14 @@ input {
 
   .hero-flow {
     grid-template-columns: 1fr;
+  }
+
+  .codex-benchmark-list {
+    grid-template-columns: 1fr;
+  }
+
+  .codex-benchmarks-title {
+    padding-right: 0;
   }
 
   .about-backdrop {
