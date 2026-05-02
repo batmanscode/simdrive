@@ -30,6 +30,7 @@ const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
 const TIP_RISK_TOAST_THRESHOLD = 0.22;
 const AUTO_SPECTATE_AFTER_FINISH_MS = 2500;
+const RACE_FOCUS_SMOOTHING_RESPONSE = 16;
 const DEV_ASSET_ROUTE = "/dev-assets";
 const IS_DEV_BUILD = import.meta.env.DEV;
 
@@ -2123,7 +2124,7 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
         slip: focus.slip
       };
     }
-    const amount = smoothingAmount(delta, 16);
+    const amount = smoothingAmount(delta, RACE_FOCUS_SMOOTHING_RESPONSE);
     smoothFocus.current.x = THREE.MathUtils.lerp(smoothFocus.current.x, focus.x, amount);
     smoothFocus.current.y = THREE.MathUtils.lerp(smoothFocus.current.y, focus.y, amount);
     smoothFocus.current.z = THREE.MathUtils.lerp(smoothFocus.current.z, focus.z, amount);
@@ -6239,7 +6240,7 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
   const frontSteer = visualWheelSteer(car.steer, 0.52);
   useFrame((_, delta) => {
     if (!group.current) return;
-    const amount = smoothingAmount(delta, 18);
+    const amount = smoothingAmount(delta, RACE_FOCUS_SMOOTHING_RESPONSE);
     group.current.position.x = THREE.MathUtils.lerp(group.current.position.x, car.x, amount);
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.65, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
@@ -6950,7 +6951,7 @@ function useCockpitPose(car: CarState, yOffset: number) {
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
   useFrame((_, delta) => {
     if (!ref.current) return;
-    const amount = smoothingAmount(delta, 18);
+    const amount = smoothingAmount(delta, RACE_FOCUS_SMOOTHING_RESPONSE);
     ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, car.x, amount);
     ref.current.position.y = THREE.MathUtils.lerp(ref.current.position.y, car.y + yOffset, amount);
     ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, car.z, amount);
