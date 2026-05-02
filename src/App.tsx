@@ -62,10 +62,16 @@ const SHOWROOM_VEHICLE_COLORS: Record<VehicleId, string> = {
   stockTruck: "#16c784",
   tukTuk: "#ffd166"
 };
-const SHOWROOM_SCENERY_ITEMS = [
+type ShowroomSceneryItem = {
+  assetName: string;
+  label: string;
+  previewYOffset?: number;
+};
+
+const SHOWROOM_SCENERY_ITEMS: ShowroomSceneryItem[] = [
   { assetName: "TrackStartGantryModel", label: "Start gantry" },
-  { assetName: "SponsorBoardModel", label: "#vibejam board" },
-  { assetName: "RoadsideBoardModel", label: "simdrive board" },
+  { assetName: "SponsorBoardModel", label: "#vibejam board", previewYOffset: -0.56 },
+  { assetName: "SakuraBanner", label: "try not to lose board" },
   { assetName: "SakuraBlossomTunnel", label: "Sakura tunnel" },
   { assetName: "AlpineCableCar", label: "Alpine cable car" },
   { assetName: "FjordVillage", label: "Fjord village" },
@@ -545,7 +551,7 @@ function ShowroomSceneryCard({ item }: { item: typeof SHOWROOM_SCENERY_ITEMS[num
   return (
     <article className="showroom-scenery-card">
       <div className="showroom-scenery-stage" aria-hidden>
-        <ShowroomSceneryStage asset={asset} />
+        <ShowroomSceneryStage asset={asset} previewYOffset={item.previewYOffset ?? 0} />
       </div>
       <div className="showroom-card-copy">
         <strong>{item.label}</strong>
@@ -555,21 +561,21 @@ function ShowroomSceneryCard({ item }: { item: typeof SHOWROOM_SCENERY_ITEMS[num
   );
 }
 
-function ShowroomSceneryStage({ asset }: { asset: DevAsset }) {
+function ShowroomSceneryStage({ asset, previewYOffset }: { asset: DevAsset; previewYOffset: number }) {
   return (
     <Canvas orthographic dpr={[1, 1.4]} camera={{ position: [0, 1.55, 7.2], zoom: 38, near: 0.1, far: 1000 }}>
       <color attach="background" args={["#d8eaf3"]} />
       <ambientLight intensity={0.86} />
       <hemisphereLight args={["#eef8ff", "#596c4e", 0.42]} />
       <directionalLight position={[5, 7, 6]} intensity={1.35} />
-      <ShowroomSceneryObject asset={asset} />
+      <ShowroomSceneryObject asset={asset} previewYOffset={previewYOffset} />
     </Canvas>
   );
 }
 
-function ShowroomSceneryObject({ asset }: { asset: DevAsset }) {
+function ShowroomSceneryObject({ asset, previewYOffset }: { asset: DevAsset; previewYOffset: number }) {
   const contentRef = useRef<THREE.Group>(null);
-  const isFlatSign = asset.name === "SponsorBoardModel" || asset.name === "BrakingBoardModel" || asset.name === "RoadsideBoardModel";
+  const isFlatSign = asset.name === "SponsorBoardModel" || asset.name === "BrakingBoardModel" || asset.name === "RoadsideBoardModel" || asset.name === "SakuraBanner";
 
   useLayoutEffect(() => {
     const content = contentRef.current;
@@ -593,7 +599,8 @@ function ShowroomSceneryObject({ asset }: { asset: DevAsset }) {
       content.parent?.worldToLocal(bottom);
       content.position.y -= bottom.y + 0.04;
     }
-  }, [asset, isFlatSign]);
+    content.position.y += previewYOffset;
+  }, [asset, isFlatSign, previewYOffset]);
 
   return (
     <group rotation={[0, isFlatSign ? 0 : -0.32, 0]}>
