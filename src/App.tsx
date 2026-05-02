@@ -54,6 +54,25 @@ const CODEX_BENCHMARK_LAPS: CodexBenchmarkLap[] = [
   { trackId: "sakura", vehicleId: "tukTuk", setupId: "balanced", lapTime: "60.935s", avgSpeedKmh: 28.4, surface: "road", surfaceLabel: "road-only" }
 ];
 
+const SHOWROOM_TRACK_IDS: TrackId[] = ["sakura", "alpine", "fjord", "causeway", "cloudline"];
+const SHOWROOM_COCKPIT_STYLES: CockpitStyle[] = ["none", "hands", "paws"];
+const SHOWROOM_VEHICLE_COLORS: Record<VehicleId, string> = {
+  formula: "#ff8f3d",
+  kart: "#35a7ff",
+  stockTruck: "#16c784",
+  tukTuk: "#ffd166"
+};
+const SHOWROOM_SCENERY_ITEMS = [
+  { assetName: "TrackStartGantryModel", label: "Start gantry" },
+  { assetName: "SponsorBoardModel", label: "#vibejam board" },
+  { assetName: "RoadsideBoardModel", label: "simdrive board" },
+  { assetName: "SakuraBlossomTunnel", label: "Sakura tunnel" },
+  { assetName: "AlpineCableCar", label: "Alpine cable car" },
+  { assetName: "FjordVillage", label: "Fjord village" },
+  { assetName: "CausewayMarina", label: "Causeway marina" },
+  { assetName: "CloudlineBackdrop", label: "Cloudline ridges" }
+];
+
 type MotionCalibration = {
   frame: string;
   neutral: number;
@@ -132,6 +151,7 @@ function DisplayApp() {
   const [joinCode, setJoinCode] = useState("");
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isBenchmarksOpen, setIsBenchmarksOpen] = useState(false);
+  const [isShowroomOpen, setIsShowroomOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [themeMode, setThemeMode] = useStoredDisplayTheme();
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
@@ -145,6 +165,9 @@ function DisplayApp() {
         <div className="landing-top-actions">
           <button className="landing-about-link" type="button" onClick={() => setIsTutorialOpen(true)}>
             <Info size={15} /> How to play
+          </button>
+          <button className="landing-about-link" type="button" onClick={() => setIsShowroomOpen(true)}>
+            <Grid2X2 size={15} /> Showroom
           </button>
           <button className="landing-about-link" type="button" onClick={() => setIsBenchmarksOpen(true)}>
             <Trophy size={15} /> Codex laps
@@ -214,6 +237,7 @@ function DisplayApp() {
           <HeroShowcase />
         </section>
         {isTutorialOpen && <HowToPlayModal onClose={() => setIsTutorialOpen(false)} />}
+        {isShowroomOpen && <ShowroomModal onClose={() => setIsShowroomOpen(false)} />}
         {isBenchmarksOpen && <CodexBenchmarksModal onClose={() => setIsBenchmarksOpen(false)} />}
         {isAboutOpen && <HomeAboutModal onClose={() => setIsAboutOpen(false)} />}
       </main>
@@ -383,6 +407,198 @@ function ThemeToggle({ mode, onChange }: { mode: DisplayThemeMode; onChange: (mo
         </button>
       ))}
     </div>
+  );
+}
+
+function ShowroomModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="about-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="about-modal showroom-modal" role="dialog" aria-modal="true" aria-labelledby="showroom-title">
+        <button className="about-close" type="button" onClick={onClose}>
+          Close
+        </button>
+        <p className="eyebrow about-eyebrow">garage pass</p>
+        <h2 id="showroom-title">Showroom</h2>
+        <div className="showroom-body">
+          <section className="showroom-section" aria-labelledby="showroom-cars-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-cars-title">Cars</h3>
+              <span>{VEHICLE_ORDER.length} drive classes</span>
+            </div>
+            <div className="showroom-car-grid">
+              {VEHICLE_ORDER.map((vehicleId) => <ShowroomVehicleCard key={vehicleId} vehicleId={vehicleId} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-tracks-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-tracks-title">Tracks</h3>
+              <span>{SHOWROOM_TRACK_IDS.length} routes</span>
+            </div>
+            <div className="showroom-track-grid">
+              {SHOWROOM_TRACK_IDS.map((trackId) => <ShowroomTrackCard key={trackId} trackId={trackId} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-cockpit-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-cockpit-title">Cockpit</h3>
+              <span>visual style</span>
+            </div>
+            <div className="showroom-cockpit-grid">
+              {SHOWROOM_COCKPIT_STYLES.map((style) => <ShowroomCockpitCard key={style} style={style} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-scenery-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-scenery-title">Scenery sampler</h3>
+              <span>curated highlights</span>
+            </div>
+            <div className="showroom-scenery-grid">
+              {SHOWROOM_SCENERY_ITEMS.map((item) => <ShowroomSceneryCard key={item.assetName} item={item} />)}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ShowroomVehicleCard({ vehicleId }: { vehicleId: VehicleId }) {
+  const vehicle = getVehicle(vehicleId);
+  const setup = getVehicleSetup(vehicle.id, vehicle.defaultSetupId);
+  return (
+    <article className="showroom-car-card">
+      <div className="showroom-car-stage" aria-hidden>
+        <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+          <color attach="background" args={["#181b21"]} />
+          <ambientLight intensity={0.82} />
+          <directionalLight position={[3, 5, 4]} intensity={1.35} />
+          <CarPreviewScene vehicleId={vehicle.id} color={SHOWROOM_VEHICLE_COLORS[vehicle.id]} />
+        </Canvas>
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{vehicle.name}</strong>
+        <span>{setup.shortName} setup</span>
+      </div>
+      <div className="showroom-stat-row">
+        <span>{setup.stats.topSpeedKmh} km/h</span>
+        <span>{setup.stats.grip}/10 grip</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomTrackCard({ trackId }: { trackId: TrackId }) {
+  const track = TRACKS[trackId];
+  return (
+    <article className="showroom-track-card">
+      <MiniTrack track={track} />
+      <div className="showroom-card-copy">
+        <strong>{track.name}</strong>
+        <span>{track.targetLap}</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomCockpitCard({ style }: { style: CockpitStyle }) {
+  return (
+    <article className="showroom-cockpit-card">
+      <div className="showroom-cockpit-stage" aria-hidden>
+        <Canvas orthographic camera={{ position: [0, 3.2, 4.8], zoom: 150, near: 0.1, far: 100 }} dpr={[1, 1.5]}>
+          <color attach="background" args={["#181b21"]} />
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[2, 4, 3]} intensity={1.2} />
+          <group position={[0, -0.5, 0]} scale={[1.2, 1.2, 1.2]}>
+            <CockpitWheel steer={0.18} style={style} />
+          </group>
+        </Canvas>
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{cockpitStyleLabel(style)}</strong>
+        <span>{style === "none" ? "clean wheel" : style === "paws" ? "paw hands" : "driver hands"}</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomSceneryCard({ item }: { item: typeof SHOWROOM_SCENERY_ITEMS[number] }) {
+  const asset = useMemo(() => DEV_ASSETS.find((candidate) => candidate.name === item.assetName), [item.assetName]);
+  if (!asset) return null;
+  return (
+    <article className="showroom-scenery-card">
+      <div className="showroom-scenery-stage" aria-hidden>
+        <ShowroomSceneryStage asset={asset} />
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{item.label}</strong>
+        <span>trackside detail</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomSceneryStage({ asset }: { asset: DevAsset }) {
+  return (
+    <Canvas orthographic dpr={[1, 1.4]} camera={{ position: [0, 1.55, 7.2], zoom: 38, near: 0.1, far: 1000 }}>
+      <color attach="background" args={["#d8eaf3"]} />
+      <ambientLight intensity={0.86} />
+      <hemisphereLight args={["#eef8ff", "#596c4e", 0.42]} />
+      <directionalLight position={[5, 7, 6]} intensity={1.35} />
+      <ShowroomSceneryObject asset={asset} />
+    </Canvas>
+  );
+}
+
+function ShowroomSceneryObject({ asset }: { asset: DevAsset }) {
+  const contentRef = useRef<THREE.Group>(null);
+  const isFlatSign = asset.name === "SponsorBoardModel" || asset.name === "BrakingBoardModel" || asset.name === "RoadsideBoardModel";
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    content.position.set(0, 0, 0);
+    content.scale.setScalar(1);
+    content.rotation.set(0, 0, 0);
+    content.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(content);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    content.parent?.worldToLocal(center);
+    content.position.sub(asset.pivot ? new THREE.Vector3(...asset.pivot) : center);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDimension = Math.max(size.x, size.y, size.z, 1);
+    content.scale.setScalar(Math.min(4.2, 3.0 / (maxDimension * (asset.zoom ?? 1))));
+    content.updateWorldMatrix(true, true);
+    const centeredBox = new THREE.Box3().setFromObject(content);
+    if (!isFlatSign && Number.isFinite(centeredBox.min.y)) {
+      const bottom = new THREE.Vector3(0, centeredBox.min.y, 0);
+      content.parent?.worldToLocal(bottom);
+      content.position.y -= bottom.y + 0.04;
+    }
+  }, [asset, isFlatSign]);
+
+  return (
+    <group rotation={[0, isFlatSign ? 0 : -0.32, 0]}>
+      <group ref={contentRef}>{asset.render(false)}</group>
+    </group>
   );
 }
 
@@ -3260,12 +3476,18 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
   useEffect(() => () => texture.dispose(), [texture]);
   return (
     <group scale={[1.75, 1.75, 1.25]}>
-      <mesh castShadow>
-        <planeGeometry args={[5.25, 1.68]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[5.45, 1.86, 0.16]} />
+        <meshStandardMaterial color={rain ? "#151f27" : "#10141a"} roughness={0.62} metalness={0.04} />
       </mesh>
+      {[-1, 1].map((face) => (
+        <mesh key={face} position={[0, 0, face * 0.091]} rotation={[0, face < 0 ? Math.PI : 0, 0]}>
+          <planeGeometry args={[5.25, 1.68]} />
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        </mesh>
+      ))}
       {[-2.1, 2.1].map((x) => (
-        <mesh key={x} position={[x, -1.22, -0.04]} castShadow>
+        <mesh key={x} position={[x, -1.22, 0]} castShadow>
           <boxGeometry args={[0.14, 2.44, 0.14]} />
           <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
         </mesh>
