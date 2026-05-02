@@ -39,6 +39,7 @@ Source links:
 | Default setup | Vehicle default, usually `balanced` |
 | Multi-setup vehicles | `formula`, `stockTruck` |
 | Fixed-setup vehicles | `kart`, `tukTuk` |
+| Motion steering defaults | Formula `1`, KZ Kart `1`, Stock Truck `4`, Tuk-Tuk `2` on the `1-10` slider |
 | Colour choices | Same controller palette for every vehicle |
 | Cockpit cosmetics | None, Hands, or Paws; visual only; new players default to None |
 

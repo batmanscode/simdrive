@@ -6,11 +6,17 @@ import * as THREE from "three";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getVehicle, getVehicleSetup, getVehicleSetups, VEHICLE_ORDER, VEHICLE_STAT_TOP_SPEED_MAX_KMH, VEHICLES, type CarSetup, type VehicleDefinition } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, Player, RaceSettings, RoomState, ServerMessage, TrackDef, VehicleId } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, Player, RaceSettings, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
-const STEERING_SENSITIVITY_KEY = "sim-drive-steering-sensitivity-level";
-const STEERING_SENSITIVITY_DEFAULT = 6;
+const STEERING_SENSITIVITY_MIN = 1;
+const STEERING_SENSITIVITY_MAX = 10;
+const VEHICLE_STEERING_SENSITIVITY_DEFAULTS: Record<VehicleId, number> = {
+  formula: 1,
+  kart: 1,
+  stockTruck: 4,
+  tukTuk: 2
+};
 const INVERT_MOTION_STEERING_KEY = "sim-drive-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "sim-drive-controller-session";
@@ -26,6 +32,52 @@ const TIP_RISK_TOAST_THRESHOLD = 0.22;
 const AUTO_SPECTATE_AFTER_FINISH_MS = 2500;
 const DEV_ASSET_ROUTE = "/dev-assets";
 const IS_DEV_BUILD = import.meta.env.DEV;
+
+type CodexBenchmarkLap = {
+  trackId: TrackId;
+  vehicleId: VehicleId;
+  setupId: CarSetupId;
+  lapTime: string;
+  avgSpeedKmh: number;
+  surface: "road" | "curb" | "grass";
+  surfaceLabel: string;
+};
+
+const CODEX_BENCHMARK_LAPS: CodexBenchmarkLap[] = [
+  { trackId: "cloudline", vehicleId: "formula", setupId: "balanced", lapTime: "8:28.009", avgSpeedKmh: 226.0, surface: "curb", surfaceLabel: "tiny curb" },
+  { trackId: "cloudline", vehicleId: "stockTruck", setupId: "balanced", lapTime: "8:32.607", avgSpeedKmh: 224.0, surface: "road", surfaceLabel: "road-only" },
+  { trackId: "cloudline", vehicleId: "kart", setupId: "balanced", lapTime: "15:00.386", avgSpeedKmh: 127.5, surface: "curb", surfaceLabel: "tiny curb" },
+  { trackId: "cloudline", vehicleId: "tukTuk", setupId: "balanced", lapTime: "28:58.112", avgSpeedKmh: 66.1, surface: "road", surfaceLabel: "road-only" },
+  { trackId: "sakura", vehicleId: "formula", setupId: "balanced", lapTime: "7.618s", avgSpeedKmh: 227.5, surface: "grass", surfaceLabel: "grass + curb" },
+  { trackId: "sakura", vehicleId: "stockTruck", setupId: "balanced", lapTime: "9.667s", avgSpeedKmh: 179.2, surface: "grass", surfaceLabel: "brief grass" },
+  { trackId: "sakura", vehicleId: "kart", setupId: "balanced", lapTime: "15.344s", avgSpeedKmh: 112.9, surface: "grass", surfaceLabel: "grass + curb" },
+  { trackId: "sakura", vehicleId: "tukTuk", setupId: "balanced", lapTime: "60.935s", avgSpeedKmh: 28.4, surface: "road", surfaceLabel: "road-only" }
+];
+
+const SHOWROOM_TRACK_IDS: TrackId[] = ["sakura", "alpine", "fjord", "causeway", "cloudline"];
+const SHOWROOM_COCKPIT_STYLES: CockpitStyle[] = ["none", "hands", "paws"];
+const SHOWROOM_VEHICLE_COLORS: Record<VehicleId, string> = {
+  formula: "#ff8f3d",
+  kart: "#35a7ff",
+  stockTruck: "#16c784",
+  tukTuk: "#ffd166"
+};
+type ShowroomSceneryItem = {
+  assetName: string;
+  label: string;
+  previewYOffset?: number;
+};
+
+const SHOWROOM_SCENERY_ITEMS: ShowroomSceneryItem[] = [
+  { assetName: "TrackStartGantryModel", label: "Start gantry" },
+  { assetName: "SponsorBoardModel", label: "#vibejam board", previewYOffset: -0.56 },
+  { assetName: "SakuraBanner", label: "try not to lose board" },
+  { assetName: "SakuraBlossomTunnel", label: "Sakura tunnel" },
+  { assetName: "AlpineCableCar", label: "Alpine cable car" },
+  { assetName: "FjordVillage", label: "Fjord village" },
+  { assetName: "CausewayMarina", label: "Causeway marina" },
+  { assetName: "CloudlineBackdrop", label: "Cloudline ridges" }
+];
 
 type MotionCalibration = {
   frame: string;
@@ -104,6 +156,8 @@ function DisplayApp() {
   const game = useGameSocket();
   const [joinCode, setJoinCode] = useState("");
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isBenchmarksOpen, setIsBenchmarksOpen] = useState(false);
+  const [isShowroomOpen, setIsShowroomOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [themeMode, setThemeMode] = useStoredDisplayTheme();
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
@@ -117,6 +171,12 @@ function DisplayApp() {
         <div className="landing-top-actions">
           <button className="landing-about-link" type="button" onClick={() => setIsTutorialOpen(true)}>
             <Info size={15} /> How to play
+          </button>
+          <button className="landing-about-link" type="button" onClick={() => setIsShowroomOpen(true)}>
+            <Grid2X2 size={15} /> Showroom
+          </button>
+          <button className="landing-about-link" type="button" onClick={() => setIsBenchmarksOpen(true)}>
+            <Trophy size={15} /> Codex laps
           </button>
           <button className="landing-about-link" type="button" onClick={() => setIsAboutOpen(true)}>
             <Info size={15} /> About
@@ -183,6 +243,8 @@ function DisplayApp() {
           <HeroShowcase />
         </section>
         {isTutorialOpen && <HowToPlayModal onClose={() => setIsTutorialOpen(false)} />}
+        {isShowroomOpen && <ShowroomModal onClose={() => setIsShowroomOpen(false)} />}
+        {isBenchmarksOpen && <CodexBenchmarksModal onClose={() => setIsBenchmarksOpen(false)} />}
         {isAboutOpen && <HomeAboutModal onClose={() => setIsAboutOpen(false)} />}
       </main>
     );
@@ -351,6 +413,265 @@ function ThemeToggle({ mode, onChange }: { mode: DisplayThemeMode; onChange: (mo
         </button>
       ))}
     </div>
+  );
+}
+
+function ShowroomModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="about-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="about-modal showroom-modal" role="dialog" aria-modal="true" aria-labelledby="showroom-title">
+        <button className="about-close" type="button" onClick={onClose}>
+          Close
+        </button>
+        <p className="eyebrow about-eyebrow">garage pass</p>
+        <h2 id="showroom-title">Showroom</h2>
+        <div className="showroom-body">
+          <section className="showroom-section" aria-labelledby="showroom-cars-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-cars-title">Cars</h3>
+              <span>{VEHICLE_ORDER.length} drive classes</span>
+            </div>
+            <div className="showroom-car-grid">
+              {VEHICLE_ORDER.map((vehicleId) => <ShowroomVehicleCard key={vehicleId} vehicleId={vehicleId} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-tracks-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-tracks-title">Tracks</h3>
+              <span>{SHOWROOM_TRACK_IDS.length} routes</span>
+            </div>
+            <div className="showroom-track-grid">
+              {SHOWROOM_TRACK_IDS.map((trackId) => <ShowroomTrackCard key={trackId} trackId={trackId} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-cockpit-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-cockpit-title">Cockpit</h3>
+              <span>visual style</span>
+            </div>
+            <div className="showroom-cockpit-grid">
+              {SHOWROOM_COCKPIT_STYLES.map((style) => <ShowroomCockpitCard key={style} style={style} />)}
+            </div>
+          </section>
+
+          <section className="showroom-section" aria-labelledby="showroom-scenery-title">
+            <div className="showroom-section-head">
+              <h3 id="showroom-scenery-title">Scenery sampler</h3>
+              <span>curated highlights</span>
+            </div>
+            <div className="showroom-scenery-grid">
+              {SHOWROOM_SCENERY_ITEMS.map((item) => <ShowroomSceneryCard key={item.assetName} item={item} />)}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ShowroomVehicleCard({ vehicleId }: { vehicleId: VehicleId }) {
+  const vehicle = getVehicle(vehicleId);
+  const setup = getVehicleSetup(vehicle.id, vehicle.defaultSetupId);
+  return (
+    <article className="showroom-car-card">
+      <div className="showroom-car-stage" aria-hidden>
+        <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+          <color attach="background" args={["#181b21"]} />
+          <ambientLight intensity={0.82} />
+          <directionalLight position={[3, 5, 4]} intensity={1.35} />
+          <CarPreviewScene vehicleId={vehicle.id} color={SHOWROOM_VEHICLE_COLORS[vehicle.id]} />
+        </Canvas>
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{vehicle.name}</strong>
+        <span>{setup.shortName} setup</span>
+      </div>
+      <div className="showroom-stat-row">
+        <span>{setup.stats.topSpeedKmh} km/h</span>
+        <span>{setup.stats.grip}/10 grip</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomTrackCard({ trackId }: { trackId: TrackId }) {
+  const track = TRACKS[trackId];
+  return (
+    <article className="showroom-track-card">
+      <MiniTrack track={track} />
+      <div className="showroom-card-copy">
+        <strong>{track.name}</strong>
+        <span>{track.targetLap}</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomCockpitCard({ style }: { style: CockpitStyle }) {
+  return (
+    <article className="showroom-cockpit-card">
+      <div className="showroom-cockpit-stage" aria-hidden>
+        <Canvas orthographic camera={{ position: [0, 3.2, 4.8], zoom: 150, near: 0.1, far: 100 }} dpr={[1, 1.5]}>
+          <color attach="background" args={["#181b21"]} />
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[2, 4, 3]} intensity={1.2} />
+          <group position={[0, -0.5, 0]} scale={[1.2, 1.2, 1.2]}>
+            <CockpitWheel steer={0.18} style={style} />
+          </group>
+        </Canvas>
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{cockpitStyleLabel(style)}</strong>
+        <span>{style === "none" ? "clean wheel" : style === "paws" ? "paw hands" : "driver hands"}</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomSceneryCard({ item }: { item: typeof SHOWROOM_SCENERY_ITEMS[number] }) {
+  const asset = useMemo(() => DEV_ASSETS.find((candidate) => candidate.name === item.assetName), [item.assetName]);
+  if (!asset) return null;
+  return (
+    <article className="showroom-scenery-card">
+      <div className="showroom-scenery-stage" aria-hidden>
+        <ShowroomSceneryStage asset={asset} previewYOffset={item.previewYOffset ?? 0} />
+      </div>
+      <div className="showroom-card-copy">
+        <strong>{item.label}</strong>
+        <span>trackside detail</span>
+      </div>
+    </article>
+  );
+}
+
+function ShowroomSceneryStage({ asset, previewYOffset }: { asset: DevAsset; previewYOffset: number }) {
+  return (
+    <Canvas orthographic dpr={[1, 1.4]} camera={{ position: [0, 1.55, 7.2], zoom: 38, near: 0.1, far: 1000 }}>
+      <color attach="background" args={["#d8eaf3"]} />
+      <ambientLight intensity={0.86} />
+      <hemisphereLight args={["#eef8ff", "#596c4e", 0.42]} />
+      <directionalLight position={[5, 7, 6]} intensity={1.35} />
+      <ShowroomSceneryObject asset={asset} previewYOffset={previewYOffset} />
+    </Canvas>
+  );
+}
+
+function ShowroomSceneryObject({ asset, previewYOffset }: { asset: DevAsset; previewYOffset: number }) {
+  const contentRef = useRef<THREE.Group>(null);
+  const isFlatSign = asset.name === "SponsorBoardModel" || asset.name === "BrakingBoardModel" || asset.name === "RoadsideBoardModel" || asset.name === "SakuraBanner";
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    content.position.set(0, 0, 0);
+    content.scale.setScalar(1);
+    content.rotation.set(0, 0, 0);
+    content.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(content);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    content.parent?.worldToLocal(center);
+    content.position.sub(asset.pivot ? new THREE.Vector3(...asset.pivot) : center);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDimension = Math.max(size.x, size.y, size.z, 1);
+    content.scale.setScalar(Math.min(4.2, 3.0 / (maxDimension * (asset.zoom ?? 1))));
+    content.updateWorldMatrix(true, true);
+    const centeredBox = new THREE.Box3().setFromObject(content);
+    if (!isFlatSign && Number.isFinite(centeredBox.min.y)) {
+      const bottom = new THREE.Vector3(0, centeredBox.min.y, 0);
+      content.parent?.worldToLocal(bottom);
+      content.position.y -= bottom.y + 0.04;
+    }
+    content.position.y += previewYOffset;
+  }, [asset, isFlatSign, previewYOffset]);
+
+  return (
+    <group rotation={[0, isFlatSign ? 0 : -0.32, 0]}>
+      <group ref={contentRef}>{asset.render(false)}</group>
+    </group>
+  );
+}
+
+function CodexBenchmarksModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="about-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="about-modal codex-benchmarks-modal" role="dialog" aria-modal="true" aria-labelledby="codex-benchmarks-title">
+        <button className="about-close" type="button" onClick={onClose}>
+          Close
+        </button>
+        <CodexBenchmarks />
+      </section>
+    </div>
+  );
+}
+
+function CodexBenchmarks() {
+  return (
+    <section className="codex-benchmarks" aria-labelledby="codex-benchmarks-title">
+      <div className="codex-benchmarks-title">
+        <span className="codex-benchmarks-icon"><Trophy size={17} /></span>
+        <div>
+          <p className="eyebrow">Automated lap board</p>
+          <h2 id="codex-benchmarks-title">Codex benchmarks</h2>
+        </div>
+      </div>
+      <p className="codex-benchmarks-copy">
+        Automated benchmark laps driven by Codex. Sometimes it hit curbs or grass too. It's only a robot, so don't judge too hard.
+      </p>
+      <div className="codex-benchmark-list">
+        {CODEX_BENCHMARK_LAPS.map((lap) => {
+          const track = TRACKS[lap.trackId];
+          const vehicle = getVehicle(lap.vehicleId);
+          const setup = getVehicleSetup(lap.vehicleId, lap.setupId);
+
+          return (
+            <div className="codex-benchmark-row" key={`${lap.trackId}-${lap.vehicleId}`}>
+              <div className="codex-benchmark-main">
+                <strong>{track.name}</strong>
+                <span>{vehicle.shortName} / {setup.shortName}</span>
+              </div>
+              <span className="codex-benchmark-time">{lap.lapTime}</span>
+              <div className="codex-benchmark-detail">
+                <span>{lap.avgSpeedKmh.toFixed(1)} km/h avg</span>
+                <span className={`codex-benchmark-line ${lap.surface}`}>{lap.surfaceLabel}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -884,6 +1205,18 @@ function ControllerApp() {
   const autoResumeAttemptedRef = useRef(false);
   const token = localStorage.getItem(controllerTokenKey(roomCode)) ?? (savedSession?.roomCode === roomCode ? savedSession.token : null);
   const player = game.room?.players.find((item) => item.id === game.playerId);
+  const selectedVehicleId = player?.vehicleId ?? DEFAULT_VEHICLE_ID;
+  const [steeringLevel, setSteeringLevel] = useState(() => defaultSteeringSensitivityLevel(selectedVehicleId));
+  const steeringVehicleRef = useRef(selectedVehicleId);
+  const setSteeringLevelClamped = useCallback((value: number) => {
+    setSteeringLevel(Math.round(clamp(value, STEERING_SENSITIVITY_MIN, STEERING_SENSITIVITY_MAX)));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (steeringVehicleRef.current === selectedVehicleId) return;
+    steeringVehicleRef.current = selectedVehicleId;
+    setSteeringLevel(defaultSteeringSensitivityLevel(selectedVehicleId));
+  }, [selectedVehicleId]);
 
   useEffect(() => {
     if (game.joinedToken && roomCode) {
@@ -961,13 +1294,13 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} steeringLevel={steeringLevel} />;
   }
 
-  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} />;
+  return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} steeringLevel={steeringLevel} onSteeringLevelChange={setSteeringLevelClamped} />;
 }
 
-function ControllerLobby({ room, player, send, feedback, joinStatus, browserNotice }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string; browserNotice?: string }) {
+function ControllerLobby({ room, player, send, feedback, joinStatus, browserNotice, steeringLevel, onSteeringLevelChange }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string; browserNotice?: string; steeringLevel: number; onSteeringLevelChange: (value: number) => void }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
@@ -977,7 +1310,6 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
   const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("sim-drive-haptics-enabled", true);
   const [brakeStart, setBrakeStart] = useStoredNumber("sim-drive-brake-start", 0);
   const [throttleStart, setThrottleStart] = useStoredNumber("sim-drive-throttle-start", 0);
-  const [steeringLevel, setSteeringLevel] = useStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10);
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const [feelTest, setFeelTest] = useState({ id: 0, label: "Feel test" });
   const [motionListenToken, setMotionListenToken] = useState(0);
@@ -1117,7 +1449,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
       <small className="phone-note">{hapticStatus}</small>
       <BrowserRecommendationNotice notice={browserNotice} />
       <FeelPreview test={feelTest} />
-      <SteeringSensitivityPreference value={steeringLevel} onChange={setSteeringLevel} />
+      <SteeringSensitivityPreference value={steeringLevel} onChange={onSteeringLevelChange} />
       <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
       <small className="phone-note">Use invert only if tilting right makes the motion test or car steer left on this phone.</small>
       <StartPreference
@@ -1407,7 +1739,7 @@ function SteeringSensitivityPreference({ value, onChange }: { value: number; onC
   return (
     <label className="range-control">
       <span>Motion sensitivity</span>
-      <input type="range" min="1" max="10" step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="range" min={STEERING_SENSITIVITY_MIN} max={STEERING_SENSITIVITY_MAX} step="1" value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <strong>{value}/10</strong>
       <small>Higher reacts to smaller phone tilts. Lower gives a calmer wheel.</small>
     </label>
@@ -1446,7 +1778,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, crashEvents, countdownMark, room, playerId }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string }) {
+function RaceController({ send, feedback, crashEvents, countdownMark, room, playerId, steeringLevel }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string; steeringLevel: number }) {
   const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
@@ -1475,14 +1807,14 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
   const motionCheckRef = useRef<number | undefined>(undefined);
   const motionRequestInFlightRef = useRef(false);
+  const car = feedback ?? room.cars.find((item) => item.playerId === playerId);
   const brakeStart = readStoredNumber("sim-drive-brake-start", 0);
   const throttleStart = readStoredNumber("sim-drive-throttle-start", 0);
   const audioEnabled = readStoredBoolean("sim-drive-audio-enabled", true);
   const hapticsEnabled = readStoredBoolean("sim-drive-haptics-enabled", true);
-  const steeringSensitivity = steeringSensitivityFromLevel(readStoredRangeNumber(STEERING_SENSITIVITY_KEY, STEERING_SENSITIVITY_DEFAULT, 1, 10));
+  const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
-  const car = feedback ?? room.cars.find((item) => item.playerId === playerId);
   const resetAvailable = Boolean(car?.resetAvailable);
 
   const noteMotionDebug = (event: MotionDebugEvent) => {
@@ -3151,12 +3483,18 @@ function SponsorBoardModel({ rain }: { rain: boolean }) {
   useEffect(() => () => texture.dispose(), [texture]);
   return (
     <group scale={[1.75, 1.75, 1.25]}>
-      <mesh castShadow>
-        <planeGeometry args={[5.25, 1.68]} />
-        <meshBasicMaterial map={texture} toneMapped={false} />
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[5.45, 1.86, 0.16]} />
+        <meshStandardMaterial color={rain ? "#151f27" : "#10141a"} roughness={0.62} metalness={0.04} />
       </mesh>
+      {[-1, 1].map((face) => (
+        <mesh key={face} position={[0, 0, face * 0.091]} rotation={[0, face < 0 ? Math.PI : 0, 0]}>
+          <planeGeometry args={[5.25, 1.68]} />
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        </mesh>
+      ))}
       {[-2.1, 2.1].map((x) => (
-        <mesh key={x} position={[x, -1.22, -0.04]} castShadow>
+        <mesh key={x} position={[x, -1.22, 0]} castShadow>
           <boxGeometry args={[0.14, 2.44, 0.14]} />
           <meshStandardMaterial color={rain ? "#1d252b" : "#20242a"} roughness={0.55} />
         </mesh>
@@ -7341,16 +7679,6 @@ function useStoredNumber(key: string, fallback: number) {
   return [value, setStored] as const;
 }
 
-function useStoredRangeNumber(key: string, fallback: number, min: number, max: number) {
-  const [value, setValue] = useState(() => readStoredRangeNumber(key, fallback, min, max));
-  const setStored = useCallback((next: number) => {
-    const value = Math.round(clamp(next, min, max));
-    setValue(value);
-    localStorage.setItem(key, String(value));
-  }, [key, min, max]);
-  return [value, setStored] as const;
-}
-
 function useStoredBoolean(key: string, fallback: boolean) {
   const [value, setValue] = useState(() => readStoredBoolean(key, fallback));
   const setStored = useCallback((next: boolean) => {
@@ -7365,16 +7693,15 @@ function readStoredNumber(key: string, fallback: number) {
   return Number.isFinite(value) ? clamp(value, 0, 1) : fallback;
 }
 
-function readStoredRangeNumber(key: string, fallback: number, min: number, max: number) {
-  const value = Number(localStorage.getItem(key));
-  return Number.isFinite(value) ? Math.round(clamp(value, min, max)) : fallback;
-}
-
 function readStoredBoolean(key: string, fallback: boolean) {
   const value = localStorage.getItem(key);
   if (value === "true") return true;
   if (value === "false") return false;
   return fallback;
+}
+
+function defaultSteeringSensitivityLevel(vehicleId: VehicleId) {
+  return VEHICLE_STEERING_SENSITIVITY_DEFAULTS[vehicleId] ?? VEHICLE_STEERING_SENSITIVITY_DEFAULTS[DEFAULT_VEHICLE_ID];
 }
 
 function makeControllerUrl(roomCode: string, displayGroupId?: string) {

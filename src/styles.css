@@ -196,6 +196,303 @@ h2 {
   font-weight: 850;
 }
 
+.codex-benchmarks {
+  margin: 0;
+}
+
+.codex-benchmarks-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 78px;
+}
+
+.codex-benchmarks-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #ffd166;
+  color: #101214;
+}
+
+.codex-benchmarks-title .eyebrow {
+  margin: 0 0 3px;
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.codex-benchmarks .codex-benchmarks-title h2 {
+  margin: 0;
+  padding: 0;
+  color: #101214;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.codex-benchmarks-copy {
+  margin: 10px 0 12px;
+  color: rgba(16, 18, 20, 0.76);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.codex-benchmark-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.codex-benchmark-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  align-items: center;
+  padding: 9px;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.045);
+  border: 1px solid rgba(16, 18, 20, 0.08);
+}
+
+.codex-benchmark-main {
+  min-width: 0;
+}
+
+.codex-benchmark-main strong,
+.codex-benchmark-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-benchmark-main strong {
+  color: #101214;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.codex-benchmark-main span {
+  margin-top: 2px;
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.codex-benchmark-time {
+  color: #8a4f00;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.codex-benchmark-detail {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(16, 18, 20, 0.66);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.codex-benchmark-line {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 18, 20, 0.08);
+  color: #101214;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: lowercase;
+}
+
+.codex-benchmark-line.road {
+  background: rgba(22, 199, 132, 0.18);
+}
+
+.codex-benchmark-line.curb {
+  background: rgba(255, 209, 102, 0.34);
+}
+
+.codex-benchmark-line.grass {
+  background: rgba(232, 79, 95, 0.16);
+}
+
+.about-modal.codex-benchmarks-modal {
+  width: min(920px, 100%);
+}
+
+.about-modal.showroom-modal {
+  width: min(1080px, 100%);
+}
+
+.showroom-body {
+  display: grid;
+  gap: 18px;
+}
+
+.showroom-section {
+  display: grid;
+  gap: 10px;
+}
+
+.showroom-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.showroom-section-head h3 {
+  margin: 0;
+  color: #101214;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.showroom-section-head span {
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.showroom-car-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.showroom-track-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.showroom-cockpit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.showroom-scenery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.showroom-car-card,
+.showroom-track-card,
+.showroom-cockpit-card,
+.showroom-scenery-card {
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.045);
+  border: 1px solid rgba(16, 18, 20, 0.08);
+}
+
+.showroom-car-card,
+.showroom-cockpit-card,
+.showroom-scenery-card {
+  overflow: hidden;
+}
+
+.showroom-track-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.showroom-track-card .mini-track {
+  height: 82px;
+}
+
+.showroom-car-stage,
+.showroom-cockpit-stage {
+  position: relative;
+  height: 132px;
+  background: #181b21;
+}
+
+.showroom-cockpit-stage {
+  height: 118px;
+}
+
+.showroom-car-stage canvas,
+.showroom-cockpit-stage canvas,
+.showroom-scenery-stage canvas {
+  display: block;
+}
+
+.showroom-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 10px 10px 0;
+}
+
+.showroom-track-card .showroom-card-copy {
+  padding: 0;
+}
+
+.showroom-card-copy strong,
+.showroom-card-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.showroom-card-copy strong {
+  color: #101214;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.showroom-card-copy span {
+  color: rgba(16, 18, 20, 0.58);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.showroom-stat-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 9px 10px 10px;
+}
+
+.showroom-stat-row span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(16, 18, 20, 0.08);
+  color: rgba(16, 18, 20, 0.74);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.showroom-scenery-stage {
+  height: 150px;
+  overflow: hidden;
+  background: #d8eaf3;
+}
+
 .hero-actions,
 .join-form,
 .stat,
@@ -2419,6 +2716,66 @@ input {
 
   .hero-flow {
     grid-template-columns: 1fr;
+  }
+
+  .codex-benchmark-list {
+    grid-template-columns: 1fr;
+  }
+
+  .codex-benchmarks-title {
+    padding-right: 0;
+  }
+
+  .showroom-track-grid,
+  .showroom-car-grid,
+  .showroom-scenery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .showroom-cockpit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .showroom-car-stage {
+    height: 112px;
+  }
+
+  .showroom-track-card {
+    padding: 8px;
+  }
+
+  .showroom-track-card .mini-track {
+    height: 66px;
+  }
+
+  .showroom-cockpit-stage {
+    height: 118px;
+  }
+
+  .showroom-scenery-stage {
+    height: 118px;
+  }
+
+  .showroom-card-copy {
+    padding: 8px 8px 0;
+  }
+
+  .showroom-track-card .showroom-card-copy {
+    padding: 0;
+  }
+
+  .showroom-card-copy strong {
+    font-size: 12px;
+  }
+
+  .showroom-card-copy span,
+  .showroom-stat-row span {
+    font-size: 10px;
+  }
+
+  .showroom-stat-row {
+    padding: 8px;
   }
 
   .about-backdrop {
