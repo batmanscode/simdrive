@@ -117,6 +117,18 @@ export type CrashEvent = {
   playerIds: string[];
 };
 
+export type NearbyAudioCar = {
+  playerId: string;
+  vehicleId: VehicleId;
+  distance: number;
+  side: number;
+  ahead: number;
+  speed: number;
+  throttle: number;
+  relativeSpeed: number;
+  closingSpeed: number;
+};
+
 export type RaceResult = {
   playerId: string;
   name: string;
@@ -177,7 +189,7 @@ export type ServerMessage =
   | { type: "joined_controller"; roomCode: string; playerId: string; token: string; displayGroupId: string }
   | { type: "room_state"; state: RoomState; serverNow: number }
   | { type: "race_snapshot"; snapshot: RaceSnapshot; serverNow: number }
-  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number; crashEvents?: CrashEvent[]; countdownMark?: number; serverNow: number }
+  | { type: "controller_feedback"; car?: CarState; roomPhase: Phase; raceTime: number; crashEvents?: CrashEvent[]; nearbyAudioCars?: NearbyAudioCar[]; nearbyCrashEvents?: CrashEvent[]; countdownMark?: number; serverNow: number }
   | { type: "room_closed"; message: string }
   | { type: "error_notice"; message: string }
   | { type: "pong"; at: number; serverNow: number };
