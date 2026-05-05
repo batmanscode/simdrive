@@ -11,6 +11,7 @@ Use automation to drive a real race through the server physics while the display
 - Lap/checkpoint/results logic still works.
 - The cockpit camera sees sane scenery through the lap.
 - Browser console errors and blank WebGL canvases are caught.
+- Controller feedback/audio payloads can be smoke-tested without relying on display snapshots.
 
 ## Setup
 
@@ -18,6 +19,7 @@ Use automation to drive a real race through the server physics while the display
 - Use `npm run typecheck` for the normal app, server, and playtest script TypeScript checks.
 - Use `npm run build` for the normal TypeScript/Vite/server build check.
 - For browser automation, use Playwright temporarily through `npx` instead of adding it to app dependencies.
+- If Playwright's browser binary is missing, run `npx -y playwright@latest install chromium`.
 - If Chromium is missing runtime libraries in a fresh container, run `npx -y playwright@latest install-deps chromium`.
 
 ## Repo Scripts
@@ -47,6 +49,32 @@ npx -y -p playwright@latest -c 'NODE_PATH=$(dirname $(dirname $(which playwright
 ```
 
 For Alpine, prefer one `playtest:capture` target per command. Fjord and Cloudline later completed multi-target visual runs in one browser process, so this seems map/environment dependent rather than a universal rule.
+
+## Controller Audio Smoke
+
+Nearby-rival audio has two useful automated checks:
+
+- Protocol smoke: create a display room, join two controller sockets, start a race, drive one controller forward, and assert the other controller receives a non-empty `nearbyAudioCars` array with distance, side/ahead, speed, throttle, relative speed, and closing speed. This proves the server is sending compact nearby-audio descriptors without sending full race snapshots to phones.
+- Browser audio smoke: open a real `/controller` page in Playwright, inject a wrapper around `AudioContext` before app load, join/start from the controller UI, drive a second controller nearby, and assert nonzero `StereoPannerNode.pan.setTargetAtTime()` plus rival gain automation. This proves the real browser/controller path creates and modulates the nearby-car audio graph.
+
+These checks are not a substitute for real phone/earbud tuning. Headless Chromium can prove nodes and automation calls, but it cannot judge whether the mix is pleasant, too loud, too quiet, or fatiguing.
+
+## Human Plus Bot Rooms
+
+When a feature needs a real phone/human in the loop but still benefits from a repeatable opponent, create a normal display room and join an automation controller as the VIP bot. Keep the display and bot sockets open, configure the room, then have the bot wait in the lobby until a non-bot controller is connected and `Ready`.
+
+The pattern that worked for nearby-rival audio testing:
+
+- Start the built server with `npm start`.
+- Create a display room over `ws://127.0.0.1:8787/ws`.
+- Join a controller socket as `Fast Bot`.
+- Set bot vehicle/setup to Formula Prototype / High Grip.
+- Set room settings to Sakura Sprint, 5 laps, no warm-up, dry, assist on, reset off. Use ghost cars on when testing pass-by/relative audio so the human can focus on sound without bot contact ending the run.
+- Print the room code and keep the bot in lobby.
+- Human opens `http://localhost:8787/`, joins that room code as a display if needed, scans the QR with a phone, selects Formula if needed, and taps `Ready`.
+- After detecting the human `Ready`, the bot sends `vip_start_race` and drives the normal automated line-following loop at an aggressive speed scale.
+
+This is useful for testing real phone audio/haptics/orientation behavior while keeping the other car predictable. Stop both long-running sessions when done so the server and bot socket do not stay alive in the background.
 
 ## Dev Asset Gallery
 

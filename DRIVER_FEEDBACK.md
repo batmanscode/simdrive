@@ -24,6 +24,8 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 - Curb: low rumble follows curb contact at speed.
 - Impact: short thud cue when impact is above threshold.
 - Explosive crash: stronger boom cue for the crashing player when an actual car-to-car crash or very hard wall hit emits a shared crash event.
+- Nearby rivals: during racing, each phone receives only the nearest few rival audio descriptors and mixes a quiet stereo-panned engine/air layer for close cars and pass-bys.
+- Nearby crashes: non-self crash events inside a short radius play as lighter panned booms so nearby players hear them without getting the crashing player's strongest cue.
 - Race exit: all persistent layers fade out outside countdown/racing.
 
 ## Vibration
@@ -44,4 +46,4 @@ Speed thresholds below use the same km/h scale shown on the in-game speedometer.
 
 - Clean cornering g-force is not a separate continuous haptic layer.
 - Cornering feedback currently comes through tire sound and high-slip vibration when the car starts to slide.
-- Full directional/spatial audio is not implemented yet; earphones still make the layered feedback clearer.
+- Full scene-wide spatial audio is not implemented. Current relative audio is intentionally limited to nearby rival cars and nearby crash cues; earphones still make the layered feedback clearer.

@@ -23,6 +23,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test race countdown while holding the phone straight in landscape: the phone should briefly show `Hold steady, centering :D`.
 - Test race start without pressing `Calibrate`: holding the phone straight during the countdown should keep steering centered after the race controller appears.
 - Test race-start audio with phone audio enabled: countdown should play distinct 5/4/3/2/1 beeps without skipping late marks, and the louder `GO` cue should happen only at or just after the race starts.
+- Test nearby-rival audio with two phone controllers and earphones: a close car should be audible as a subtle left/right engine or pass-by layer without drowning out the player's own engine, tire, curb, brake, impact, or countdown cues.
 - Rotate or orientation-lock the phone as the race starts: steering should briefly center itself instead of latching a hard left/right input.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.

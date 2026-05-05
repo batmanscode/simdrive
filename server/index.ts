@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getDefaultSetupIdForVehicle, getVehicle, hasVehicleSetup, kmhToInternalSpeed, resolveCarSetupId, VEHICLES } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, NearbyAudioCar, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -22,6 +22,9 @@ const MAX_PLAYERS_PER_DISPLAY_GROUP = 4;
 const CRASH_EVENT_TTL_MS = 1_600;
 const CRASH_EVENT_COOLDOWN_MS = 1_200;
 const WALL_EXPLOSION_SPEED_THRESHOLD = 24;
+const NEARBY_AUDIO_RADIUS = 48;
+const NEARBY_AUDIO_MAX_CARS = 3;
+const NEARBY_CRASH_AUDIO_RADIUS = 72;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
 const DEFAULT_COCKPIT_STYLE: CockpitStyle = "none";
 const VEHICLE_IDS = new Set<VehicleId>(Object.keys(VEHICLES) as VehicleId[]);
@@ -591,6 +594,68 @@ function activeCrashEvents(room: Room) {
   return room.crashEvents;
 }
 
+function nearbyAudioCarsForPlayer(room: Room, playerId: string): NearbyAudioCar[] {
+  if (room.phase !== "racing") return [];
+  const car = room.cars.get(playerId);
+  if (!car || car.finished || car.crashed || car.dnf) return [];
+
+  const forwardX = Math.sin(car.heading);
+  const forwardZ = Math.cos(car.heading);
+  const rightX = Math.sin(car.heading + Math.PI / 2);
+  const rightZ = Math.cos(car.heading + Math.PI / 2);
+  const candidates: Array<NearbyAudioCar & { sortScore: number }> = [];
+
+  for (const other of room.cars.values()) {
+    if (other.playerId === playerId || other.finished || other.crashed || other.dnf) continue;
+    const dx = other.x - car.x;
+    const dz = other.z - car.z;
+    const horizontalDistance = Math.hypot(dx, dz);
+    if (horizontalDistance <= 0.001) continue;
+    const distance = Math.hypot(dx, dz, (other.y - car.y) * 1.5);
+    if (distance > NEARBY_AUDIO_RADIUS) continue;
+
+    const dirX = dx / horizontalDistance;
+    const dirZ = dz / horizontalDistance;
+    const relativeVelocityX = other.velocityX - car.velocityX;
+    const relativeVelocityZ = other.velocityZ - car.velocityZ;
+    const relativeSpeed = Math.hypot(relativeVelocityX, relativeVelocityZ);
+    const closingSpeed = Math.max(0, -(relativeVelocityX * dirX + relativeVelocityZ * dirZ));
+    candidates.push({
+      playerId: other.playerId,
+      vehicleId: other.vehicleId,
+      distance: roundAudioValue(distance, 1),
+      side: roundAudioValue(clamp(dirX * rightX + dirZ * rightZ, -1, 1), 2),
+      ahead: roundAudioValue(clamp(dirX * forwardX + dirZ * forwardZ, -1, 1), 2),
+      speed: roundAudioValue(other.speed, 1),
+      throttle: roundAudioValue(other.throttle, 2),
+      relativeSpeed: roundAudioValue(relativeSpeed, 1),
+      closingSpeed: roundAudioValue(closingSpeed, 1),
+      sortScore: distance - closingSpeed * 0.55
+    });
+  }
+
+  return candidates
+    .sort((a, b) => a.sortScore - b.sortScore)
+    .slice(0, NEARBY_AUDIO_MAX_CARS)
+    .map(({ sortScore: _sortScore, ...audioCar }) => audioCar);
+}
+
+function nearbyCrashEventsForPlayer(room: Room, playerId: string, events: CrashEvent[]) {
+  const car = room.cars.get(playerId);
+  if (!car) return [];
+  return events
+    .filter((event) => {
+      if (event.playerIds.includes(playerId)) return false;
+      return Math.hypot(event.x - car.x, event.z - car.z, ((event.y ?? car.y) - car.y) * 1.5) <= NEARBY_CRASH_AUDIO_RADIUS;
+    })
+    .slice(-3);
+}
+
+function roundAudioValue(value: number, decimals: number) {
+  const scale = 10 ** decimals;
+  return Math.round(value * scale) / scale;
+}
+
 function addCrashEvent(room: Room, kind: CrashEvent["kind"], x: number, z: number, severity: number, playerIds: string[], y?: number) {
   const now = Date.now();
   const cooldownKeys = playerIds.map((playerId) => `${kind}:${playerId}`);
@@ -648,10 +713,12 @@ function broadcastRoom(room: Room) {
 }
 
 function sendControllerFeedback(room: Room) {
-  const raceTime = room.raceStartedAt ? (Date.now() - room.raceStartedAt) / 1000 : 0;
+  const now = Date.now();
+  const raceTime = room.raceStartedAt ? (now - room.raceStartedAt) / 1000 : 0;
   const countdownMark = room.phase === "countdown" && room.countdownEndsAt
-    ? clamp(Math.ceil((room.countdownEndsAt - Date.now()) / 1000), 1, 5)
+    ? clamp(Math.ceil((room.countdownEndsAt - now) / 1000), 1, 5)
     : undefined;
+  const crashEvents = activeCrashEvents(room);
   for (const client of clients.values()) {
     if (client.roomCode !== room.code || client.role !== "controller" || !client.playerId) continue;
     if (room.controllerClients.get(client.playerId) !== client.id) continue;
@@ -660,9 +727,11 @@ function sendControllerFeedback(room: Room) {
       car: room.cars.get(client.playerId),
       roomPhase: room.phase,
       raceTime,
-      crashEvents: activeCrashEvents(room).filter((event) => event.playerIds.includes(client.playerId!)),
+      crashEvents: crashEvents.filter((event) => event.playerIds.includes(client.playerId!)),
+      nearbyAudioCars: nearbyAudioCarsForPlayer(room, client.playerId),
+      nearbyCrashEvents: nearbyCrashEventsForPlayer(room, client.playerId, crashEvents),
       countdownMark,
-      serverNow: Date.now()
+      serverNow: now
     });
   }
 }

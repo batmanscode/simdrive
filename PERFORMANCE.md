@@ -9,7 +9,7 @@ This file tracks the practical constraints that matter when changing Sim Drive. 
 - Server physics ticks at 60 Hz.
 - Physics uses a capped fixed-timestep accumulator so short server event-loop stalls catch up without letting one large dt destabilize cars.
 - Display clients receive `race_snapshot` messages at 30 Hz.
-- Controller clients receive `controller_feedback` at 20 Hz, including their own car feedback, crash events, server time, race phase, and the current server-derived countdown mark when a countdown is active.
+- Controller clients receive `controller_feedback` at 20 Hz, including their own car feedback, own crash events, compact nearby-rival audio descriptors, nearby non-self crash events, server time, race phase, and the current server-derived countdown mark when a countdown is active.
 - Full `room_state` messages are sent on lobby/results changes and less frequently during active races.
 - During active races, full race snapshots should go to display clients only. Phone controllers should not parse all cars every snapshot when they only need their own feedback.
 
@@ -35,7 +35,7 @@ Main contributors found:
 Networking:
 
 - Display snapshots now run at 30 Hz.
-- Controller feedback runs separately at 20 Hz and carries countdown/audio timing data so phone feedback does not depend on display `race_snapshot` delivery.
+- Controller feedback runs separately at 20 Hz and carries countdown/audio timing plus compact nearby-audio data so phone feedback does not depend on display `race_snapshot` delivery.
 - Race snapshots are broadcast only to display clients.
 - Stale display race snapshots may be dropped when a display socket is backed up. This is intentional: showing the newest state late is worse than skipping old state.
 - Broadcast payloads are serialized once per room per broadcast where practical, instead of once per client.
@@ -192,7 +192,7 @@ HUD/minimap/leaderboard:
 ## Controller Rules
 
 - Controller input should stay compact and predictable.
-- Controller feedback should stay focused on the current player's car.
+- Controller feedback should stay focused on the current player's car. Nearby audio should use compact derived descriptors, not full all-car snapshots.
 - Audio/haptics should use the lightweight feedback stream, not full room race snapshots.
 - Keep audio/haptic loops timer/ref based; avoid state updates at audio/haptic frequency.
 - Phone controller UI should not depend on display snapshot delivery.

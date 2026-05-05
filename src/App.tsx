@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getVehicle, getVehicleSetup, getVehicleSetups, VEHICLE_ORDER, VEHICLE_STAT_TOP_SPEED_MAX_KMH, VEHICLES, type CarSetup, type VehicleDefinition } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, Player, RaceSettings, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, NearbyAudioCar, Player, RaceSettings, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_MIN = 1;
@@ -1295,7 +1295,7 @@ function ControllerApp() {
   }
 
   if (game.room?.phase === "racing" || game.room?.phase === "countdown") {
-    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} steeringLevel={steeringLevel} />;
+    return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} nearbyAudioCars={game.controllerNearbyAudioCars} nearbyCrashEvents={game.controllerNearbyCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} steeringLevel={steeringLevel} />;
   }
 
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} steeringLevel={steeringLevel} onSteeringLevelChange={setSteeringLevelClamped} />;
@@ -1506,7 +1506,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           {player?.isReady && <small className="phone-note">Ready. Waiting for the VIP to start the race.</small>}
         </>
       )}
-      <small className="phone-note">Use earphones for clearer engine, tire, curb, and impact feedback. Full directional audio is not implemented yet.</small>
+      <small className="phone-note">Use earphones for clearer engine, tire, curb, nearby car, and impact feedback.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
     </main>
   );
@@ -1779,7 +1779,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function RaceController({ send, feedback, crashEvents, countdownMark, room, playerId, steeringLevel }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string; steeringLevel: number }) {
+function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCrashEvents, countdownMark, room, playerId, steeringLevel }: { send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; crashEvents: CrashEvent[]; nearbyAudioCars: NearbyAudioCar[]; nearbyCrashEvents: CrashEvent[]; countdownMark?: number; room: RoomState; playerId: string; steeringLevel: number }) {
   const initialMotionCalibrationRef = useRef(room.phase === "countdown" ? undefined : readMotionCalibration());
   const [pedals, setPedals] = useState({ throttle: 0, brake: 0 });
   const [touchSteer, setTouchSteer] = useState(0);
@@ -1800,6 +1800,8 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   const pedalsRef = useRef(pedals);
   const feedbackRef = useRef(feedback);
   const crashEventsRef = useRef(crashEvents);
+  const nearbyAudioCarsRef = useRef(nearbyAudioCars);
+  const nearbyCrashEventsRef = useRef(nearbyCrashEvents);
   const countdownMarkRef = useRef(countdownMark);
   const roomRef = useRef(room);
   const touchSteerRef = useRef(touchSteer);
@@ -1931,6 +1933,14 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
   }, [crashEvents]);
 
   useEffect(() => {
+    nearbyAudioCarsRef.current = nearbyAudioCars;
+  }, [nearbyAudioCars]);
+
+  useEffect(() => {
+    nearbyCrashEventsRef.current = nearbyCrashEvents;
+  }, [nearbyCrashEvents]);
+
+  useEffect(() => {
     countdownMarkRef.current = countdownMark;
   }, [countdownMark]);
 
@@ -1951,7 +1961,7 @@ function RaceController({ send, feedback, crashEvents, countdownMark, room, play
       const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
-      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current, countdownMarkRef.current);
+      if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current, nearbyAudioCarsRef.current, nearbyCrashEventsRef.current, countdownMarkRef.current);
       driveHaptics(activeFeedback, activePedals, hapticsEnabled, lastHapticAtRef, crashEventsRef.current, lastCrashHapticIdRef);
     }, 33);
     return () => {
@@ -7510,6 +7520,8 @@ function useGameSocket() {
   const [liveStats, setLiveStats] = useState<LiveStats>({ activePlayers: 0 });
   const [feedback, setFeedback] = useState<CarState>();
   const [controllerCrashEvents, setControllerCrashEvents] = useState<CrashEvent[]>([]);
+  const [controllerNearbyAudioCars, setControllerNearbyAudioCars] = useState<NearbyAudioCar[]>([]);
+  const [controllerNearbyCrashEvents, setControllerNearbyCrashEvents] = useState<CrashEvent[]>([]);
   const [controllerCountdownMark, setControllerCountdownMark] = useState<number>();
   const [notice, setNotice] = useState<{ id: number; message: string }>();
   const [isConnected, setIsConnected] = useState(false);
@@ -7565,6 +7577,8 @@ function useGameSocket() {
         if (message.type === "controller_feedback") {
           setFeedback(message.car);
           setControllerCrashEvents(message.crashEvents ?? []);
+          setControllerNearbyAudioCars(message.nearbyAudioCars ?? []);
+          setControllerNearbyCrashEvents(message.nearbyCrashEvents ?? []);
           setControllerCountdownMark(message.countdownMark);
           setRoom((current) => current ? { ...current, phase: message.roomPhase } : current);
         }
@@ -7577,6 +7591,8 @@ function useGameSocket() {
           setJoinedToken(undefined);
           setFeedback(undefined);
           setControllerCrashEvents([]);
+          setControllerNearbyAudioCars([]);
+          setControllerNearbyCrashEvents([]);
           setControllerCountdownMark(undefined);
           setNotice({ id: Date.now(), message: message.message });
         }
@@ -7601,6 +7617,8 @@ function useGameSocket() {
         setJoinedToken(undefined);
         setFeedback(undefined);
         setControllerCrashEvents([]);
+        setControllerNearbyAudioCars([]);
+        setControllerNearbyCrashEvents([]);
         setControllerCountdownMark(undefined);
         setNotice({ id: Date.now(), message: "Connection lost. Reconnecting..." });
         const delay = Math.min(3000, 250 * 2 ** reconnectAttemptRef.current);
@@ -7631,7 +7649,7 @@ function useGameSocket() {
     ws.send(JSON.stringify(message));
   }, []);
 
-  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, controllerCountdownMark, notice, isConnected, send };
+  return { room, clientId, displayGroupId, playerId, joinedToken, liveStats, feedback, controllerCrashEvents, controllerNearbyAudioCars, controllerNearbyCrashEvents, controllerCountdownMark, notice, isConnected, send };
 }
 
 function shouldQueueSocketMessage(message: object) {
@@ -8152,11 +8170,26 @@ type ControllerAudio = {
   brakeGain: GainNode;
   curbOsc: OscillatorNode;
   curbGain: GainNode;
+  rivalLayers: RivalAudioLayer[];
   masterGain: GainNode;
   lastCountdownMark?: number | "go";
   lastImpactAt: number;
   lastCrashEventId?: string;
+  lastNearbyCrashEventId?: string;
 };
+
+type RivalAudioLayer = {
+  playerId?: string;
+  engineOsc: OscillatorNode;
+  engineGain: GainNode;
+  airSource: AudioBufferSourceNode;
+  airFilter: BiquadFilterNode;
+  airGain: GainNode;
+  pan: StereoPannerNode;
+};
+
+const RIVAL_AUDIO_MAX_LAYERS = 3;
+const RIVAL_AUDIO_MAX_DISTANCE = 48;
 
 let sharedControllerAudio: ControllerAudio | null = null;
 
@@ -8213,6 +8246,8 @@ function createControllerAudio(): ControllerAudio {
   curbGain.connect(masterGain);
   curbOsc.start();
 
+  const rivalLayers = Array.from({ length: RIVAL_AUDIO_MAX_LAYERS }, () => createRivalAudioLayer(context, masterGain));
+
   return {
     context,
     engineOsc,
@@ -8224,12 +8259,43 @@ function createControllerAudio(): ControllerAudio {
     brakeGain,
     curbOsc,
     curbGain,
+    rivalLayers,
     masterGain,
     lastImpactAt: 0
   };
 }
 
-function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[], countdownMark?: number) {
+function createRivalAudioLayer(context: AudioContext, masterGain: GainNode): RivalAudioLayer {
+  const pan = context.createStereoPanner();
+
+  const engineOsc = context.createOscillator();
+  const engineGain = context.createGain();
+  engineOsc.type = "triangle";
+  engineOsc.frequency.value = 64;
+  engineGain.gain.value = 0;
+  engineOsc.connect(engineGain);
+  engineGain.connect(pan);
+  engineOsc.start();
+
+  const airSource = context.createBufferSource();
+  airSource.buffer = createNoiseBuffer(context);
+  airSource.loop = true;
+  const airFilter = context.createBiquadFilter();
+  const airGain = context.createGain();
+  airFilter.type = "bandpass";
+  airFilter.frequency.value = 1800;
+  airFilter.Q.value = 0.8;
+  airGain.gain.value = 0;
+  airSource.connect(airFilter);
+  airFilter.connect(airGain);
+  airGain.connect(pan);
+  airSource.start();
+
+  pan.connect(masterGain);
+  return { engineOsc, engineGain, airSource, airFilter, airGain, pan };
+}
+
+function updateControllerAudio(audio: ControllerAudio | null, car: CarState | undefined, room: RoomState, pedals: { throttle: number; brake: number }, crashEvents: CrashEvent[], nearbyAudioCars: NearbyAudioCar[], nearbyCrashEvents: CrashEvent[], countdownMark?: number) {
   if (!audio || audio.context.state !== "running") return;
   if (room.phase !== "countdown" && room.phase !== "racing") {
     silenceControllerAudio(audio);
@@ -8274,6 +8340,8 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
     playCue(audio, "explosion", crashEvent.severity);
   }
 
+  updateNearbyAudio(audio, raceCar, nearbyAudioCars);
+  updateNearbyCrashAudio(audio, raceCar, nearbyCrashEvents);
   updateCountdownAudio(audio, room, countdownMark);
 }
 
@@ -8284,7 +8352,86 @@ function silenceControllerAudio(audio: ControllerAudio | null) {
   audio.tireGain.gain.setTargetAtTime(0, now, 0.04);
   audio.brakeGain.gain.setTargetAtTime(0, now, 0.04);
   audio.curbGain.gain.setTargetAtTime(0, now, 0.04);
+  silenceNearbyAudio(audio, now);
   audio.lastCountdownMark = undefined;
+}
+
+function updateNearbyAudio(audio: ControllerAudio, car: CarState | undefined, nearbyAudioCars: NearbyAudioCar[]) {
+  const now = audio.context.currentTime;
+  if (!car) {
+    silenceNearbyAudio(audio, now);
+    return;
+  }
+
+  const audibleCars = nearbyAudioCars
+    .filter((rival) => rival.distance > 0 && rival.distance <= RIVAL_AUDIO_MAX_DISTANCE)
+    .slice(0, RIVAL_AUDIO_MAX_LAYERS);
+  const activeIds = new Set(audibleCars.map((rival) => rival.playerId));
+  const usedLayers = new Set<RivalAudioLayer>();
+
+  for (const rival of audibleCars) {
+    let layer = audio.rivalLayers.find((item) => item.playerId === rival.playerId);
+    if (!layer || usedLayers.has(layer)) {
+      layer = audio.rivalLayers.find((item) => !usedLayers.has(item) && (!item.playerId || !activeIds.has(item.playerId)));
+      if (!layer) continue;
+      layer.playerId = rival.playerId;
+    }
+    usedLayers.add(layer);
+
+    const profile = getVehicle(rival.vehicleId).audio;
+    const proximity = clamp(1 - rival.distance / RIVAL_AUDIO_MAX_DISTANCE, 0, 1);
+    const rev = clamp(rival.speed / profile.revSpeedDivisor + rival.throttle * profile.throttleRev + rival.closingSpeed * 0.012, 0, profile.maxRev * 1.08);
+    const pan = clamp(rival.side * (0.35 + proximity * 0.58), -0.92, 0.92);
+    const engineGain = clamp((profile.baseGain * 0.42 + rev * profile.revGain * 0.26) * Math.pow(proximity, 1.35), 0, 0.052);
+    const passAmount = clamp(Math.pow(proximity, 1.7) * Math.abs(rival.side) * Math.max(rival.relativeSpeed, rival.closingSpeed) / 30, 0, 1);
+
+    layer.engineOsc.type = profile.engineWave;
+    layer.engineOsc.frequency.setTargetAtTime(profile.engineBaseHz + rev * profile.engineRangeHz + rival.closingSpeed * 1.7, now, 0.07);
+    layer.engineGain.gain.setTargetAtTime(engineGain, now, 0.1);
+    layer.airFilter.frequency.setTargetAtTime(950 + rival.speed * 58 + rival.relativeSpeed * 72, now, 0.08);
+    layer.airGain.gain.setTargetAtTime(passAmount * 0.028, now, 0.06);
+    layer.pan.pan.setTargetAtTime(pan, now, 0.06);
+  }
+
+  for (const layer of audio.rivalLayers) {
+    if (usedLayers.has(layer)) continue;
+    layer.engineGain.gain.setTargetAtTime(0, now, 0.12);
+    layer.airGain.gain.setTargetAtTime(0, now, 0.08);
+    if (layer.playerId && !activeIds.has(layer.playerId)) layer.playerId = undefined;
+  }
+}
+
+function silenceNearbyAudio(audio: ControllerAudio, now = audio.context.currentTime) {
+  for (const layer of audio.rivalLayers) {
+    layer.engineGain.gain.setTargetAtTime(0, now, 0.08);
+    layer.airGain.gain.setTargetAtTime(0, now, 0.06);
+    layer.playerId = undefined;
+  }
+}
+
+function updateNearbyCrashAudio(audio: ControllerAudio, car: CarState | undefined, nearbyCrashEvents: CrashEvent[]) {
+  if (!car) return;
+  const crashEvent = nearbyCrashEvents[nearbyCrashEvents.length - 1];
+  if (!crashEvent || audio.lastNearbyCrashEventId === crashEvent.id) return;
+
+  const distance = Math.hypot(crashEvent.x - car.x, crashEvent.z - car.z, ((crashEvent.y ?? car.y) - car.y) * 1.5);
+  const proximity = clamp(1 - distance / 72, 0, 1);
+  if (proximity <= 0) return;
+
+  audio.lastNearbyCrashEventId = crashEvent.id;
+  playCue(audio, "explosion", crashEvent.severity * (0.16 + proximity * 0.28), panForWorldPoint(car, crashEvent.x, crashEvent.z, 72));
+}
+
+function panForWorldPoint(car: CarState, x: number, z: number, maxDistance: number) {
+  const dx = x - car.x;
+  const dz = z - car.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= 0.001) return 0;
+  const rightX = Math.sin(car.heading + Math.PI / 2);
+  const rightZ = Math.cos(car.heading + Math.PI / 2);
+  const side = (dx / distance) * rightX + (dz / distance) * rightZ;
+  const proximity = clamp(1 - distance / maxDistance, 0, 1);
+  return clamp(side * (0.32 + proximity * 0.62), -0.92, 0.92);
 }
 
 function updateCountdownAudio(audio: ControllerAudio, room: RoomState, countdownMark?: number) {
@@ -8306,19 +8453,30 @@ function updateCountdownAudio(audio: ControllerAudio, room: RoomState, countdown
   audio.lastCountdownMark = undefined;
 }
 
-function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1) {
+function playCue(audio: ControllerAudio, kind: "countdown" | "go" | "impact" | "explosion" | "start", intensity = 1, pan = 0) {
   const context = audio.context;
   const osc = context.createOscillator();
   const gain = context.createGain();
+  const panner = context.createStereoPanner();
   const now = context.currentTime;
+  const normalizedIntensity = clamp(intensity, 0.001, 1.4);
+  const peakGain = kind === "go"
+    ? 0.22
+    : kind === "explosion"
+      ? 0.24 * normalizedIntensity
+      : kind === "impact"
+        ? 0.18 * normalizedIntensity
+        : 0.12;
 
   osc.type = kind === "impact" || kind === "explosion" ? "square" : kind === "go" ? "triangle" : "sine";
   osc.frequency.value = kind === "go" ? 760 : kind === "countdown" ? 560 : kind === "explosion" ? 54 : kind === "impact" ? 80 : 660;
+  panner.pan.value = clamp(pan, -1, 1);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(kind === "go" ? 0.22 : kind === "explosion" ? 0.24 * intensity : kind === "impact" ? 0.18 * intensity : 0.12, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain), now + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === "go" ? 0.44 : kind === "explosion" ? 0.46 : kind === "impact" ? 0.16 : 0.18));
   osc.connect(gain);
-  gain.connect(audio.masterGain);
+  gain.connect(panner);
+  panner.connect(audio.masterGain);
   osc.start(now);
   osc.stop(now + (kind === "go" ? 0.48 : kind === "explosion" ? 0.52 : 0.38));
 }
