@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getDefaultSetupIdForVehicle, getVehicle, hasVehicleSetup, kmhToInternalSpeed, resolveCarSetupId, VEHICLES } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
 import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, NearbyAudioCar, Player, RaceResult, RaceSettings, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
+import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, NearbyAudioCar, Player, RaceResult, RaceSettings, RearViewMode, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -27,6 +27,8 @@ const NEARBY_AUDIO_MAX_CARS = 3;
 const NEARBY_CRASH_AUDIO_RADIUS = 72;
 const COCKPIT_STYLES = new Set<CockpitStyle>(["none", "hands", "paws"]);
 const DEFAULT_COCKPIT_STYLE: CockpitStyle = "none";
+const REAR_VIEW_MODES = new Set<RearViewMode>(["auto", "on", "off"]);
+const DEFAULT_REAR_VIEW_MODE: RearViewMode = "auto";
 const VEHICLE_IDS = new Set<VehicleId>(Object.keys(VEHICLES) as VehicleId[]);
 const SENSOR_PERMISSIONS_POLICY = "accelerometer=(self), gyroscope=(self), magnetometer=(self)";
 
@@ -247,6 +249,14 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_rear_view_mode") {
+    const player = getClientPlayer(client, room);
+    if (!player || !REAR_VIEW_MODES.has(message.rearViewMode)) return;
+    player.rearViewMode = message.rearViewMode;
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "input_frame") {
     const player = getClientPlayer(client, room);
     if (!player) return;
@@ -379,6 +389,7 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     vehicleId: DEFAULT_VEHICLE_ID,
     carSetupId: getDefaultSetupIdForVehicle(DEFAULT_VEHICLE_ID) ?? DEFAULT_CAR_SETUP_ID,
     cockpitStyle: DEFAULT_COCKPIT_STYLE,
+    rearViewMode: DEFAULT_REAR_VIEW_MODE,
     isReady: false,
     isVIP: false,
     connected: true,

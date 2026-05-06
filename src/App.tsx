@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getVehicle, getVehicleSetup, getVehicleSetups, VEHICLE_ORDER, VEHICLE_STAT_TOP_SPEED_MAX_KMH, VEHICLES, type CarSetup, type VehicleDefinition } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
 import { isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
-import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, NearbyAudioCar, Player, RaceSettings, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
+import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, NearbyAudioCar, Player, RaceSettings, RearViewMode, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
 const STEERING_SENSITIVITY_MIN = 1;
@@ -867,6 +867,8 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
   const focusPlayerId = resolvedSpectatePlayerId ?? sourcePlayer.id;
   const spectatedPlayer = resolvedSpectatePlayerId ? room.players.find((item) => item.id === resolvedSpectatePlayerId) : undefined;
   const showWatchRacePrompt = Boolean(sourceCar?.finished && autoSpectateSuppressed && !resolvedSpectatePlayerId && spectateTargets[0]);
+  const showRearView = rearViewVisible(sourcePlayer.rearViewMode ?? "auto", room, focusPlayerId);
+  const paneClassName = ["race-pane", paneCount > 1 ? "race-pane-split" : "", showRearView ? "race-pane-has-rear-view" : ""].filter(Boolean).join(" ");
 
   useEffect(() => {
     spectateTargetsRef.current = spectateTargets;
@@ -901,10 +903,11 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
   };
 
   return (
-    <div className="race-pane">
+    <div className={paneClassName}>
       <RaceCanvas room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} />
       {room.settings.rain && <div className="rain-visor" aria-hidden />}
       <RaceHud room={room} focusPlayerId={focusPlayerId} />
+      {showRearView && <RaceRearView room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} />}
       <RaceTipRiskToast room={room} focusPlayerId={focusPlayerId} />
       <RaceMiniMap room={room} focusPlayerId={focusPlayerId} />
       <RaceLeaderboard room={room} focusPlayerId={focusPlayerId} />
@@ -1132,6 +1135,13 @@ function raceSpectateTargets(room: RoomState, sourcePlayerId: string) {
     .filter((item): item is { player: Player; car: CarState; distance: number } => item.player.id !== sourcePlayerId && isActiveRacingCar(item.car))
     .sort((a, b) => b.distance - a.distance)
     .map(({ player }) => player);
+}
+
+function rearViewVisible(mode: RearViewMode, room: RoomState, focusPlayerId: string) {
+  const hasFocusCar = room.cars.some((car) => car.playerId === focusPlayerId);
+  if (!hasFocusCar || mode === "off") return false;
+  if (mode === "on") return true;
+  return room.cars.some((car) => car.playerId !== focusPlayerId && !car.dnf);
 }
 
 function isActiveRacingCar(car: CarState | undefined): car is CarState {
@@ -1466,6 +1476,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         description="How much throttle is applied the instant your thumb lands before you slide."
       />
       {player && <VehicleLoadoutSelector vehicleId={player.vehicleId} setupId={player.carSetupId} color={player.color} send={send} />}
+      {player && <RearViewModeSelector value={player.rearViewMode ?? "auto"} send={send} />}
       {player && <CockpitStyleSelector value={player.cockpitStyle} send={send} />}
       {player?.isVIP && settings && (
         <div className="vip-controls">
@@ -1523,6 +1534,34 @@ function BrowserRecommendationNotice({ notice }: { notice?: string }) {
       </div>
     </div>
   );
+}
+
+function RearViewModeSelector({ value, send }: { value: RearViewMode; send: ReturnType<typeof useGameSocket>["send"] }) {
+  return (
+    <section className="cockpit-selector" aria-label="Rear-view mirror">
+      <div className="car-selector-head">
+        <div>
+          <span>Rear-view mirror</span>
+          <strong>{rearViewModeLabel(value)}</strong>
+        </div>
+        <small>Personal</small>
+      </div>
+      <small className="phone-note">Auto shows it when other cars are active. Off keeps the race HUD cleaner.</small>
+      <div className="segmented phone-segmented">
+        {(["auto", "on", "off"] as RearViewMode[]).map((mode) => (
+          <button key={mode} className={value === mode ? "active" : undefined} onClick={() => send({ type: "set_rear_view_mode", rearViewMode: mode })}>
+            {rearViewModeLabel(mode)}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function rearViewModeLabel(mode: RearViewMode | undefined) {
+  if (mode === "on") return "On";
+  if (mode === "off") return "Off";
+  return "Auto";
 }
 
 function CockpitStyleSelector({ value, send }: { value: CockpitStyle; send: ReturnType<typeof useGameSocket>["send"] }) {
@@ -2094,6 +2133,12 @@ function PedalZone({ side, value, firstTap, onChange }: { side: "brake" | "throt
 }
 
 type RaceRenderQuality = "full" | "split";
+const REAR_VIEW_CAR_LIMIT = 7;
+const REAR_VIEW_FORWARD_MARGIN = 36;
+const REAR_VIEW_MAX_DISTANCE: Record<RaceRenderQuality, number> = {
+  full: 300,
+  split: 220
+};
 
 function RaceCanvas({ room, focusPlayerId, paneCount }: { room: RoomState; focusPlayerId: string; paneCount: number }) {
   const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
@@ -2112,6 +2157,128 @@ function RaceCanvas({ room, focusPlayerId, paneCount }: { room: RoomState; focus
       <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
     </Canvas>
   );
+}
+
+function RaceRearView({ room, focusPlayerId, paneCount }: { room: RoomState; focusPlayerId: string; paneCount: number }) {
+  if (!room.cars.some((car) => car.playerId === focusPlayerId)) return null;
+  const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
+  return (
+    <div className="race-rear-view" aria-hidden="true">
+      <Canvas
+        shadows={false}
+        dpr={quality === "split" ? 0.75 : 0.9}
+        gl={{ antialias: false, powerPreference: "high-performance" }}
+        camera={{ fov: 32, near: 0.1, far: quality === "split" ? 220 : 300 }}
+      >
+        <color attach="background" args={[room.settings.rain ? "#67727b" : "#94bfd6"]} />
+        <fog attach="fog" args={[room.settings.rain ? "#7c858c" : "#a9cce0", room.settings.rain ? 28 : 58, room.settings.rain ? 140 : 240]} />
+        <ambientLight intensity={room.settings.rain ? 0.64 : 0.78} />
+        <hemisphereLight args={[room.settings.rain ? "#c6d0d8" : "#def3ff", "#4e6047", room.settings.rain ? 0.42 : 0.34]} />
+        <directionalLight position={[-14, 24, -12]} intensity={room.settings.rain ? 0.52 : 0.94} />
+        <RaceRearViewScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
+      </Canvas>
+    </div>
+  );
+}
+
+function RaceRearViewScene({ room, focusPlayerId, quality }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality }) {
+  const { camera } = useThree();
+  const track = TRACKS[room.settings.trackId];
+  const focus = room.cars.find((car) => car.playerId === focusPlayerId);
+  const cars = useMemo(() => focus ? rearViewCars(room.cars, focus, quality) : [], [focus, quality, room.cars]);
+  const smoothFocus = useRef<{ playerId: string; x: number; y: number; z: number; heading: number; surface: CarState["surface"]; impact: number; slip: number } | undefined>(undefined);
+
+  useFrame((_, delta) => {
+    if (!focus) return;
+    if (!smoothFocus.current || smoothFocus.current.playerId !== focus.playerId) {
+      smoothFocus.current = {
+        playerId: focus.playerId,
+        x: focus.x,
+        y: focus.y,
+        z: focus.z,
+        heading: focus.heading,
+        surface: focus.surface,
+        impact: focus.impact,
+        slip: focus.slip
+      };
+    }
+
+    const amount = smoothingAmount(delta, RACE_FOCUS_SMOOTHING_RESPONSE);
+    smoothFocus.current.x = THREE.MathUtils.lerp(smoothFocus.current.x, focus.x, amount);
+    smoothFocus.current.y = THREE.MathUtils.lerp(smoothFocus.current.y, focus.y, amount);
+    smoothFocus.current.z = THREE.MathUtils.lerp(smoothFocus.current.z, focus.z, amount);
+    smoothFocus.current.heading = lerpAngle(smoothFocus.current.heading, focus.heading, amount);
+    smoothFocus.current.surface = focus.surface;
+    smoothFocus.current.impact = THREE.MathUtils.lerp(smoothFocus.current.impact, focus.impact, amount);
+    smoothFocus.current.slip = THREE.MathUtils.lerp(smoothFocus.current.slip, focus.slip, amount);
+
+    const profile = rearViewCameraProfile(focus.vehicleId);
+    const renderFocus = smoothFocus.current;
+    const forwardX = Math.sin(renderFocus.heading);
+    const forwardZ = Math.cos(renderFocus.heading);
+    const shake = (renderFocus.surface === "curb" ? 0.025 : 0) + renderFocus.impact * 0.055 + renderFocus.slip * 0.012;
+
+    camera.position.set(
+      renderFocus.x + forwardX * profile.forwardOffset,
+      renderFocus.y + profile.height + Math.sin(performance.now() / 48) * shake,
+      renderFocus.z + forwardZ * profile.forwardOffset
+    );
+    camera.lookAt(
+      renderFocus.x - forwardX * profile.lookBack,
+      renderFocus.y + profile.lookHeight,
+      renderFocus.z - forwardZ * profile.lookBack
+    );
+  });
+
+  return (
+    <>
+      <TrackMesh track={track} rain={room.settings.rain} detail="mirror" />
+      <TrackProps track={track} rain={room.settings.rain} detail="mirror" />
+      {cars.map((car) => {
+        const player = room.players.find((item) => item.id === car.playerId);
+        const color = player?.color ?? "#ff3b5c";
+        return (
+          <group key={car.playerId}>
+            <CarEffects car={car} rain={room.settings.rain} color={color} />
+            <CarModel car={car} color={color} />
+          </group>
+        );
+      })}
+      <CrashExplosions events={room.crashEvents} track={track} />
+    </>
+  );
+}
+
+function rearViewCars(cars: CarState[], focus: CarState, quality: RaceRenderQuality) {
+  const forwardX = Math.sin(focus.heading);
+  const forwardZ = Math.cos(focus.heading);
+  const maxDistance = REAR_VIEW_MAX_DISTANCE[quality];
+  return cars
+    .filter((car) => car.playerId !== focus.playerId && !car.dnf)
+    .map((car) => {
+      const dx = car.x - focus.x;
+      const dz = car.z - focus.z;
+      const distance = Math.hypot(dx, dz);
+      const forwardDistance = dx * forwardX + dz * forwardZ;
+      return { car, distance, forwardDistance };
+    })
+    .filter((item) => item.distance <= maxDistance && item.forwardDistance <= REAR_VIEW_FORWARD_MARGIN)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, REAR_VIEW_CAR_LIMIT)
+    .map((item) => item.car);
+}
+
+function rearViewCameraProfile(vehicleId: VehicleId) {
+  if (vehicleId === "kart") {
+    return { height: 0.92, forwardOffset: 0.78, lookBack: 28, lookHeight: 0.66 };
+  }
+  if (vehicleId === "stockTruck") {
+    return { height: 1.72, forwardOffset: 0.9, lookBack: 34, lookHeight: 1.22 };
+  }
+  if (vehicleId === "tukTuk") {
+    return { height: 1.42, forwardOffset: 0.78, lookBack: 28, lookHeight: 0.98 };
+  }
+  return { height: 1.28, forwardOffset: 0.7, lookBack: 34, lookHeight: 0.86 };
 }
 
 function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality }) {
@@ -3106,7 +3273,8 @@ function DevAssetCell({
   );
 }
 
-const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; rain: boolean }) {
+const TrackMesh = memo(function TrackMesh({ track, rain, detail = "full" }: { track: TrackDef; rain: boolean; detail?: "full" | "mirror" }) {
+  const mirrorDetail = detail === "mirror";
   const bounds = useMemo(() => getTrackBounds(track), [track]);
   const elevatedTrack = track.id === "fjord" || track.id === "cloudline";
   const coastalTrack = track.id === "causeway";
@@ -3119,9 +3287,9 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
     ? (rain ? "#456d78" : "#51abc1")
     : (rain ? "#3e4d45" : "#5a7e48");
   const elevatedTerrainGeometry = useMemo(() => {
-    if (!elevatedTrack) return undefined;
+    if (!elevatedTrack || mirrorDetail) return undefined;
     return createElevatedTrackTerrainGeometry(track, terrainBaseY);
-  }, [elevatedTrack, terrainBaseY, track]);
+  }, [elevatedTrack, mirrorDetail, terrainBaseY, track]);
   const elevatedTerrainColor = track.id === "cloudline"
     ? (rain ? "#7e8988" : "#b9c5bd")
     : (rain ? "#3d594d" : "#66855a");
@@ -3139,7 +3307,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
   const runoffColor = track.id === "causeway"
     ? (rain ? "#8b9083" : "#c7ba8c")
     : (rain ? "#46524d" : "#6f8c58");
-  const curbStripeGeometries = useMemo(() => createCurbStripeGeometries(track, 4.6), [track]);
+  const curbStripeGeometries = useMemo(() => mirrorDetail ? undefined : createCurbStripeGeometries(track, 4.6), [mirrorDetail, track]);
   const roadGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width, 0, 0.035, 2.7), [track]);
   const runoffGeometry = useMemo(() => createTrackRibbonGeometry(track, track.width + (track.curbWidth + track.wallMargin) * 2, 0, -0.01, 2.7), [track]);
   const leftCurbGeometry = useMemo(() => createTrackRibbonGeometry(track, track.curbWidth, -track.width / 2 - track.curbWidth / 2, 0.055, 2.7), [track]);
@@ -3150,9 +3318,9 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
   const rightCurbOuterEdge = useMemo(() => createTrackRibbonGeometry(track, 0.16, track.width / 2 + track.curbWidth - 0.08, 0.101, 2.7), [track]);
   const leftLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, -track.width / 2 + 0.18, 0.075, 2.7), [track]);
   const rightLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.13, track.width / 2 - 0.18, 0.075, 2.7), [track]);
-  const racingLineGeometry = useMemo(() => createTrackRibbonGeometry(track, 1.35, 0, 0.078, 2.7), [track]);
-  const rubberLeftGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.28, -0.48, 0.081, 2.7), [track]);
-  const rubberRightGeometry = useMemo(() => createTrackRibbonGeometry(track, 0.28, 0.48, 0.081, 2.7), [track]);
+  const racingLineGeometry = useMemo(() => mirrorDetail ? undefined : createTrackRibbonGeometry(track, 1.35, 0, 0.078, 2.7), [mirrorDetail, track]);
+  const rubberLeftGeometry = useMemo(() => mirrorDetail ? undefined : createTrackRibbonGeometry(track, 0.28, -0.48, 0.081, 2.7), [mirrorDetail, track]);
+  const rubberRightGeometry = useMemo(() => mirrorDetail ? undefined : createTrackRibbonGeometry(track, 0.28, 0.48, 0.081, 2.7), [mirrorDetail, track]);
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[groundX, terrainBaseY - 0.08, groundZ]} receiveShadow>
@@ -3167,24 +3335,30 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
       <mesh geometry={shoulderGeometry} receiveShadow>
         <meshStandardMaterial color={shoulderColor} roughness={0.96} side={THREE.DoubleSide} />
       </mesh>
-      <TrackTerrain track={track} rain={rain} />
+      {!mirrorDetail && <TrackTerrain track={track} rain={rain} />}
       <mesh geometry={runoffGeometry} receiveShadow>
         <meshStandardMaterial color={runoffColor} roughness={0.92} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
         <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
       </mesh>
-      <mesh geometry={racingLineGeometry}>
-        <meshBasicMaterial color={rain ? "#11191c" : "#17181a"} transparent opacity={rain ? 0.28 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh geometry={rubberLeftGeometry}>
-        <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh geometry={rubberRightGeometry}>
-        <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      <AsphaltDetails track={track} rain={rain} />
-      {rain && <RainPuddles track={track} />}
+      {racingLineGeometry && (
+        <mesh geometry={racingLineGeometry}>
+          <meshBasicMaterial color={rain ? "#11191c" : "#17181a"} transparent opacity={rain ? 0.28 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {rubberLeftGeometry && (
+        <mesh geometry={rubberLeftGeometry}>
+          <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {rubberRightGeometry && (
+        <mesh geometry={rubberRightGeometry}>
+          <meshBasicMaterial color="#07090b" transparent opacity={rain ? 0.1 : 0.16} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {!mirrorDetail && <AsphaltDetails track={track} rain={rain} />}
+      {rain && !mirrorDetail && <RainPuddles track={track} />}
       <mesh geometry={leftCurbGeometry}>
         <meshStandardMaterial color={rain ? "#8f4c52" : "#9f2630"} roughness={0.66} side={THREE.DoubleSide} />
       </mesh>
@@ -3202,12 +3376,16 @@ const TrackMesh = memo(function TrackMesh({ track, rain }: { track: TrackDef; ra
       <mesh geometry={rightLineGeometry}>
         <meshBasicMaterial color={rain ? "#d7dad8" : "#f5f1dc"} side={THREE.DoubleSide} />
       </mesh>
-      <mesh geometry={curbStripeGeometries.white}>
-        <meshStandardMaterial color="#e8e1d1" roughness={0.58} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh geometry={curbStripeGeometries.red}>
-        <meshStandardMaterial color="#b02b35" roughness={0.58} side={THREE.DoubleSide} />
-      </mesh>
+      {curbStripeGeometries && (
+        <>
+          <mesh geometry={curbStripeGeometries.white}>
+            <meshStandardMaterial color="#e8e1d1" roughness={0.58} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh geometry={curbStripeGeometries.red}>
+            <meshStandardMaterial color="#b02b35" roughness={0.58} side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 });
@@ -3533,7 +3711,8 @@ function SponsorBoard({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; rain: boolean }) {
+const TrackProps = memo(function TrackProps({ track, rain, detail = "full" }: { track: TrackDef; rain: boolean; detail?: "full" | "mirror" }) {
+  const mirrorDetail = detail === "mirror";
   const start = sampleTrackVisuals(track, 7)[0];
   const propSamples = useMemo(() => sampleTrackVisuals(track, track.id === "cloudline" ? 140 : track.id === "fjord" || track.id === "causeway" ? 70 : track.id === "alpine" ? 28 : 21), [track]);
   const boards = propSamples.filter((_, index) => index % 3 === 0);
@@ -3566,19 +3745,19 @@ const TrackProps = memo(function TrackProps({ track, rain }: { track: TrackDef; 
         );
       })}
       <SponsorBoard track={track} rain={rain} />
-      {barriers.map((sample, index) => {
+      {!mirrorDetail && barriers.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         const x = sample.x + Math.sin(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         const z = sample.z + Math.cos(sample.heading + Math.PI / 2) * side * (track.width / 2 + track.curbWidth + track.wallMargin - 0.65);
         return (
           <group key={`${sample.x}-${sample.z}-barrier`} position={[x, sample.y + 0.34, z]} rotation={[0, sample.heading - side * Math.PI / 2, 0]}>
-            <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
-          </group>
-        );
+          <TrackBarrierModel rain={rain} accent={index % 2 === 0 ? "#e04a54" : "#24282f"} />
+        </group>
+      );
       })}
-      {track.id === "sakura" && <SakuraSignatureProps track={track} rain={rain} />}
-      {track.id === "alpine" && <AlpineSignatureProps track={track} rain={rain} />}
-      <TrackIdentityProps track={track} rain={rain} />
+      {!mirrorDetail && track.id === "sakura" && <SakuraSignatureProps track={track} rain={rain} />}
+      {!mirrorDetail && track.id === "alpine" && <AlpineSignatureProps track={track} rain={rain} />}
+      {!mirrorDetail && <TrackIdentityProps track={track} rain={rain} />}
     </group>
   );
 });

@@ -56,6 +56,8 @@ Rendering:
   - fewer rain drops
   - fewer live skid marks
 - Single-screen keeps the higher-quality render path.
+- Rear-view mirrors are personal and default to Auto, so solo races and panes without active rivals do not mount the extra mirror canvas.
+- Rear-view mirrors render continuously for smooth motion, but use lower DPR, no antialiasing, no shadows, a capped nearby-car list, and a lighter mirror track detail mode with boards/signage but without the heavier decorative scenery.
 - Static track/environment components are memoized.
 - Minimap track paths are memoized per track.
 - Alternating curb stripe meshes are merged into two geometries, one red and one white.
