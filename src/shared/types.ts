@@ -10,6 +10,8 @@ export type VehicleId = "formula" | "kart" | "stockTruck" | "tukTuk";
 
 export type CockpitStyle = "none" | "hands" | "paws";
 
+export type RearViewMode = "auto" | "on" | "off";
+
 export type Vec2 = {
   x: number;
   y?: number;
@@ -53,6 +55,7 @@ export type Player = {
   vehicleId: VehicleId;
   carSetupId: CarSetupId;
   cockpitStyle: CockpitStyle;
+  rearViewMode: RearViewMode;
   isReady: boolean;
   isVIP: boolean;
   connected: boolean;
@@ -172,6 +175,7 @@ export type ClientMessage =
   | { type: "set_vehicle"; vehicleId: VehicleId }
   | { type: "set_car_setup"; carSetupId: CarSetupId }
   | { type: "set_cockpit_style"; cockpitStyle: CockpitStyle }
+  | { type: "set_rear_view_mode"; rearViewMode: RearViewMode }
   | { type: "set_ready"; ready: boolean }
   | { type: "input_frame"; input: InputFrame }
   | { type: "request_reset" }

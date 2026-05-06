@@ -1379,6 +1379,10 @@ input {
   position: relative;
   min-height: 0;
   overflow: hidden;
+  --race-rear-view-top: 64px;
+  --race-rear-view-width: clamp(180px, 34%, 440px);
+  --race-rear-view-height: clamp(45px, 7.6vw, 110px);
+  --race-rear-view-gap: 10px;
 }
 
 .rain-visor {
@@ -1447,6 +1451,45 @@ input {
   background: rgba(16, 18, 20, 0.64);
   backdrop-filter: blur(6px);
   z-index: 2;
+}
+
+.race-rear-view {
+  position: absolute;
+  left: 50%;
+  top: var(--race-rear-view-top);
+  width: var(--race-rear-view-width);
+  height: var(--race-rear-view-height);
+  overflow: hidden;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: rgba(10, 14, 18, 0.96);
+  border: 2px solid rgba(255, 250, 240, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(16, 18, 20, 0.82), 0 12px 28px rgba(0, 0, 0, 0.34);
+  border-radius: 8px;
+  isolation: isolate;
+  z-index: 7;
+}
+
+.race-rear-view::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 240, 0.12), transparent 38%, rgba(16, 18, 20, 0.18)),
+    linear-gradient(90deg, rgba(255, 250, 240, 0.12), transparent 18%, transparent 82%, rgba(255, 250, 240, 0.1));
+  mix-blend-mode: screen;
+}
+
+.race-rear-view canvas {
+  width: 100% !important;
+  height: 100% !important;
+  transform: scaleX(-1);
+}
+
+.race-pane-split {
+  --race-rear-view-width: clamp(150px, 46%, 280px);
+  --race-rear-view-height: clamp(38px, 4.9vw, 70px);
 }
 
 .race-leaderboard li {
@@ -1564,6 +1607,11 @@ input {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(8px);
   transform: translateX(-50%);
+}
+
+.race-pane-has-rear-view .race-spectate-controls {
+  top: calc(var(--race-rear-view-top) + var(--race-rear-view-height) + var(--race-rear-view-gap));
+  z-index: 8;
 }
 
 .race-spectate-controls.single,
