@@ -160,6 +160,8 @@ function DisplayApp() {
   const [isBenchmarksOpen, setIsBenchmarksOpen] = useState(false);
   const [isShowroomOpen, setIsShowroomOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [isMobileLobbyAllowed, setIsMobileLobbyAllowed] = useState(false);
+  const isPhoneDisplay = useIsPhoneDisplay();
   const [themeMode, setThemeMode] = useStoredDisplayTheme();
   const resolvedTheme = useResolvedDisplayTheme(themeMode);
   const themeClass = `display-theme theme-${resolvedTheme}`;
@@ -202,7 +204,9 @@ function DisplayApp() {
                 className="join-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (joinCode.trim()) game.send({ type: "join_display", roomCode: joinCode.trim().toUpperCase() });
+                  const roomCode = joinCode.trim().toUpperCase();
+                  if (!roomCode) return;
+                  game.send({ type: "join_display", roomCode });
                 }}
               >
                 <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
@@ -259,7 +263,48 @@ function DisplayApp() {
     return <ResultsDisplay room={game.room} send={game.send} themeClass={themeClass} />;
   }
 
-  return <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />;
+  return (
+    <>
+      <LobbyDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} themeClass={themeClass} themeToggle={themeToggle} />
+      {isPhoneDisplay && !isMobileLobbyAllowed && (
+        <MobileDisplayLobbyOverlay roomCode={game.room.roomCode} themeClass={themeClass} onContinue={() => setIsMobileLobbyAllowed(true)} />
+      )}
+    </>
+  );
+}
+
+function MobileDisplayLobbyOverlay({
+  roomCode,
+  themeClass,
+  onContinue
+}: {
+  roomCode: string;
+  themeClass: string;
+  onContinue: () => void;
+}) {
+  return (
+    <div className={`mobile-display-overlay ${themeClass}`} role="presentation">
+      <section className="mobile-display-panel">
+        <p className="eyebrow lobby-eyebrow">phone controller ready</p>
+        <h1>Use a computer for the race screen</h1>
+        <p>
+          Right now SimDrive needs two screens: a display and a controller. This is the display side, which is great on a computer, tablet, or TV with a phone as a controller.
+        </p>
+        <p>
+          If you really really want to, you can still use two phones with one being the display, but it is probably better to open this up on a bigger screen.
+        </p>
+        <div className="mobile-display-room">
+          <span>Already made this room?</span>
+          <strong>{roomCode}</strong>
+          <small>Enter this code on a computer with "Join Room on This Screen," then scan the QR from the computer.</small>
+        </div>
+        <strong className="mobile-version-note">A single screen mobile-only version is being worked on.</strong>
+        <button className="secondary" type="button" onClick={onContinue}>
+          Show QR anyway
+        </button>
+      </section>
+    </div>
+  );
 }
 
 function HowToPlayModal({ onClose }: { onClose: () => void }) {
@@ -2915,6 +2960,36 @@ function usePrefersDarkMode() {
   }, []);
 
   return prefersDark;
+}
+
+function useIsPhoneDisplay() {
+  const [isPhoneDisplay, setIsPhoneDisplay] = useState(() => isLikelyPhoneDisplay());
+
+  useEffect(() => {
+    const queries = [
+      window.matchMedia?.("(pointer: coarse)"),
+      window.matchMedia?.("(max-width: 820px)")
+    ].filter(Boolean) as MediaQueryList[];
+    const update = () => setIsPhoneDisplay(isLikelyPhoneDisplay());
+    window.addEventListener("resize", update);
+    for (const query of queries) query.addEventListener?.("change", update);
+    update();
+    return () => {
+      window.removeEventListener("resize", update);
+      for (const query of queries) query.removeEventListener?.("change", update);
+    };
+  }, []);
+
+  return isPhoneDisplay;
+}
+
+function isLikelyPhoneDisplay() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent;
+  const phoneUserAgent = /Mobi|iPhone|iPod/i.test(userAgent) || (/Android/i.test(userAgent) && !/Tablet/i.test(userAgent));
+  const coarseSmallScreen = (window.matchMedia?.("(pointer: coarse)").matches ?? false)
+    && (window.matchMedia?.("(max-width: 820px)").matches ?? window.innerWidth <= 820);
+  return phoneUserAgent || coarseSmallScreen;
 }
 
 function DevThemeControl({ mode, onChange }: { mode: DevThemeMode; onChange: (mode: DevThemeMode) => void }) {
