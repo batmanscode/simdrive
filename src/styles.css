@@ -1109,6 +1109,85 @@ input {
   color: #ffd166;
 }
 
+.mobile-display-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 18, 20, 0.7);
+  color: var(--display-text);
+  backdrop-filter: blur(8px);
+}
+
+.mobile-display-panel {
+  width: min(620px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--display-panel);
+  border: 1px solid var(--display-panel-border);
+  box-shadow: 0 22px 70px var(--display-panel-shadow);
+}
+
+.mobile-display-panel h1 {
+  margin: 0;
+  color: var(--display-text);
+  font-size: 42px;
+  line-height: 1;
+}
+
+.mobile-display-panel p {
+  margin: 0;
+  color: var(--display-muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.mobile-version-note {
+  color: var(--display-text);
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+.mobile-display-panel .secondary {
+  justify-self: start;
+  background: var(--display-chip);
+  color: var(--display-chip-text);
+}
+
+.mobile-display-room {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--display-card);
+  border: 1px solid var(--display-card-border);
+}
+
+.mobile-display-room span {
+  color: var(--display-muted);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mobile-display-room strong {
+  color: var(--display-text);
+  font-size: 52px;
+  line-height: 0.95;
+  letter-spacing: 5px;
+}
+
+.mobile-display-room small {
+  color: var(--display-muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
 .lobby-main {
   padding: 24px;
   background: var(--display-main-bg);
@@ -2890,6 +2969,23 @@ input {
 
   .lobby {
     padding: 64px 12px 12px;
+  }
+
+  .mobile-display-overlay {
+    padding: 64px 12px 12px;
+    align-items: start;
+  }
+
+  .mobile-display-panel {
+    padding: 18px;
+  }
+
+  .mobile-display-panel h1 {
+    font-size: 34px;
+  }
+
+  .mobile-display-room strong {
+    font-size: 46px;
   }
 
   .dev-assets {
