@@ -1952,6 +1952,34 @@ input {
   line-height: 1.35;
 }
 
+.motion-permission-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(53, 167, 255, 0.36);
+  border-radius: 8px;
+  background: rgba(53, 167, 255, 0.12);
+}
+
+.motion-permission-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.motion-permission-card strong {
+  font-size: 15px;
+}
+
+.motion-permission-card span {
+  color: rgba(255, 250, 240, 0.72);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.motion-permission-card button {
+  width: 100%;
+}
+
 .feel-preview {
   min-height: 52px;
   display: grid;
@@ -2207,6 +2235,7 @@ input {
 .reset-to-track,
 .steer-touch,
 .controller-hints,
+.motion-permission-banner,
 .rotate-warning {
   position: fixed;
   z-index: 5;
@@ -2350,6 +2379,51 @@ input {
 
 .rotate-warning {
   display: none;
+}
+
+.motion-permission-banner {
+  top: 62px;
+  left: 50%;
+  width: min(380px, calc(100vw - 24px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  transform: translateX(-50%);
+  padding: 10px;
+  border: 1px solid rgba(53, 167, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.88);
+  color: #fffaf0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  pointer-events: auto;
+}
+
+.motion-permission-banner div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.motion-permission-banner strong {
+  font-size: 13px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.motion-permission-banner span {
+  color: rgba(255, 250, 240, 0.72);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.motion-permission-banner button {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #35a7ff;
+  color: #101214;
+  font-weight: 950;
 }
 
 .pedal {

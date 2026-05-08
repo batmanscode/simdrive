@@ -5,7 +5,7 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 ## Browser Limits
 
 - Audio is generated with Web Audio on the phone controller.
-- Motion steering prefers `deviceorientation`, falls back to `devicemotion` gravity tilt, then tries Chrome's Generic Sensor `GravitySensor`/`Accelerometer` path when legacy orientation events do not deliver. Chrome/Chromium may require HTTPS; plain LAN `http://` can leave the app in touch steering fallback even when the API exists.
+- Motion steering prefers `deviceorientation`, falls back to `devicemotion` gravity tilt, then tries Chrome's Generic Sensor `GravitySensor`/`Accelerometer` path when legacy orientation events do not deliver. iOS Safari/WebKit requires an explicit `Enable Tilt` tap so the browser can show its motion/orientation permission prompt. Chrome/Chromium and iOS Safari/WebKit require HTTPS; plain LAN `http://` can leave the app in touch steering fallback even when the API exists.
 - Race countdown captures a stable median neutral baseline before sending motion steering. If the phone stays portrait, the app asks the player to turn sideways instead of saving a portrait steering center. Race motion steering also re-centers when the phone changes orientation frame.
 - Race touch steering deliberately overrides motion steering while an arrow is held. This prevents partial/noisy sensor events from fighting the fallback controls on mobile browsers.
 - Vibration uses `navigator.vibrate()`.
