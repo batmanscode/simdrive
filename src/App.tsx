@@ -1373,20 +1373,21 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
   const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const settings = room?.settings;
+  const explicitMotionPermission = explicitMotionPermissionRequired();
   const motionCheckRef = useRef<number | undefined>(undefined);
   const motionRequestInFlightRef = useRef(false);
 
   const noteMotionDebug = (event: MotionDebugEvent) => {
     setMotionDebug((current) => updateMotionDebug(current, event));
     if (event.kind === "event" && (event.source === "orientation-null" || event.source === "motion-empty")) {
-      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" ? "Tap Enable Motion" : current);
+      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" || current === "Enable tilt steering" ? "Tap Enable Tilt" : current);
     }
   };
 
   const markMotionAwaitingEvents = () => {
     window.clearTimeout(motionCheckRef.current);
     motionCheckRef.current = window.setTimeout(() => {
-      setMotionStatus((current) => current === "Motion ready" ? "Move phone; no motion events yet" : current);
+      setMotionStatus((current) => current === "Motion ready" ? "Move phone; no tilt data yet" : current);
     }, 1800);
   };
 
@@ -1413,6 +1414,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
   };
 
   const prepareToDrive = async () => {
+    if (explicitMotionPermission) {
+      await requestLobbyMotion();
+      if (audioEnabled) unlockControllerAudio();
+      await requestLandscape();
+      return true;
+    }
     if (audioEnabled) unlockControllerAudio();
     await requestLobbyMotion();
     await requestLandscape();
@@ -1423,6 +1430,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
     const neutral = { current: undefined as number | undefined };
     return listenToSteeringMotion(({ raw, angle, source }) => {
       window.clearTimeout(motionCheckRef.current);
+      setMotionEnabled(true);
       const calibration = readMotionCalibration(motionOrientationFrameKey(angle, source));
       neutral.current = calibration?.neutral ?? neutral.current ?? raw;
       setMotionLevel(steeringFromTilt(raw, neutral.current, steeringSensitivity, motionSteeringDirection));
@@ -1436,20 +1444,40 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
     <main
       className="phone controller-lobby"
       onPointerDownCapture={() => {
-        if (!motionEnabled && motionDebug.request === "not requested") void requestLobbyMotion();
+        if (!explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestLobbyMotion();
       }}
     >
       <h1>{player?.isVIP ? "VIP Settings" : "Ready Room"}</h1>
       {joinStatus && <small className="phone-note">{joinStatus}</small>}
-      <button
-        className="secondary"
-        onClick={() => {
-          void requestLobbyMotion();
-        }}
-      >
-        <Activity size={18} /> {motionEnabled ? "Motion Enabled" : "Enable Motion"}
-      </button>
-      <small className="phone-note">{motionStatus}</small>
+      {explicitMotionPermission ? (
+        <div className="motion-permission-card" role="status">
+          <div>
+            <strong>{motionEnabled ? "Tilt steering enabled" : "Enable tilt steering"}</strong>
+            <span>This browser asks before the controller can read phone tilt.</span>
+          </div>
+          <button
+            className="primary"
+            onClick={() => {
+              void requestLobbyMotion();
+            }}
+          >
+            <Activity size={18} /> {motionEnabled ? "Test Tilt" : "Enable Tilt"}
+          </button>
+          <small className="phone-note">{motionStatus}</small>
+        </div>
+      ) : (
+        <>
+          <button
+            className="secondary"
+            onClick={() => {
+              void requestLobbyMotion();
+            }}
+          >
+            <Activity size={18} /> {motionEnabled ? "Motion Enabled" : "Enable Motion"}
+          </button>
+          <small className="phone-note">{motionStatus}</small>
+        </>
+      )}
       <MotionDebugDetails debug={motionDebug} />
       <div className="motion-test">
         <span>Motion test</span>
@@ -1870,6 +1898,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   const [steerUi, setSteerUi] = useState(0);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
   const [motionStatus, setMotionStatus] = useState(initialMotionCalibrationRef.current ? "Motion steering" : motionInitialStatus());
+  const [motionSamplesLive, setMotionSamplesLive] = useState(false);
   const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
   const [motionListenToken, setMotionListenToken] = useState(0);
   const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
@@ -1903,23 +1932,25 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   const [invertMotionSteering, setInvertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
   const resetAvailable = Boolean(car?.resetAvailable);
+  const explicitMotionPermission = explicitMotionPermissionRequired();
 
   const noteMotionDebug = (event: MotionDebugEvent) => {
     setMotionDebug((current) => updateMotionDebug(current, event));
     if (event.kind === "event" && (event.source === "orientation-null" || event.source === "motion-empty")) {
-      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" ? "Tap motion button" : current);
+      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" || current === "Enable tilt steering" ? "Tap Enable Tilt" : current);
     }
   };
 
   const markRaceMotionAwaitingEvents = () => {
     window.clearTimeout(motionCheckRef.current);
     motionCheckRef.current = window.setTimeout(() => {
-      setMotionStatus((current) => current === "Motion ready" ? "Move phone; no motion events yet" : current);
+      setMotionStatus((current) => current === "Motion ready" ? "Use arrows; tilt not detected" : current);
     }, 1800);
   };
 
   const applyRaceMotionResult = (motion: Awaited<ReturnType<typeof enableControllerDevice>>) => {
     setMotionStatus(motion.message);
+    setMotionSamplesLive(false);
     noteMotionDebug({ kind: "permissions", status: motion.permissions });
     noteMotionDebug({ kind: "request", message: motion.message });
     if (motion.enabled) {
@@ -1946,6 +1977,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
     return listenToSteeringMotion(({ raw, angle, source }) => {
       window.clearTimeout(motionCheckRef.current);
       hasMotionRef.current = true;
+      setMotionSamplesLive(true);
       if (!phoneIsLandscape()) {
         neutralRef.current = undefined;
         neutralCaptureRef.current = undefined;
@@ -2070,6 +2102,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   };
 
   const armControllerDevice = () => {
+    if (explicitMotionPermission) return;
     if (audioEnabled) audioRef.current = unlockControllerAudio();
     requestRaceMotion();
   };
@@ -2080,6 +2113,25 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       onPointerDown={armControllerDevice}
       onClick={armControllerDevice}
     >
+      {explicitMotionPermission && !motionSamplesLive && (
+        <div className="motion-permission-banner" role="status">
+          <div>
+            <strong>Enable tilt steering</strong>
+            <span>This browser needs permission before the phone can steer. Touch arrows still work.</span>
+          </div>
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              requestRaceMotion();
+              if (audioEnabled) audioRef.current = unlockControllerAudio();
+            }}
+          >
+            Enable
+          </button>
+        </div>
+      )}
       <div className="rotate-warning">
         <Smartphone size={42} />
         <strong>Turn your phone sideways</strong>
@@ -2114,7 +2166,12 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
           Reset to track
         </button>
       )}
-      {room.phase === "countdown" && <ControllerCountdownHints motionStatus={motionStatus} />}
+      {room.phase === "countdown" && (
+        <ControllerCountdownHints
+          motionStatus={motionStatus}
+          showSteerHint={!explicitMotionPermission || motionSamplesLive}
+        />
+      )}
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
@@ -2126,7 +2183,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   );
 }
 
-function ControllerCountdownHints({ motionStatus }: { motionStatus: string }) {
+function ControllerCountdownHints({ motionStatus, showSteerHint = true }: { motionStatus: string; showSteerHint?: boolean }) {
   const steerHint = motionStatus === "Turn phone sideways"
     ? "Turn phone sideways"
     : motionStatus === "Hold steady, centering :D"
@@ -2136,7 +2193,7 @@ function ControllerCountdownHints({ motionStatus }: { motionStatus: string }) {
     <div className="controller-hints" aria-live="polite">
       <span className="hint brake-hint">Brake: slide down</span>
       <span className="hint throttle-hint">Throttle: slide up</span>
-      <span className="hint steer-hint">{steerHint}</span>
+      {showSteerHint && <span className="hint steer-hint">{steerHint}</span>}
     </div>
   );
 }
@@ -8052,13 +8109,18 @@ function phoneIsLandscape(angle = getScreenAngle()) {
 }
 
 async function requestMotion() {
-  const permissions = await readSensorPermissionStatus();
   if (!sensorSupported()) {
-    return { enabled: false, message: "Motion unavailable in this browser", permissions };
+    return { enabled: false, message: "Motion unavailable in this browser", permissions: "perm ?" };
   }
   if (!motionContextAllowed()) {
-    return { enabled: false, message: "Motion needs HTTPS on this phone", permissions };
+    return { enabled: false, message: "Motion needs HTTPS on this phone", permissions: "perm ?" };
   }
+
+  if (explicitMotionPermissionRequired()) {
+    return requestExplicitMotionPermission();
+  }
+
+  const permissions = await readSensorPermissionStatus();
   if (permissions.includes("denied")) {
     return { enabled: false, message: "Chrome motion sensors blocked", permissions };
   }
@@ -8078,6 +8140,23 @@ async function requestMotion() {
   return { enabled: true, message: "Motion ready", permissions };
 }
 
+async function requestExplicitMotionPermission() {
+  try {
+    const permissionRequests = await requestSensorPermissions();
+    const permissions = await readSensorPermissionStatus();
+    if (permissionRequests.length > 0 && !permissionRequests.some((permission) => permission.status === "fulfilled" && permission.value === "granted")) {
+      if (permissionRequests.some((permission) => permission.status === "rejected")) {
+        return { enabled: false, message: "Tap Enable Tilt again", permissions };
+      }
+      return { enabled: false, message: "Tilt permission denied", permissions };
+    }
+    return { enabled: true, message: "Motion ready", permissions };
+  } catch {
+    const permissions = await readSensorPermissionStatus();
+    return { enabled: false, message: "Tap Enable Tilt again", permissions };
+  }
+}
+
 async function requestSensorPermissions() {
   const permissionRequests = [
     motionPermissionRequest("DeviceMotionEvent"),
@@ -8089,9 +8168,20 @@ async function requestSensorPermissions() {
 }
 
 function motionPermissionRequest(eventName: "DeviceMotionEvent" | "DeviceOrientationEvent") {
-  const eventConstructor = (window as Window & Record<typeof eventName, MotionPermissionConstructor | undefined>)[eventName];
+  const eventConstructor = motionPermissionConstructor(eventName);
   if (typeof eventConstructor?.requestPermission !== "function") return undefined;
   return eventConstructor.requestPermission();
+}
+
+function explicitMotionPermissionRequired() {
+  return typeof window !== "undefined" && (
+    typeof motionPermissionConstructor("DeviceMotionEvent")?.requestPermission === "function"
+    || typeof motionPermissionConstructor("DeviceOrientationEvent")?.requestPermission === "function"
+  );
+}
+
+function motionPermissionConstructor(eventName: "DeviceMotionEvent" | "DeviceOrientationEvent") {
+  return (window as Window & Record<"DeviceMotionEvent" | "DeviceOrientationEvent", MotionPermissionConstructor | undefined>)[eventName];
 }
 
 async function readSensorPermissionStatus() {
@@ -8115,12 +8205,14 @@ async function readSensorPermissionStatus() {
 function motionInitialStatus() {
   if (!sensorSupported()) return "Touch steering";
   if (!motionContextAllowed()) return "Motion needs HTTPS";
+  if (explicitMotionPermissionRequired()) return "Enable tilt steering";
   return "Motion waiting";
 }
 
 function motionLobbyStatus() {
   if (!sensorSupported()) return "Motion unavailable";
   if (!motionContextAllowed()) return "Motion needs HTTPS on this phone";
+  if (explicitMotionPermissionRequired()) return "Enable tilt steering";
   return "Motion ready";
 }
 
@@ -8802,13 +8894,20 @@ function isAndroid() {
 }
 
 function isIOS() {
-  return typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
+function isIOSSafari() {
+  if (typeof navigator === "undefined" || !isIOS()) return false;
+  return /safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
 }
 
 function controllerBrowserRecommendation() {
   if (isRecommendedAndroidControllerBrowser()) return undefined;
   if (isInAppBrowser()) return "Open this controller in a Chromium-based browser on Android for reliable motion steering and haptics. In-app browsers often block sensors.";
-  if (isIOS()) return "Chrome on iPhone still uses iOS browser limits. Steering can work, but web vibration is not supported; Android Chromium browsers give the full feedback experience.";
+  if (isIOSSafari()) return "Tap Enable tilt steering when prompted. If Safari does not deliver tilt data, use the touch arrows; web vibration is not supported on iPhone.";
+  if (isIOS()) return "iPhone browsers use iOS browser limits. Steering can work after permission, but web vibration is not supported.";
   if (isAndroid()) return "A Chromium-based Android browser is recommended for the most reliable motion steering and haptic feedback.";
   return "A Chromium-based Android browser is recommended for the best phone controller motion and haptic feedback.";
 }
