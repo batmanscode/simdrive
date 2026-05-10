@@ -255,12 +255,16 @@ function DisplayApp() {
     );
   }
 
-  if (game.room.phase === "racing" || game.room.phase === "countdown") {
-    return <RaceDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
-  }
-
   if (game.room.phase === "results") {
     return <ResultsDisplay room={game.room} send={game.send} themeClass={themeClass} />;
+  }
+
+  if (game.room.phase === "tutorial") {
+    return <TutorialDisplay room={game.room} send={game.send} themeClass={themeClass} />;
+  }
+
+  if (game.room.phase === "racing" || game.room.phase === "countdown") {
+    return <RaceDisplay room={game.room} displayGroupId={game.displayGroupId} send={game.send} />;
   }
 
   return (
@@ -821,6 +825,7 @@ function LobbyDisplay({
 
         <div className="settings-strip" aria-label="Race settings">
           <SettingChip label="Laps" value={String(room.settings.lapCount)} />
+          <SettingChip label="Tutorial" value={room.settings.tutorialEnabled ? "On" : "Off"} />
           <SettingChip label="Rain" value={room.settings.rain ? "Wet grip" : "Off"} />
           <SettingChip label="Start" value={room.settings.warmupStart ? "Warm-up / Flying" : "Grid"} />
           <SettingChip label="Cars" value={room.settings.ghostMode ? "Ghost" : "Collide"} />
@@ -838,6 +843,39 @@ function LobbyDisplay({
         <PlayerGrid room={room} />
       </section>
       {isTutorialOpen && <HowToPlayModal onClose={() => setIsTutorialOpen(false)} />}
+    </main>
+  );
+}
+
+function TutorialDisplay({ room, send, themeClass }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string }) {
+  const players = room.players.filter((player) => player.connected);
+  const doneCount = players.filter((player) => player.tutorialDone).length;
+  const vip = room.players.find((player) => player.isVIP);
+
+  return (
+    <main className={`tutorial-display ${themeClass}`}>
+      <section className="tutorial-display-panel" aria-live="polite">
+        <p className="eyebrow lobby-eyebrow">pre-race tutorial</p>
+        <h1>Look at your phone for the tutorial :D</h1>
+        <div className="tutorial-progress-ring">
+          <strong>{doneCount}/{players.length}</strong>
+          <span>done</span>
+        </div>
+        <p>The race starts automatically when every connected driver finishes the phone tutorial.</p>
+        <div className="tutorial-driver-list">
+          {players.map((player) => (
+            <div key={player.id} className={player.tutorialDone ? "done" : undefined}>
+              <span className="swatch" style={{ background: player.color }} />
+              <strong>{player.name}</strong>
+              <small>{player.tutorialDone ? "Done" : "On phone"}{player.isVIP ? " · VIP" : ""}</small>
+            </div>
+          ))}
+        </div>
+        <small className="screen-note">VIP: {vip?.name ?? "none"}. The VIP can start anyway from their phone if someone gets stuck.</small>
+        <button className="secondary danger" onClick={() => send({ type: "display_return_lobby" })}>
+          <RotateCcw size={18} /> Return to Lobby
+        </button>
+      </section>
     </main>
   );
 }
@@ -1353,6 +1391,10 @@ function ControllerApp() {
     return <RaceController send={game.send} feedback={game.feedback} crashEvents={game.controllerCrashEvents} nearbyAudioCars={game.controllerNearbyAudioCars} nearbyCrashEvents={game.controllerNearbyCrashEvents} countdownMark={game.controllerCountdownMark} room={game.room} playerId={game.playerId} steeringLevel={steeringLevel} />;
   }
 
+  if (game.room?.phase === "tutorial") {
+    return <ControllerTutorial room={game.room} player={player} send={game.send} steeringLevel={steeringLevel} />;
+  }
+
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} steeringLevel={steeringLevel} onSteeringLevelChange={setSteeringLevelClamped} />;
 }
 
@@ -1555,6 +1597,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         <div className="vip-controls">
           <TrackPicker settings={settings} send={send} />
           <Stepper label="Laps" value={settings.lapCount} min={1} max={9} onChange={(lapCount) => send({ type: "vip_set_settings", settings: { lapCount } })} />
+          <Toggle label="Tutorial" value={settings.tutorialEnabled} onChange={(tutorialEnabled) => send({ type: "vip_set_settings", settings: { tutorialEnabled } })} />
+          <small className="phone-note">When on, everyone gets a short phone tutorial before the countdown. Default is on.</small>
           <Toggle label="Warm-up / flying start" value={settings.warmupStart} onChange={(warmupStart) => send({ type: "vip_set_settings", settings: { warmupStart } })} />
           <small className="phone-note">First pass is untimed. Your race starts when you cross the line at speed.</small>
           <Toggle label="Ghost cars" value={settings.ghostMode} onChange={(ghostMode) => send({ type: "vip_set_settings", settings: { ghostMode } })} />
@@ -1592,6 +1636,220 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
       )}
       <small className="phone-note">Use earphones for clearer engine, tire, curb, nearby car, and impact feedback.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
+    </main>
+  );
+}
+
+function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; steeringLevel: number }) {
+  const [step, setStep] = useState<"controls" | "range">("controls");
+  const [motionEnabled, setMotionEnabled] = useState(false);
+  const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
+  const [motionLevel, setMotionLevel] = useState(0);
+  const [motionListenToken, setMotionListenToken] = useState(0);
+  const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
+  const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
+  const [invertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
+  const motionRequestInFlightRef = useRef(false);
+  const lastRawSteerRef = useRef<number | undefined>(undefined);
+  const lastOrientationFrameRef = useRef(motionOrientationFrameKey());
+  const neutralRef = useRef<number | undefined>(readMotionCalibration()?.neutral);
+  const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
+  const motionSteeringDirection = invertMotionSteering ? -1 : 1;
+  const explicitMotionPermission = explicitMotionPermissionRequired();
+  const players = room.players.filter((item) => item.connected);
+  const doneCount = players.filter((item) => item.tutorialDone).length;
+  const remainingCount = Math.max(0, players.length - doneCount);
+  const motionNeedsTiltAction = motionStatus.toLowerCase().includes("tilt");
+  const motionButtonLabel = motionNeedsTiltAction ? "Enable Tilt" : motionEnabled ? "Test Motion" : "Enable Motion";
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [step, player?.tutorialDone]);
+
+  useEffect(() => {
+    void requestLandscape();
+  }, []);
+
+  const noteMotionDebug = (event: MotionDebugEvent) => {
+    setMotionDebug((current) => updateMotionDebug(current, event));
+    if (event.kind === "event" && (event.source === "orientation-null" || event.source === "motion-empty")) {
+      setMotionStatus((current) => current === "Motion ready" || current === "Motion waiting" || current === "Enable tilt steering" ? "Tap Enable Tilt" : current);
+    }
+  };
+
+  const applyMotionResult = (motion: Awaited<ReturnType<typeof enableControllerDevice>>) => {
+    setMotionEnabled(motion.enabled);
+    setMotionStatus(motion.message);
+    noteMotionDebug({ kind: "permissions", status: motion.permissions });
+    noteMotionDebug({ kind: "request", message: motion.message });
+    if (motion.enabled) setMotionListenToken((current) => current + 1);
+  };
+
+  const requestTutorialMotion = async () => {
+    if (motionRequestInFlightRef.current) return;
+    motionRequestInFlightRef.current = true;
+    try {
+      const motion = await enableControllerDevice();
+      applyMotionResult(motion);
+    } finally {
+      motionRequestInFlightRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    return listenToSteeringMotion(({ raw, angle, source }) => {
+      const orientationFrame = motionOrientationFrameKey(angle, source);
+      if (orientationFrame !== lastOrientationFrameRef.current) {
+        lastOrientationFrameRef.current = orientationFrame;
+        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+      }
+      const neutral = neutralRef.current ?? readMotionCalibration(orientationFrame)?.neutral ?? raw;
+      neutralRef.current = neutral;
+      lastRawSteerRef.current = raw;
+      setMotionEnabled(true);
+      setMotionLevel(steeringFromTilt(raw, neutral, steeringSensitivity, motionSteeringDirection));
+      setMotionStatus(motionLiveStatus(source));
+    }, noteMotionDebug);
+  }, [motionListenToken, motionSteeringDirection, steeringSensitivity]);
+
+  const calibrate = () => {
+    if (lastRawSteerRef.current === undefined) {
+      setCalibrationLabel("Move phone first");
+      window.setTimeout(() => setCalibrationLabel("Calibrate"), 1200);
+      return;
+    }
+    neutralRef.current = lastRawSteerRef.current;
+    writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
+    setMotionLevel(0);
+    setCalibrationLabel("Straight set");
+    window.setTimeout(() => setCalibrationLabel("Calibrate"), 1200);
+  };
+
+  const markDone = async () => {
+    await requestLandscape();
+    send({ type: "set_tutorial_done", done: true });
+  };
+
+  const startAnyway = async () => {
+    await requestLandscape();
+    send({ type: "vip_skip_tutorial" });
+  };
+
+  if (player?.tutorialDone) {
+    return (
+      <main className="phone controller-tutorial waiting">
+        <div className="tutorial-phone-top">
+          <span>{doneCount}/{players.length} done</span>
+          <strong>{player.isVIP ? "VIP" : "Ready"}</strong>
+        </div>
+        <section className="tutorial-phone-panel compact" aria-live="polite">
+          <p className="eyebrow lobby-eyebrow">tutorial complete</p>
+          <h1>Done. Waiting for the grid.</h1>
+          <p>{remainingCount === 0 ? "Starting countdown..." : `${remainingCount} driver${remainingCount === 1 ? "" : "s"} still finishing the tutorial.`}</p>
+          {player.isVIP && (
+            <button className="secondary danger" type="button" onClick={startAnyway}>
+              <Flag size={18} /> Start anyway
+            </button>
+          )}
+        </section>
+        <div className="rotate-warning">
+          <Smartphone size={42} />
+          <strong>Turn your phone sideways</strong>
+          <span>Rotate to landscape before the start. The tutorial and race controls work best sideways.</span>
+          <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className={`phone controller-tutorial ${step}`}
+      onPointerDownCapture={() => {
+        if (!explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestTutorialMotion();
+      }}
+    >
+      <div className="tutorial-phone-top">
+        <span>{doneCount}/{players.length} done</span>
+        <strong>{step === "controls" ? "Controls" : "Motion range"}</strong>
+      </div>
+
+      <section className="tutorial-phone-panel" aria-live="polite">
+        {step === "controls" ? (
+          <>
+            <p className="eyebrow lobby-eyebrow">phone controls</p>
+            <h1>Use the whole screen.</h1>
+            <div className="tutorial-control-map" aria-label="Phone control layout">
+              <div className="brake">
+                <strong>Brake</strong>
+                <span>Left side</span>
+                <em>slide down</em>
+              </div>
+              <div className="throttle">
+                <strong>Accelerate</strong>
+                <span>Right side</span>
+                <em>slide up</em>
+              </div>
+            </div>
+            <div className="tutorial-calibration-row">
+              <button type="button" onClick={calibrate}>{calibrationLabel}</button>
+              <p>Steering centers automatically before the race. Use this only if straight feels off.</p>
+            </div>
+            <div className="tutorial-mini-meter">
+              <span>Motion meter</span>
+              <div className="tutorial-mini-meter-scale">
+                <small>Left</small>
+                <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
+                <small>Right</small>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="eyebrow lobby-eyebrow">range of motion</p>
+            <h1>Turn the phone and feel the range.</h1>
+            <div className="tutorial-range-meter" aria-label="Motion steering level">
+              <span style={{ transform: `translateX(${motionLevel * 118}px)` }} />
+            </div>
+            <div className="tutorial-range-labels">
+              <span>Left</span>
+              <strong>{steeringLevel}/10 sensitivity</strong>
+              <span>Right</span>
+            </div>
+            <p>Your selected motion sensitivity controls how much tilt reaches full steering. Hold the phone how you plan to race.</p>
+          </>
+        )}
+
+        <div className="tutorial-motion-status">
+          <strong>{motionStatus}</strong>
+          <button type="button" onClick={() => void requestTutorialMotion()}>
+            <Activity size={18} /> {motionButtonLabel}
+          </button>
+        </div>
+      </section>
+
+      <div className="tutorial-action-bar">
+        {player?.isVIP && (
+          <button className="secondary danger" type="button" onClick={startAnyway}>
+            <Flag size={18} /> Start anyway
+          </button>
+        )}
+        {step === "controls" ? (
+          <button className="primary" type="button" onClick={() => setStep("range")}>
+            Try steering <ArrowRight size={18} />
+          </button>
+        ) : (
+          <button className="primary" type="button" onClick={markDone}>
+            Done <Flag size={18} />
+          </button>
+        )}
+      </div>
+      <div className="rotate-warning">
+        <Smartphone size={42} />
+        <strong>Turn your phone sideways</strong>
+        <span>Rotate to landscape before the start. The tutorial and race controls work best sideways.</span>
+        <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
+      </div>
     </main>
   );
 }

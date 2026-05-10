@@ -224,6 +224,15 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_tutorial_done") {
+    const player = getClientPlayer(client, room);
+    if (!player || room.phase !== "tutorial") return;
+    player.tutorialDone = message.done;
+    maybeFinishTutorial(room);
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "set_vehicle") {
     const player = getClientPlayer(client, room);
     if (!player || room.phase !== "lobby" || !VEHICLE_IDS.has(message.vehicleId)) return;
@@ -276,6 +285,7 @@ function handleMessage(client: Client, message: ClientMessage) {
       ...message.settings,
       lapCount: clamp(Math.round(message.settings.lapCount ?? room.settings.lapCount), 1, 9),
       trackId: message.settings.trackId && TRACKS[message.settings.trackId] ? message.settings.trackId : room.settings.trackId,
+      tutorialEnabled: typeof message.settings.tutorialEnabled === "boolean" ? message.settings.tutorialEnabled : room.settings.tutorialEnabled,
       warmupStart: typeof message.settings.warmupStart === "boolean" ? message.settings.warmupStart : room.settings.warmupStart,
       ghostMode: typeof message.settings.ghostMode === "boolean" ? message.settings.ghostMode : room.settings.ghostMode,
       rain: typeof message.settings.rain === "boolean" ? message.settings.rain : room.settings.rain,
@@ -298,6 +308,12 @@ function handleMessage(client: Client, message: ClientMessage) {
 
   if (message.type === "vip_start_race") {
     if (!isVip(client, room) || room.phase !== "lobby") return;
+    if (startRaceFlow(room)) broadcastRoom(room);
+    return;
+  }
+
+  if (message.type === "vip_skip_tutorial") {
+    if (!isVip(client, room) || room.phase !== "tutorial") return;
     if (startCountdown(room)) broadcastRoom(room);
     return;
   }
@@ -330,7 +346,10 @@ function returnToLobby(room: Room) {
   room.countdownEndsAt = undefined;
   room.raceStartedAt = undefined;
   room.lastFullStateBroadcastAt = 0;
-  for (const player of room.players.values()) player.isReady = false;
+  for (const player of room.players.values()) {
+    player.isReady = false;
+    player.tutorialDone = false;
+  }
 }
 
 function createRoom(): Room {
@@ -352,6 +371,7 @@ function createRoom(): Room {
     settings: {
       trackId: "sakura",
       lapCount: 1,
+      tutorialEnabled: true,
       warmupStart: true,
       ghostMode: false,
       rain: false,
@@ -391,6 +411,7 @@ function createPlayer(room: Room, displayGroupId: string): Player {
     cockpitStyle: DEFAULT_COCKPIT_STYLE,
     rearViewMode: DEFAULT_REAR_VIEW_MODE,
     isReady: false,
+    tutorialDone: false,
     isVIP: false,
     connected: true,
     joinedAt: Date.now()
@@ -401,6 +422,34 @@ function createPlayer(room: Room, displayGroupId: string): Player {
 
 function playerCountInDisplayGroup(room: Room, displayGroupId: string) {
   return [...room.players.values()].filter((player) => player.displayGroupId === displayGroupId).length;
+}
+
+function startRaceFlow(room: Room) {
+  if (!room.settings.tutorialEnabled) return startCountdown(room);
+  return startTutorial(room);
+}
+
+function startTutorial(room: Room) {
+  const players = [...room.players.values()].filter((player) => player.connected);
+  if (players.length === 0) return false;
+  room.phase = "tutorial";
+  room.countdownEndsAt = undefined;
+  room.raceStartedAt = undefined;
+  room.lastFullStateBroadcastAt = 0;
+  room.results = [];
+  room.crashEvents = [];
+  room.crashEventCooldowns.clear();
+  room.cars.clear();
+  room.inputs.clear();
+  for (const player of room.players.values()) player.tutorialDone = false;
+  return true;
+}
+
+function maybeFinishTutorial(room: Room) {
+  if (room.phase !== "tutorial") return false;
+  const players = [...room.players.values()].filter((player) => player.connected);
+  if (players.length === 0 || !players.every((player) => player.tutorialDone)) return false;
+  return startCountdown(room);
 }
 
 function tickRoom(room: Room, dt: number) {
@@ -780,6 +829,7 @@ function markDisconnected(client: Client) {
     }, DISCONNECT_GRACE_MS);
   }
   assignVip(room);
+  maybeFinishTutorial(room);
   broadcastRoom(room);
   broadcastLiveStats();
 }
@@ -885,6 +935,7 @@ function releasePreviousControllerSlot(client: Client, nextRoom: Room, nextPlaye
     previousPlayer.connected = false;
     previousPlayer.disconnectedAt = Date.now();
     assignVip(previousRoom);
+    maybeFinishTutorial(previousRoom);
     broadcastRoom(previousRoom);
   }
 }
