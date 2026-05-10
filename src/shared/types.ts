@@ -1,4 +1,4 @@
-export type Phase = "lobby" | "countdown" | "racing" | "results";
+export type Phase = "lobby" | "tutorial" | "countdown" | "racing" | "results";
 
 export type TrackId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline";
 
@@ -33,6 +33,7 @@ export type TrackDef = {
 export type RaceSettings = {
   trackId: TrackId;
   lapCount: number;
+  tutorialEnabled: boolean;
   warmupStart: boolean;
   ghostMode: boolean;
   rain: boolean;
@@ -57,6 +58,7 @@ export type Player = {
   cockpitStyle: CockpitStyle;
   rearViewMode: RearViewMode;
   isReady: boolean;
+  tutorialDone: boolean;
   isVIP: boolean;
   connected: boolean;
   disconnectedAt?: number;
@@ -177,10 +179,12 @@ export type ClientMessage =
   | { type: "set_cockpit_style"; cockpitStyle: CockpitStyle }
   | { type: "set_rear_view_mode"; rearViewMode: RearViewMode }
   | { type: "set_ready"; ready: boolean }
+  | { type: "set_tutorial_done"; done: boolean }
   | { type: "input_frame"; input: InputFrame }
   | { type: "request_reset" }
   | { type: "vip_set_settings"; settings: Partial<RaceSettings> }
   | { type: "vip_start_race" }
+  | { type: "vip_skip_tutorial" }
   | { type: "vip_return_lobby" }
   | { type: "display_return_lobby" }
   | { type: "close_room" }
