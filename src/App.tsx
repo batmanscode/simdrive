@@ -1645,11 +1645,15 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
+  const [rangeTravel, setRangeTravel] = useState(118);
   const [motionListenToken, setMotionListenToken] = useState(0);
   const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
   const [invertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionRequestInFlightRef = useRef(false);
+  const rangeMeterRef = useRef<HTMLDivElement>(null);
+  const rangeMarkerRef = useRef<HTMLSpanElement>(null);
+  const rangeNeutralReadyRef = useRef(false);
   const lastRawSteerRef = useRef<number | undefined>(undefined);
   const lastOrientationFrameRef = useRef(motionOrientationFrameKey());
   const neutralRef = useRef<number | undefined>(readMotionCalibration()?.neutral);
@@ -1665,6 +1669,35 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [step, player?.tutorialDone]);
+
+  useEffect(() => {
+    rangeNeutralReadyRef.current = false;
+    setMotionLevel(0);
+  }, [step]);
+
+  useLayoutEffect(() => {
+    if (step !== "range") return;
+    const meter = rangeMeterRef.current;
+    const marker = rangeMarkerRef.current;
+    if (!meter || !marker) return;
+
+    const updateRangeTravel = () => {
+      const meterWidth = meter.getBoundingClientRect().width;
+      const markerWidth = marker.getBoundingClientRect().width;
+      const nextTravel = Math.max(0, (meterWidth - markerWidth) / 2);
+      setRangeTravel((current) => (Math.abs(current - nextTravel) < 0.5 ? current : nextTravel));
+    };
+
+    updateRangeTravel();
+    window.addEventListener("resize", updateRangeTravel);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateRangeTravel);
+    resizeObserver?.observe(meter);
+    resizeObserver?.observe(marker);
+    return () => {
+      window.removeEventListener("resize", updateRangeTravel);
+      resizeObserver?.disconnect();
+    };
+  }, [step]);
 
   useEffect(() => {
     void requestLandscape();
@@ -1701,16 +1734,24 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
       const orientationFrame = motionOrientationFrameKey(angle, source);
       if (orientationFrame !== lastOrientationFrameRef.current) {
         lastOrientationFrameRef.current = orientationFrame;
-        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+        neutralRef.current = undefined;
+        rangeNeutralReadyRef.current = false;
       }
-      const neutral = neutralRef.current ?? readMotionCalibration(orientationFrame)?.neutral ?? raw;
-      neutralRef.current = neutral;
       lastRawSteerRef.current = raw;
       setMotionEnabled(true);
-      setMotionLevel(steeringFromTilt(raw, neutral, steeringSensitivity, motionSteeringDirection));
       setMotionStatus(motionLiveStatus(source));
+      if (step !== "range") return;
+      if (!rangeNeutralReadyRef.current) {
+        neutralRef.current = raw;
+        rangeNeutralReadyRef.current = true;
+        setMotionLevel(0);
+        return;
+      }
+      const neutral = neutralRef.current ?? raw;
+      neutralRef.current = neutral;
+      setMotionLevel(steeringFromTilt(raw, neutral, steeringSensitivity, motionSteeringDirection));
     }, noteMotionDebug);
-  }, [motionListenToken, motionSteeringDirection, steeringSensitivity]);
+  }, [motionListenToken, motionSteeringDirection, steeringSensitivity, step]);
 
   const calibrate = () => {
     if (lastRawSteerRef.current === undefined) {
@@ -1719,6 +1760,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
       return;
     }
     neutralRef.current = lastRawSteerRef.current;
+    rangeNeutralReadyRef.current = true;
     writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
     setMotionLevel(0);
     setCalibrationLabel("Straight set");
@@ -1766,19 +1808,19 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
     <main
       className={`phone controller-tutorial ${step}`}
       onPointerDownCapture={() => {
-        if (!explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestTutorialMotion();
+        if (step === "range" && !explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestTutorialMotion();
       }}
     >
       <div className="tutorial-phone-top">
         <span>{doneCount}/{players.length} done</span>
-        <strong>{step === "controls" ? "Controls" : "Motion range"}</strong>
+        <strong>{step === "controls" ? "Pedals" : "Steering"}</strong>
       </div>
 
       <section className="tutorial-phone-panel" aria-live="polite">
         {step === "controls" ? (
           <>
-            <p className="eyebrow lobby-eyebrow">phone controls</p>
-            <h1>Use the whole screen.</h1>
+            <p className="eyebrow lobby-eyebrow">touch pedals</p>
+            <h1>Slide for variable pedals.</h1>
             <div className="tutorial-control-map" aria-label="Phone control layout">
               <div className="brake">
                 <strong>Brake</strong>
@@ -1791,41 +1833,36 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
                 <em>slide up</em>
               </div>
             </div>
-            <div className="tutorial-calibration-row">
-              <button type="button" onClick={calibrate}>{calibrationLabel}</button>
-              <p>Steering centers automatically before the race. Use this only if straight feels off.</p>
-            </div>
-            <div className="tutorial-mini-meter">
-              <span>Motion meter</span>
-              <div className="tutorial-mini-meter-scale">
-                <small>Left</small>
-                <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
-                <small>Right</small>
-              </div>
-            </div>
+            <p className="tutorial-pedal-copy">Right side: slide up for more acceleration. Left side: slide down for more brake. Farther means more, like real pedals.</p>
           </>
         ) : (
           <>
-            <p className="eyebrow lobby-eyebrow">range of motion</p>
-            <h1>Turn the phone and feel the range.</h1>
-            <div className="tutorial-range-meter" aria-label="Motion steering level">
-              <span style={{ transform: `translateX(${motionLevel * 118}px)` }} />
+            <p className="eyebrow lobby-eyebrow">tilt steering</p>
+            <h1>Use it like a spirit level.</h1>
+            <div className="tutorial-range-meter" ref={rangeMeterRef} aria-label="Motion steering level">
+              <span ref={rangeMarkerRef} style={{ transform: `translateX(${motionLevel * rangeTravel}px)` }} />
             </div>
             <div className="tutorial-range-labels">
               <span>Left</span>
               <strong>{steeringLevel}/10 sensitivity</strong>
               <span>Right</span>
             </div>
-            <p>Your selected motion sensitivity controls how much tilt reaches full steering. Hold the phone how you plan to race.</p>
+            <p className="tutorial-steering-copy">Tilt the phone like a spirit level: lower the right side to steer right, and lower the left side to steer left.</p>
+            <div className="tutorial-calibration-row">
+              <button type="button" onClick={calibrate}>{calibrationLabel}</button>
+              <p>Steering centers automatically before the race. Use this only if straight feels off.</p>
+            </div>
           </>
         )}
 
-        <div className="tutorial-motion-status">
-          <strong>{motionStatus}</strong>
-          <button type="button" onClick={() => void requestTutorialMotion()}>
-            <Activity size={18} /> {motionButtonLabel}
-          </button>
-        </div>
+        {step === "range" && (
+          <div className="tutorial-motion-status">
+            <strong>{motionStatus}</strong>
+            <button type="button" onClick={() => void requestTutorialMotion()}>
+              <Activity size={18} /> {motionButtonLabel}
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="tutorial-action-bar">
@@ -1836,7 +1873,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
         )}
         {step === "controls" ? (
           <button className="primary" type="button" onClick={() => setStep("range")}>
-            Try steering <ArrowRight size={18} />
+            Next: steering <ArrowRight size={18} />
           </button>
         ) : (
           <button className="primary" type="button" onClick={markDone}>
