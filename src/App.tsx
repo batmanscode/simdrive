@@ -1645,11 +1645,15 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
+  const [rangeTravel, setRangeTravel] = useState(118);
   const [motionListenToken, setMotionListenToken] = useState(0);
   const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
   const [invertMotionSteering] = useStoredBoolean(INVERT_MOTION_STEERING_KEY, false);
   const motionRequestInFlightRef = useRef(false);
+  const rangeMeterRef = useRef<HTMLDivElement>(null);
+  const rangeMarkerRef = useRef<HTMLSpanElement>(null);
+  const rangeNeutralReadyRef = useRef(false);
   const lastRawSteerRef = useRef<number | undefined>(undefined);
   const lastOrientationFrameRef = useRef(motionOrientationFrameKey());
   const neutralRef = useRef<number | undefined>(readMotionCalibration()?.neutral);
@@ -1665,6 +1669,35 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [step, player?.tutorialDone]);
+
+  useEffect(() => {
+    rangeNeutralReadyRef.current = false;
+    setMotionLevel(0);
+  }, [step]);
+
+  useLayoutEffect(() => {
+    if (step !== "range") return;
+    const meter = rangeMeterRef.current;
+    const marker = rangeMarkerRef.current;
+    if (!meter || !marker) return;
+
+    const updateRangeTravel = () => {
+      const meterWidth = meter.getBoundingClientRect().width;
+      const markerWidth = marker.getBoundingClientRect().width;
+      const nextTravel = Math.max(0, (meterWidth - markerWidth) / 2);
+      setRangeTravel((current) => (Math.abs(current - nextTravel) < 0.5 ? current : nextTravel));
+    };
+
+    updateRangeTravel();
+    window.addEventListener("resize", updateRangeTravel);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateRangeTravel);
+    resizeObserver?.observe(meter);
+    resizeObserver?.observe(marker);
+    return () => {
+      window.removeEventListener("resize", updateRangeTravel);
+      resizeObserver?.disconnect();
+    };
+  }, [step]);
 
   useEffect(() => {
     void requestLandscape();
@@ -1701,16 +1734,24 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
       const orientationFrame = motionOrientationFrameKey(angle, source);
       if (orientationFrame !== lastOrientationFrameRef.current) {
         lastOrientationFrameRef.current = orientationFrame;
-        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+        neutralRef.current = undefined;
+        rangeNeutralReadyRef.current = false;
       }
-      const neutral = neutralRef.current ?? readMotionCalibration(orientationFrame)?.neutral ?? raw;
-      neutralRef.current = neutral;
       lastRawSteerRef.current = raw;
       setMotionEnabled(true);
-      setMotionLevel(steeringFromTilt(raw, neutral, steeringSensitivity, motionSteeringDirection));
       setMotionStatus(motionLiveStatus(source));
+      if (step !== "range") return;
+      if (!rangeNeutralReadyRef.current) {
+        neutralRef.current = raw;
+        rangeNeutralReadyRef.current = true;
+        setMotionLevel(0);
+        return;
+      }
+      const neutral = neutralRef.current ?? raw;
+      neutralRef.current = neutral;
+      setMotionLevel(steeringFromTilt(raw, neutral, steeringSensitivity, motionSteeringDirection));
     }, noteMotionDebug);
-  }, [motionListenToken, motionSteeringDirection, steeringSensitivity]);
+  }, [motionListenToken, motionSteeringDirection, steeringSensitivity, step]);
 
   const calibrate = () => {
     if (lastRawSteerRef.current === undefined) {
@@ -1719,6 +1760,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
       return;
     }
     neutralRef.current = lastRawSteerRef.current;
+    rangeNeutralReadyRef.current = true;
     writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
     setMotionLevel(0);
     setCalibrationLabel("Straight set");
@@ -1797,8 +1839,8 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
           <>
             <p className="eyebrow lobby-eyebrow">tilt steering</p>
             <h1>Use it like a spirit level.</h1>
-            <div className="tutorial-range-meter" aria-label="Motion steering level">
-              <span style={{ transform: `translateX(${motionLevel * 118}px)` }} />
+            <div className="tutorial-range-meter" ref={rangeMeterRef} aria-label="Motion steering level">
+              <span ref={rangeMarkerRef} style={{ transform: `translateX(${motionLevel * rangeTravel}px)` }} />
             </div>
             <div className="tutorial-range-labels">
               <span>Left</span>
