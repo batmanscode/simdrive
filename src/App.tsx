@@ -1766,19 +1766,19 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
     <main
       className={`phone controller-tutorial ${step}`}
       onPointerDownCapture={() => {
-        if (!explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestTutorialMotion();
+        if (step === "range" && !explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestTutorialMotion();
       }}
     >
       <div className="tutorial-phone-top">
         <span>{doneCount}/{players.length} done</span>
-        <strong>{step === "controls" ? "Controls" : "Motion range"}</strong>
+        <strong>{step === "controls" ? "Pedals" : "Steering"}</strong>
       </div>
 
       <section className="tutorial-phone-panel" aria-live="polite">
         {step === "controls" ? (
           <>
-            <p className="eyebrow lobby-eyebrow">phone controls</p>
-            <h1>Use the whole screen.</h1>
+            <p className="eyebrow lobby-eyebrow">touch pedals</p>
+            <h1>Slide for variable pedals.</h1>
             <div className="tutorial-control-map" aria-label="Phone control layout">
               <div className="brake">
                 <strong>Brake</strong>
@@ -1791,23 +1791,12 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
                 <em>slide up</em>
               </div>
             </div>
-            <div className="tutorial-calibration-row">
-              <button type="button" onClick={calibrate}>{calibrationLabel}</button>
-              <p>Steering centers automatically before the race. Use this only if straight feels off.</p>
-            </div>
-            <div className="tutorial-mini-meter">
-              <span>Motion meter</span>
-              <div className="tutorial-mini-meter-scale">
-                <small>Left</small>
-                <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
-                <small>Right</small>
-              </div>
-            </div>
+            <p className="tutorial-pedal-copy">Right side: slide up for more acceleration. Left side: slide down for more brake. Farther means more, like real pedals.</p>
           </>
         ) : (
           <>
-            <p className="eyebrow lobby-eyebrow">range of motion</p>
-            <h1>Turn the phone and feel the range.</h1>
+            <p className="eyebrow lobby-eyebrow">tilt steering</p>
+            <h1>Use it like a spirit level.</h1>
             <div className="tutorial-range-meter" aria-label="Motion steering level">
               <span style={{ transform: `translateX(${motionLevel * 118}px)` }} />
             </div>
@@ -1816,16 +1805,22 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
               <strong>{steeringLevel}/10 sensitivity</strong>
               <span>Right</span>
             </div>
-            <p>Your selected motion sensitivity controls how much tilt reaches full steering. Hold the phone how you plan to race.</p>
+            <p className="tutorial-steering-copy">Tilt the phone like a spirit level: lower the right side to steer right, and lower the left side to steer left.</p>
+            <div className="tutorial-calibration-row">
+              <button type="button" onClick={calibrate}>{calibrationLabel}</button>
+              <p>Steering centers automatically before the race. Use this only if straight feels off.</p>
+            </div>
           </>
         )}
 
-        <div className="tutorial-motion-status">
-          <strong>{motionStatus}</strong>
-          <button type="button" onClick={() => void requestTutorialMotion()}>
-            <Activity size={18} /> {motionButtonLabel}
-          </button>
-        </div>
+        {step === "range" && (
+          <div className="tutorial-motion-status">
+            <strong>{motionStatus}</strong>
+            <button type="button" onClick={() => void requestTutorialMotion()}>
+              <Activity size={18} /> {motionButtonLabel}
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="tutorial-action-bar">
@@ -1836,7 +1831,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
         )}
         {step === "controls" ? (
           <button className="primary" type="button" onClick={() => setStep("range")}>
-            Try steering <ArrowRight size={18} />
+            Next: steering <ArrowRight size={18} />
           </button>
         ) : (
           <button className="primary" type="button" onClick={markDone}>

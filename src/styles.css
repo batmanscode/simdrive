@@ -2068,6 +2068,12 @@ input {
   line-height: 1.4;
 }
 
+.tutorial-pedal-copy,
+.tutorial-steering-copy {
+  max-width: 640px;
+  font-size: 16px;
+}
+
 .tutorial-control-map {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2125,8 +2131,7 @@ input {
 }
 
 .tutorial-calibration-row,
-.tutorial-motion-status,
-.tutorial-mini-meter {
+.tutorial-motion-status {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
@@ -2163,56 +2168,12 @@ input {
   gap: 7px;
 }
 
-.tutorial-mini-meter {
-  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.8fr);
-  font-weight: 900;
-}
-
-.tutorial-mini-meter-scale {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(96px, 1fr) auto;
-  gap: 7px;
-  align-items: center;
-}
-
-.tutorial-mini-meter-scale small {
-  color: rgba(255, 250, 240, 0.68);
-  font-size: 11px;
-  font-weight: 950;
-  text-transform: uppercase;
-}
-
-.tutorial-mini-meter .tilt-meter {
-  height: 28px;
-  width: 100%;
-  border: 2px solid rgba(255, 250, 240, 0.2);
-  border-radius: 8px;
-  background: linear-gradient(90deg, rgba(116, 31, 43, 0.86) 0 46%, rgba(255, 250, 240, 0.2) 49% 51%, rgba(23, 84, 61, 0.86) 54% 100%);
-}
-
-.tutorial-mini-meter .tilt-meter::before {
-  content: "";
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(255, 250, 240, 0.6);
-}
-
-.tutorial-mini-meter .tilt-meter span {
-  left: calc(50% - 8px);
-}
-
 .tutorial-range-meter {
   height: 94px;
   position: relative;
   overflow: hidden;
   border-radius: 999px;
-  background: linear-gradient(90deg, #741f2b 0 46%, #24272d 49% 51%, #17543d 54% 100%);
+  background: #27313b;
   box-shadow: inset 0 0 0 4px rgba(255, 250, 240, 0.18);
 }
 
@@ -2235,7 +2196,7 @@ input {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: #fffaf0;
+  background: #7fc7ff;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
   transition: transform 120ms linear;
 }
@@ -3446,8 +3407,7 @@ input {
   }
 
   .tutorial-calibration-row,
-  .tutorial-motion-status,
-  .tutorial-mini-meter {
+  .tutorial-motion-status {
     grid-template-columns: 1fr;
   }
 
@@ -3570,26 +3530,12 @@ input {
     height: 100%;
   }
 
-  .controller-tutorial.controls .tutorial-calibration-row,
-  .controller-tutorial.controls .tutorial-mini-meter,
-  .controller-tutorial.controls .tutorial-motion-status {
+  .controller-tutorial.controls .tutorial-pedal-copy {
     grid-column: 2;
-    min-height: 0;
-    padding: 8px;
-  }
-
-  .controller-tutorial.controls .tutorial-calibration-row p {
-    font-size: 13px;
-    line-height: 1.25;
-  }
-
-  .controller-tutorial.controls .tutorial-calibration-row button,
-  .controller-tutorial.controls .tutorial-motion-status button {
-    min-height: 38px;
-  }
-
-  .controller-tutorial.controls .tutorial-mini-meter {
-    grid-template-columns: minmax(0, 0.8fr) minmax(186px, 1fr);
+    grid-row: 3 / 6;
+    align-self: center;
+    font-size: 15px;
+    line-height: 1.32;
   }
 
   .controller-tutorial.controls .tutorial-control-map strong {
@@ -3601,12 +3547,65 @@ input {
     font-size: 11px;
   }
 
-  .controller-tutorial.range .tutorial-range-meter {
-    height: 82px;
+  .controller-tutorial.range .tutorial-phone-panel {
+    grid-template-columns: minmax(0, 1.08fr) minmax(260px, 0.92fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    align-content: stretch;
   }
 
-  .controller-tutorial.range .tutorial-phone-panel > p:not(.eyebrow) {
-    display: none;
+  .controller-tutorial.range .tutorial-phone-panel > .eyebrow,
+  .controller-tutorial.range .tutorial-phone-panel > h1,
+  .controller-tutorial.range .tutorial-range-meter,
+  .controller-tutorial.range .tutorial-range-labels {
+    grid-column: 1;
+  }
+
+  .controller-tutorial.range .tutorial-steering-copy {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: end;
+  }
+
+  .controller-tutorial.range .tutorial-calibration-row {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: end;
+    min-height: 0;
+    padding: 8px;
+  }
+
+  .controller-tutorial.range .tutorial-motion-status {
+    grid-column: 2;
+    grid-row: 4;
+    min-height: 0;
+    padding: 8px;
+  }
+
+  .controller-tutorial.range .tutorial-motion-status button {
+    min-height: 38px;
+  }
+
+  .controller-tutorial.range .tutorial-range-meter {
+    height: 70px;
+    align-self: stretch;
+  }
+
+  .controller-tutorial.range .tutorial-range-meter::before {
+    top: 10px;
+    bottom: 10px;
+  }
+
+  .controller-tutorial.range .tutorial-range-meter span {
+    top: 14px;
+    left: calc(50% - 21px);
+    width: 42px;
+    height: 42px;
+  }
+
+  .controller-tutorial.range .tutorial-steering-copy,
+  .controller-tutorial.range .tutorial-calibration-row p {
+    font-size: 13px;
+    line-height: 1.25;
   }
 
   .tutorial-action-bar button {
