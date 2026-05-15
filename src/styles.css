@@ -648,6 +648,15 @@ input {
   font-weight: 900;
 }
 
+.about-body .about-contact {
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(16, 18, 20, 0.1);
+  color: rgba(16, 18, 20, 0.62);
+  font-size: 14px;
+  font-weight: 850;
+}
+
 .tutorial-modal {
   width: min(780px, 100%);
 }
