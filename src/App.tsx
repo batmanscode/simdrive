@@ -448,6 +448,13 @@ function HomeAboutModal({ onClose }: { onClose: () => void }) {
             I hope you enjoy this. It's my first game, and it's made with love &lt;3
           </p>
           <p className="about-signoff">And tokens, lol.</p>
+          <p className="about-contact">
+            Get in touch at{" "}
+            <a href="https://x.com/1000xcat" target="_blank" rel="noopener noreferrer">
+              @1000xcat
+            </a>{" "}
+            ❤️
+          </p>
         </div>
       </section>
     </div>
