@@ -1,20 +1,21 @@
 # Features
 
-Product-facing summary of what the game currently supports. Keep `SPEC_detailed_live.md` as the implementation truth; this file is for homepage copy, README copy, and quick feature lists.
+Product-facing summary of what the game currently supports. Keep `SPEC_detailed.md` as the implementation truth; this file is for homepage copy, README copy, and quick feature lists.
 
 ## Current Features
 
 - Phone-controlled browser racing with no app install.
 - One display creates a room and shows a QR code for controllers.
 - Lobby display can close/reset the room, return everyone to the start, show race settings, and show drivers in the current lineup.
-- Display pages support System, Light, and Dark themes; System follows the device color-scheme setting.
+- Display landing, lobby, tutorial, and results support System, Light, and Dark themes; System follows the device color-scheme setting.
 - Home screen shows a live active-driver count when active players are online, and hides it at zero.
 - Phone controllers auto-resume the last saved driver after refreshes or QR rescans when the room is still available.
 - One-player practice works for solo testing.
 - Up to 8 racers per room.
 - Split-screen display panes for up to 4 local racers.
-- VIP controller can choose track, laps, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
+- VIP controller can choose track, laps, pre-race tutorial, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
 - Warm-up/flying start is on by default. The first pass is untimed, and each driver's timed lap 1 and total race timer start when they cross the line.
+- The optional pre-race phone tutorial is on by default and teaches pedals and tilt steering before countdown.
 - Each driver can choose a vehicle: Formula Prototype, KZ Kart, Stock Truck, or Tuk-Tuk. Formula Prototype and Stock Truck have Balanced, High Grip, and High Speed setups; KZ Kart and Tuk-Tuk use one fixed setup.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Each driver can choose a personal rear-view mirror mode: Auto, On, or Off; new players default to Auto, which shows the mirror only when other active cars exist.

@@ -1,683 +1,697 @@
 # Sim Drive - Product and Technical Spec
 
-Status note: this is the broader product/technical target spec. `SPEC_detailed_live.md` tracks the current implementation, including deliberate first-pass deviations such as the custom WebSocket server and lightweight kinematic physics.
+Status note: this is the single canonical detailed spec for Sim Drive. `SPEC_rough.md` remains the original product idea, while this document tracks the current implementation plus clearly labeled follow-up work. When product behavior changes, update this file in the same change.
 
 ## 1. Summary
 
-Build `Sim Drive`, a browser-based party racing game at `simdrive.xyz` where computers/TVs act as race displays and phones act as motion/touch controllers. The game should feel close enough to a lightweight racing sim to be satisfying, while staying accessible, fast to join, and closer to Jackbox-style party flow than a hardcore simulator.
+Sim Drive is a browser-based party racing game at `simdrive.xyz` where computers or TVs act as race displays and phones act as motion/touch controllers. The product should feel close enough to a lightweight racing sim to be satisfying, while staying fast to join and closer to Jackbox-style party flow than a hardcore simulator.
 
 Working references: `Phonesim`, `Simvibes`, Jackbox-style room joining, gamingcouch.com / couch multiplayer energy, remote couch multiplayer, and lightweight browser racing sims. Public branding can say Sim Drive is inspired by Jackbox-style party joining and couch games, but should not imply official affiliation.
 
-This document is intended to be given to an AI coding agent or engineering team as a build spec. Treat explicit requirements as source of truth. Treat open questions as unresolved product decisions that should not block the first vertical slice unless they directly affect implementation.
+This document is intended to be usable by an AI coding agent or engineering team as the build spec. Treat explicit requirements as source of truth. Treat open questions as future product decisions that should not block current maintenance unless they directly affect implementation.
 
-## 2. Core Product Goals
+## 2. Current Implementation Snapshot
+
+- Vite + React + TypeScript browser app.
+- React Three Fiber and Three.js cockpit race renderer.
+- Node + Express + `ws` WebSocket room server.
+- In-memory rooms only; no accounts, matchmaking, persistent storage, or persistent leaderboard.
+- Display flow: landing with how-to-play modal, create room, join room as another display, QR lobby with exit room action, optional pre-race tutorial display, race view, and results.
+- Display landing, lobby, tutorial, and results support System, Light, and Dark theme modes. System follows the display device color-scheme preference.
+- Display landing shows a live active-player count only when at least one driver is online.
+- Display lobby shows the QR code, current track, lap count, pre-race tutorial setting, rain, warm-up/flying start, collision/ghost mode, gentle stability assist, reset mode, connected driver lineup, each player's vehicle, setup, and cockpit style.
+- Display lobby has a mobile-display guidance overlay for small screens so players know a larger shared display is recommended before continuing.
+- Display refresh resumes the same display group. If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are notified.
+- Display results can return the room to lobby without requiring the VIP controller.
+- Controller flow: room-code join, name/color setup, per-player vehicle selection, per-player setup selection where available, rear-view mirror mode, cockpit style, VIP settings, optional pre-race phone tutorial, and race controller.
+- Controller sessions store the last room token locally and auto-resume the saved driver after phone refreshes or QR rescans when the room still exists.
+- One-player practice works with one display and one phone/browser controller.
+- Up to 8 players per room are represented in server state.
+- Display groups support split-screen panes for up to 4 local players. New controller joins are capped at 4 players per display group so a shared-screen QR cannot overflow visible panes.
+- First joined controller becomes VIP.
+- Current tracks: `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
+- Current vehicles: `Formula Prototype`, `KZ Kart`, `Stock Truck`, and `Tuk-Tuk`.
+- `Formula Prototype` and `Stock Truck` support Balanced, High Grip, and High Speed setups. `KZ Kart` and `Tuk-Tuk` use a fixed setup.
+- Personal cockpit styles: None, Hands, and Paws. New players default to None.
+- Personal rear-view mirror modes: Auto, On, and Off. New players default to Auto, which shows the mirror when other active cars exist.
+- Public page includes the required Cursor Vibe Jam 2026 entrant widget and Tiny Adz bot-protection/conversion snippet with storage disabled, plus the creator contact link in the about modal.
+
+## 3. Core Product Goals
 
 - Let players join quickly from a phone with no account.
 - Let one display support local split-screen for up to 4 phone-controlled players.
 - Let multiple displays join the same race room so remote couches or solo players can race together.
 - Support up to 8 active racers total per room.
 - Make the phone controller feel expressive through tilt steering, touch throttle/brake, vibration where supported, and strong audio feedback.
-- Give the user as much car/road feedback as possible within browser limits, especially through audio, haptics, visual controller feedback, and telemetry-driven effects.
-- Keep the first release small: one default F1-style open-wheel formula car, color choice, a small track set, basic lobby, race, and results.
+- Give the player as much car/road feedback as possible within browser limits, especially through audio, haptics, visual controller feedback, and telemetry-driven effects.
+- Keep the implemented stack small and easy to operate: one Node service serves the built app and hosts the WebSocket game server.
+- Keep official motorsport and vehicle branding out unless licensing is explicit.
 
-## 3. Recommended Minimal Stack
+## 4. Current Stack
 
 - App/build: Vite + React + TypeScript.
 - 3D rendering: React Three Fiber on top of Three.js.
-- Physics: Rapier 3D JavaScript/WASM.
-- Realtime multiplayer: Node.js + TypeScript + Colyseus.
-- Transport: WebSockets through Colyseus.
-- Storage: none for MVP; in-memory rooms only.
-- Deploy shape: one Node service that serves the built web app and hosts the WebSocket game server.
-- Assets: glTF/GLB for cars and track props; JSON or generated spline data for track layout.
-- QR and room codes: short human-readable room codes plus QR links to the controller join URL.
+- Game server: Node.js + TypeScript + Express + `ws`.
+- Transport: WebSockets.
+- Server state: in-memory rooms.
+- Deploy shape: one Node service serving the built web app and WebSocket server on port `8787`.
+- Local dev shape: `npm run dev` starts Vite and the TypeScript server watcher.
+- Assets: current cars, cockpit parts, track props, roads, terrain, and effects are procedural Three.js/R3F geometry and materials, plus static public web assets.
+- QR and room codes: short room codes plus QR links to the controller join URL.
 
-### Deliberate Non-Goals for MVP
+### Intentional Stack Deviations From The Original Target
+
+- The implementation uses a small purpose-built WebSocket server instead of Colyseus. The message/state model is compact and can be migrated later if room orchestration needs grow.
+- The implementation uses custom lightweight kinematic physics instead of Rapier. This keeps the playable slice compact while the desired driving feel is still evolving.
+- Track visuals are generated from track centerline data instead of authored GLB assets.
+- Elevated track support is purpose-built for the current procedural tracks, not a general terrain engine.
+- Audio is synthesized with Web Audio oscillator/noise cues. Richer samples and full scene-wide spatial mixing are future work.
+
+Do not replace the current stack unless there is a concrete technical blocker or a planned migration. Future Rapier/Colyseus work should be justified by a need the current implementation cannot reasonably meet.
+
+## 5. Non-Goals
 
 - No permanent accounts.
 - No matchmaking.
 - No persistent leaderboards.
-- No car customization beyond color.
-- No real licensed F1 branding, car names, team names, or exact real circuit copies unless licensing is handled.
-- No AI cars; all active racers are real users for now.
 - No native mobile apps.
-- No WebRTC for gameplay transport in v1.
-- No full sim-grade tire model, damage system, pit stops, weather, or advanced setup tuning.
+- No WebRTC for gameplay transport.
+- No AI cars; all active racers are real users.
+- No licensed F1, FIA, NASCAR, manufacturer, team, sponsor, or exact real circuit branding unless licensing is handled.
+- No full sim-grade tire model, tire temperature, fuel, pit stops, damage repair, or suspension simulation.
+- No broad admin system unless larger multi-display sessions become common.
 
-### Stack Rationale
-
-Use React Three Fiber for the racing renderer in v1, with imperative refs and `useFrame` where the simulation/render loop needs direct control. React should own app screens, forms, lobby state, controller UI, route-like view switching, and declarative 3D scene composition. React Three Fiber should own the race canvas, scene components, cameras, viewports, asset loading, and render integration.
-
-This is the recommended choice because it is more pleasant to build and maintain in a React app while still exposing Three.js directly when needed. Avoid putting high-frequency game state into normal React state. Use refs, external stores, interpolation buffers, and server snapshots for per-frame race data.
-
-## 4. Main Concepts
+## 6. Main Concepts
 
 ### Room
 
-A room is one complete multiplayer game session. It has one room code, one synchronized race state, one lobby, and one final leaderboard.
+A room is one complete multiplayer game session. It has one room code, one synchronized race state, one lobby, and one final result list.
 
 ### Display Client
 
-A display client is a computer/TV browser. It can create a room or join an existing room. A display renders the lobby, QR code, room code, race view, split-screen views, and results.
+A display client is a computer/TV browser. It can create a room or join an existing room. It renders the landing page, lobby, QR code, room code, tutorial display, race split-screen, and results.
 
 ### Controller Client
 
-A controller client is a phone browser. It joins by scanning a QR code or entering a room code. It handles username, color, steering calibration, throttle/brake input, VIP controls, audio, and optional vibration.
+A controller client is a phone browser. It joins by scanning a QR code or entering a room code. It handles username, color, vehicle/setup, cockpit style, rear-view mode, steering calibration/preferences, throttle/brake input, VIP controls, audio, and optional vibration.
 
 ### Display Group / Couch
 
 A display group is the set of players assigned to one display. One display group can contain 1 to 4 active racers. This supports:
 
 - One TV with 1 to 4 local players.
-- Two houses with two TVs and up to 4 players per TV.
-- Up to 8 solo players, each with their own computer display and phone controller.
+- Multiple houses with separate TVs and up to 4 players per TV.
+- Solo players, each with their own computer display and phone controller.
+
+Current implementation creates and resumes display groups, but does not include a display-group reassignment UI.
 
 ### VIP
 
-The first controller player to complete join setup becomes the VIP. The VIP chooses the track, race settings, and starts the race. If the VIP disconnects for too long, VIP transfers to the next joined active controller.
+The first controller player to complete join setup becomes the VIP. The VIP chooses race settings and starts the race. If the VIP disconnects, VIP is reassigned to the earliest joined connected controller. Display results can return the room to lobby without VIP.
 
-## 5. Player Limits
+## 7. Player Limits And Phases
 
 - Maximum active racers per room: 8.
 - Maximum active racers per display group: 4.
 - Recommended maximum display clients per room: 8.
 - Recommended maximum connected clients per room: 24, allowing controllers, displays, reconnecting clients, and observers.
+- Current room phases: `lobby`, `tutorial`, `countdown`, `racing`, and `results`.
 
-## 6. User Flows
+## 8. User Flows
 
 ### Landing Page
 
-The landing page is minimal and game-first:
+The landing page is game-first:
 
 - Brand/game name: `Sim Drive`.
 - Short promise: phone-controlled browser racing.
-- Branding note: inspired by Jackbox-style room joining and couch games.
-- Primary actions: `Create Game` and `Join Game`.
-- Minimal feature hints: phones as controllers, split-screen couches, remote groups, no install.
-- No heavy marketing page before the core action.
+- Primary actions: create a game or join a game.
+- Feature signals: phones as controllers, split-screen couches, remote groups, no install, vehicle feel, and current track/vehicle showcase.
+- How-to-play modal.
+- Creator contact link.
+- Live active-driver count only when active drivers are online.
 
 ### Create Game Flow
 
-1. User opens main webpage on a computer/TV.
-2. User clicks `Create Game`.
+1. User opens the main webpage on a computer/TV.
+2. User clicks create game.
 3. Server creates a room with a short room code.
 4. Display enters lobby mode.
-5. Lobby shows a large QR code and room code.
+5. Lobby shows a QR code and room code.
 6. Display is assigned a `displayGroupId`.
+7. The display session is saved in session storage so refresh can resume the same group.
 
-### Join Game from Phone
+### Join Game From Phone
 
 1. Player scans QR code or enters room code.
 2. Phone opens controller join page.
-3. Player enters username; default is generated guest name.
-4. Player chooses car color.
-5. Player grants motion/orientation permission if required by browser.
-6. Player calibrates steering by holding the phone in comfortable neutral position.
-7. Player joins lobby.
-8. If this is the first completed controller join, player becomes VIP.
+3. Player enters name and chooses color.
+4. Existing saved room token is reused when available, allowing refreshes and QR rescans to resume the same driver.
+5. Player chooses vehicle, setup where available, rear-view mirror mode, cockpit style, steering/audio/haptic preferences, and first-tap pedal behavior.
+6. If this is the first completed controller join, the player becomes VIP.
 
-### Join Game from Another Computer
+### Join Game From Another Computer
 
-1. User opens main webpage on another computer.
-2. User clicks `Join Game`.
+1. User opens the main webpage on another computer.
+2. User clicks join game.
 3. User enters room code.
 4. Computer joins as an additional display client.
 5. It gets its own QR code for phones joining that display group.
-6. Any phone joining from that QR is assigned to that display group unless manually reassigned later.
+6. Any phone joining from that QR is assigned to that display group.
 
 ### Lobby Flow
 
-The lobby display shows:
+The display lobby shows:
 
-- Large QR code.
-- Room code.
-- Connected display groups.
-- Player list with name, color, readiness, VIP badge, and assigned display group.
-- Track preview.
+- Large QR code and room code.
+- Selected track and track preview.
 - Race settings.
-- Start button state.
+- Driver lineup.
+- Vehicle/setup/cockpit selections.
+- VIP/start status.
+- Exit room action.
+- Mobile-display guidance overlay on small display screens.
 
 The phone lobby shows:
 
 - Player name and color.
-- Ready status.
-- Steering calibration.
-- Throttle/brake first-tap behavior setting.
-- VIP controls if player is VIP.
+- Vehicle and setup selection.
+- Rear-view mirror mode selection.
+- Cockpit style selection.
+- Motion steering status/test/calibration.
+- Audio and haptic tests/toggles.
+- Steering sensitivity and inversion.
+- Brake/throttle first-tap preferences.
+- VIP controls when the player is VIP.
 
 ### VIP Settings Flow
 
 VIP can choose:
 
 - Track.
-- Rolling start / warm-up lap: `Off` or `On`.
-- Number of race laps.
+- Lap count, 1 to 9.
+- Pre-race tutorial on/off. Default is on.
+- Warm-up/flying start on/off. Default is on.
+- Ghost cars on/off. Default is off, so car-to-car collisions are enabled.
+- Rain on/off.
+- Gentle stability assist on/off. Default is on.
+- Reset mode on/off. Default is off, so normal crash-out remains the default.
 - Start race.
-- After race: replay same track or return to settings.
 
-Non-VIP players can:
+Non-VIP players can change their personal driver/controller settings in lobby but cannot change race settings.
 
-- Change their name.
-- Change their color.
-- Calibrate steering.
-- Change controller preferences.
-- Mark ready/unready.
+### Pre-Race Tutorial Flow
 
-## 7. Gameplay
+When tutorial mode is enabled, race start moves the room into `tutorial` before countdown.
+
+- Display shows progress for connected drivers and a return-to-lobby action.
+- Phone shows a two-step tutorial for pedals and tilt steering.
+- The tutorial includes motion permission/enable prompts where needed.
+- Race countdown starts automatically when every connected driver is done.
+- VIP can skip/start anyway from the phone if someone gets stuck.
+
+### Race Flow
+
+1. Countdown runs from server time.
+2. Controller countdown beeps use server-marked countdown feedback.
+3. Race begins only when the server reports `racing`.
+4. If warm-up/flying start is enabled, the first pass is untimed; each driver's timed lap 1 and total race timer start when they cross the line.
+5. Server owns car state, race clock, checkpoints, lap timing, collisions, reset/DNF state, and results.
+6. Displays render interpolated race snapshots.
+7. Controllers receive focused telemetry for their own audio/haptics and nearby-rival cues.
+
+### Results Flow
+
+- Results show podium-style placement, total race time, and best lap for finished players.
+- Crashed and DNF players are sorted after finishers.
+- Display can return the room to lobby without requiring VIP.
+
+## 9. Gameplay
 
 ### Race Format
 
-- All players drive the same default F1-style open-wheel formula car.
-- Each player selects only color for MVP.
 - Race supports 1 to 8 active racers.
-- Each display renders only the players assigned to that display group in split-screen, plus global race UI.
-- Every racer exists in the same race world regardless of which display they are assigned to.
+- Each display renders only players assigned to that display group in split-screen, falling back to room players if a local group is unavailable.
+- Every racer exists in the same race world regardless of display assignment.
 - Final ranking is global across all players.
 
-### Car
+### Vehicles
 
-The MVP car is a single default F1-style open-wheel formula car:
+Current vehicle roster:
 
-- Low, wide, single-seat silhouette.
-- Exposed wheels.
-- Front wing, rear wing, and halo-like cockpit protection shape.
-- No official F1, FIA, team, sponsor, or manufacturer branding.
-- Color tint is player-selectable.
-- The same car model and handling baseline are used for every player.
+- `Formula Prototype`: high-downforce open-wheel formula car. Balanced, High Grip, and High Speed setups.
+- `KZ Kart`: fixed sprint kart setup, sharp steering, curb-sensitive.
+- `Stock Truck`: heavy racing pickup. Balanced, High Grip, and High Speed setups.
+- `Tuk-Tuk`: fixed city-stock three-wheeler setup, slow and rollover-prone.
 
-### Camera and Game View
+Vehicle definitions include physics, stat bars, audio profiles, haptic profiles, visual notes, and setup availability. `CARS.md` is the quick tuning reference, while source of truth lives in `src/shared/cars.ts`.
 
-The main race view should be first-person/cockpit-style, as if the player is inside the car:
+### Cockpit And Rear View
 
-- Default camera is mounted in or just above the cockpit.
-- The player should see enough of the nose, front tires, cockpit rim/halo, or steering reference to feel seated in the car.
-- Field of view should feel fast but not distorted.
-- Camera should include subtle shake from bumps, curbs, braking, acceleration, and collisions.
-- Split-screen panes should each use the same first-person view for their assigned local player.
-- Third-person chase camera can exist later as a debug or optional accessibility mode, but first-person cockpit is the product default.
+- Default race camera is cockpit-style.
+- Vehicle-specific cockpits show recognizable silhouettes and instruments:
+  - Formula: nose, front tyres, compact wheel/display and shift lights.
+  - Kart: floor, front wheels, steering column, and mounted data logger.
+  - Stock Truck: centered POV with broad hood/cowl, roll-cage pillars, and subtle digital speedometer.
+  - Tuk-Tuk: canopy, handlebars, small analog speedometer, and `TIP RISK` toast.
+- Cockpit style is personal and visual-only: None, Hands, or Paws.
+- Rear-view mirror mode is personal: Auto, On, or Off.
+- Auto mode shows the mirror only when other active cars exist.
+- Rear-view mirror rendering uses a lighter mirror scene with capped nearby cars, lower DPR, no shadows, and reduced track detail.
 
 ### Split-Screen Rules
 
 - 1 local player on display: full screen.
-- 2 local players: vertical or horizontal split; choose best view by aspect ratio.
-- 3 local players: one large pane plus two smaller panes, or equal grid if simpler.
-- 4 local players: 2x2 grid.
-- Leaderboard/minimap must remain readable in every layout.
+- 2 local players: split layout.
+- 3 or 4 local players: grid layout.
+- In-race minimap, rear-view mirror, leaderboard, countdown lights, first-place banner, spectate controls, and results must remain readable and non-obstructive in split-screen.
 
 ### Tracks
 
-MVP includes five real-inspired tracks. They should draw from fan-favorite Formula 1 circuit archetypes, public-road coastal archetypes, and public-road mountain archetypes. Real-world course characteristics can be used as references; avoid official trademarks, logos, signage, or branded assets unless those are intentionally licensed or cleared.
+Current track set:
 
-Research signals point repeatedly to Spa-Francorchamps, Monza, Suzuka, Silverstone, Monaco, and Interlagos/Sao Paulo as strong inspiration pools. Use those as design inspiration only.
+- `Sakura Sprint`: short technical party/onboarding circuit inspired by flowing esses and compact elevation/change-of-direction sections.
+- `Alpine Grand Prix`: longer high-speed circuit inspired by elevation, fast sweepers, high-speed directional changes, and heavy-braking chicanes.
+- `Fjord Loop`: long endurance loop inspired by fjord/mountain scenery, ridge climbs, downhill braking zones, waterfalls, and village scenery.
+- `Keys Causeway`: flat coastal endurance loop inspired by the Florida Keys Overseas Highway, long bridge straights, open water, old parallel bridge sections, palms, mangroves, lighthouse, and marina scenery.
+- `Cloudline Ascent`: very long mountain-pass endurance route inspired by race-to-the-clouds climbs, stacked switchbacks, exposed ridge straights, long downhill return, snowbanks, summit observatory, and high-altitude cloud wisps.
 
-Research references used for Track C, Track D, and Track E:
+Track design may draw from real circuit and road archetypes. Do not use protected names, logos, official signage, or branded assets unless licensing/clearance is explicit.
 
-- Nürburgring official race tracks page: Nordschleife length/context: https://nuerburgring.de/info/nuerburgring/race-tracks?locale=en
+Research references used for long-road inspiration:
+
+- Nuerburgring official race tracks page: Nordschleife length/context: https://nuerburgring.de/info/nuerburgring/race-tracks?locale=en
 - Pikes Peak International Hill Climb official race page: course length, turns, and elevation climb: https://ppihc.org/about/
 - Norwegian Scenic Routes Geiranger-Trollstigen page: fjord/mountain scenery, hairpins, climbs, and descents: https://www.nasjonaleturistveger.no/en/routes/geiranger--trollstigen/
 - Florida Keys & Key West Seven Mile Bridge page: Overseas Highway ocean views, old parallel bridge, and Pigeon Key context: https://visitfloridakeys.com/plan-your-trip/plan-book/getting-here-around/seven-mile-bridge
 - Britannica Seven Mile Bridge page: bridge length, Overseas Highway relationship, and old/new bridge history: https://www.britannica.com/place/Seven-Mile-Bridge
 
-Track A: `Sakura Sprint`
+Track data supports:
 
-- Short technical circuit.
-- Designed for quick party races and onboarding.
-- Inspired by the feel of Suzuka-style flowing esses and Interlagos-style compact elevation/change-of-direction sections.
-- Key features: fast esses, one tight hairpin/braking zone, one short DRS-like straight, forgiving runoff, visible curbs for haptic/audio feedback.
-- Target lap time: 35-55 seconds for an average player.
+- Centerline points.
+- Sampled elevation and grade so uphill/downhill sections affect physics, camera height, car visuals, effects, reset/spawn, prop placement, and track geometry together.
+- Road width, curb width, wall margin, start/finish line, checkpoints, spawn grid, wall/runoff behavior, and surface classification.
+- Generated terrain support for elevated tracks.
+- Height-aware nearest-track checks to avoid wrong-layer selection on stacked/overlapping routes.
 
-Track B: `Alpine Grand Prix`
+### Track Visuals
 
-- Longer high-speed circuit.
-- Designed for stronger racing drama, braking zones, and overtaking.
-- Inspired by the feel of Spa-style elevation/fast sweepers, Monza-style speed, and Silverstone-style high-speed directional changes.
-- Key features: uphill sweep, long straight, heavy braking chicane, fast multi-apex section, curb-heavy exit zones, a few risky wall-adjacent sections.
-- Target lap time: 75-110 seconds for an average player.
+Race visuals include:
 
-Track C: `Fjord Loop`
+- Smooth generated road ribbons.
+- Painted edge lines.
+- Racing line.
+- Alternating raised curbs.
+- Rubber/skid detail.
+- Static and live skid marks.
+- Runoff.
+- Start/finish line and start grid markers.
+- Simple gantry.
+- Braking boards.
+- Barriers.
+- One `#vibejam` sponsor board.
+- Lightweight track identity props.
+- Generated terrain support for elevated Fjord/Cloudline sections.
+- Flat coastal bridge/water scenery for Keys Causeway.
+- Grass dust, wet spray, impact flashes, fog/lighting changes, subtle rain visor overlay, and visible falling rain/mist in rain mode.
 
-- Long endurance loop.
-- Designed for a roughly 4-minute lap with sustained rhythm, wide elevation changes, and a mix of fast open road and tighter cliffside sections.
-- Inspired by the feel of Norway's Geiranger-Trollstigen scenery, Nordschleife-style endurance flow, and coastal mountain roads.
-- Key features: fjord-side water views, timber village scenery, ridge climbs, downhill braking zones, cliff markers, waterfalls, and generous off-track prop clearance.
-- Target lap time: about 4 minutes for an average player.
+Elevated-track rendering uses centerline-derived road/curb/runoff ribbons plus generated shoulder and hillside terrain. Fjord skips lower outer terrain panels that would cross nearby same-height road sections, avoiding false tunnels, grass walls, and grass stripe artifacts.
 
-Track D: `Keys Causeway`
-
-- Flat coastal endurance loop.
-- Designed for a roughly 4-minute lap with a long bridge straight, open water views, and calmer island bends.
-- Inspired by the feel of the Florida Keys Overseas Highway, Seven Mile Bridge, the parallel Old Seven Mile Bridge, and low island causeway scenery.
-- Key features: fully flat centerline, long straight over water, turquoise sea plane, pale shoulders, low bridge rails, old parallel bridge sections, palms, mangroves, lighthouse/marina scenery, and generous prop clearance.
-- Target lap time: about 4 minutes for an average player.
-
-Track E: `Cloudline Ascent`
-
-- Very long mountain-pass endurance track.
-- Designed for a roughly 12-minute lap with extended climbing, stacked switchbacks, exposed ridge straights, and a long downhill return.
-- Inspired by the feel of Pikes Peak's race-to-the-clouds climb, Stelvio-style switchback roads, and high alpine observatory routes.
-- Key features: large elevation gain, long descent, snowbanks, summit observatory scenery, high-altitude cloud wisps, sparse lower pines, and broader prop spacing for performance.
-- Target lap time: about 12 minutes for an average player.
-
-Track design can draw from real circuit and road archetypes. If protected names, logos, official signage, or branded assets are used, licensing/clearance should be explicit. Track data should support:
-
-- Centerline spline.
-- Sampled elevation and grade so uphill/downhill sections affect physics, camera height, car visuals, and track geometry together.
-- Generated terrain support for elevated tracks. Elevated roads should not rely on a single wide terrain apron; use supported shoulders/side terrain and conflict checks so nearby stacked sections do not create false tunnels, grass walls, grass stripes, or floating-road views.
-- Road width.
-- Start/finish line.
-- Checkpoints/sectors.
-- Spawn grid.
-- Collision barriers.
-- Surface zones for road, curb, grass, gravel, wall.
-- Bump/rumble metadata for haptics/audio.
-- Recommended racing line metadata for camera framing, tutorial ghosting later, and controller feedback.
-
-### Physics Target
+## 10. Physics And Race Rules
 
 The game should feel like a low-definition racing sim:
 
-- Steering should have inertia and grip limits.
-- Braking should shift grip and weight feel.
-- Curbs and bumps should be noticeable.
-- Grass/gravel should reduce traction.
-- Wall hits should slow the car and create feedback.
-- Handling should favor fun and readability over strict realism.
-- Feedback should be rich even when the physics model is simple.
-
-MVP physics can use a simplified vehicle model:
-
-- Rigid body chassis.
-- Forward acceleration from throttle.
-- Braking force from brake input.
-- Steering modifies yaw based on speed and grip.
-- Lateral slip/friction approximation.
-- Surface multipliers for grip and drag.
-- Collision response from Rapier.
-
-Full wheel suspension, tire temperature, aero, fuel, and mechanical damage are out of scope for v1.
-
-## 8. Phone Controller
-
-### Layout
-
-During race, the phone screen is split into two full-height touch zones:
-
-- Left half: brake.
-- Right half: accelerator.
-
-Each side behaves like a vertical analog slider:
-
-- Touch anywhere on the side to engage.
-- Initial touch value depends on player preference.
-- Moving thumb up/down changes brake or throttle.
-- The visible slider is feedback only; the player does not need to touch the visible knob precisely.
-
-### Throttle/Brake Preferences
-
-Each control can have a first-tap behavior:
-
-- Default: first tap starts at `0%`, like a real pedal.
-- Optional: first tap starts at a configured percentage, including `100%`.
-- After first tap, vertical movement adjusts the value up or down.
-
-Preferences are per controller and can be changed before race start.
-
-### Steering
-
-Steering uses phone orientation sensors:
-
-- Use tilt relative to calibrated neutral position.
-- Prefer left/right tilt for steering.
-- Apply dead zone around neutral.
-- Apply sensitivity curve.
-- Apply smoothing/low-pass filtering.
-- Provide an on-phone calibration button before every race.
-- Provide fallback touch steering if orientation permission is denied or unavailable.
-
-### VIP Controller Mode
-
-When in lobby/settings and the player is VIP, phone shows:
-
-- Direction buttons or swipe navigation for track/settings.
-- Confirm/select button.
-- Back button.
-- Start race button.
-
-During race, VIP controls disappear and the controller becomes the same racing controller as everyone else.
-
-### Haptics
-
-Phone vibration is progressive enhancement only. It must never be required for gameplay because browser support varies.
-
-Haptic events should be driven by car telemetry:
-
-- Curb rumble.
-- Off-road vibration.
-- Wall impact pulse.
-- Heavy braking pulse.
-- Wheel slip vibration.
-- Engine rev texture if supported lightly.
-
-Vibration should be rate-limited and user-toggleable.
-
-Haptic intensity should be derived from event severity:
-
-- Small pulses for curb edges and light road texture.
-- Medium pulses for sustained off-road, wheel slip, and hard braking.
-- Sharp pulses for wall impacts and large bumps.
-- No continuous vibration longer than a short burst unless the user explicitly enables stronger haptics.
-
-### Audio
-
-Phone audio is a major part of feedback:
-
-- Engine rev loop.
-- Gear/shift cue, even if gears are simulated automatically.
-- Brake pressure cue.
-- Tire slip/screech.
-- Curb rumble.
-- Collision thud.
-- Countdown and race start cue.
-
-The controller should recommend earphones for better directional/spatial feel. Audio must be unlocked by a user gesture before race start.
-
-Audio should communicate car state even when the player is looking at the main display:
-
-- Engine pitch should map to speed/rev proxy.
-- Tire slip should increase with lateral slip and understeer/oversteer.
-- Brake sound should rise with brake pressure and speed.
-- Curb/road rumble should be surface-based.
-- Impact sounds should scale with collision impulse.
-- Directional/spatial effects should be used where practical, especially for slip, nearby impacts, and environmental cues.
-
-### Visual Controller Feedback
-
-The phone controller should show clear live feedback:
-
-- Throttle percentage.
-- Brake percentage.
-- Steering angle/tilt meter.
-- Connection quality.
-- Calibration state.
-- Haptics/audio enabled state.
-
-This feedback should be visible without distracting from thumb placement.
-
-## 9. Networking Model
-
-Use server-authoritative gameplay:
-
-- Controllers send input to server.
-- Server owns race clock, car state, lap timing, collisions, checkpoints, and final leaderboard.
-- Displays receive state snapshots and render interpolated views.
-- Controllers receive small telemetry/feedback messages for haptics and audio.
-
-### Client Message Types
-
-Controller to server:
-
-- `join_controller`
-- `set_profile`
-- `set_ready`
-- `calibrate_controller`
-- `input_frame`
-- `vip_select_track`
-- `vip_set_race_options`
-- `vip_start_race`
-- `request_reconnect`
-
-Display to server:
-
-- `create_room`
-- `join_display`
-- `request_lobby_state`
-- `request_race_snapshot`
-- `request_reconnect`
-
-Server to clients:
-
-- `room_state`
-- `lobby_update`
-- `race_countdown`
-- `race_snapshot`
-- `controller_feedback`
-- `race_results`
-- `vip_changed`
-- `error_notice`
-
-### Input Frame Shape
-
-Each controller sends compact input frames at a fixed rate:
-
-- `seq`: monotonically increasing input sequence number.
-- `clientTime`: local timestamp.
-- `steer`: `-1` to `1`.
-- `throttle`: `0` to `1`.
-- `brake`: `0` to `1`.
-- `buttons`: bitset for optional actions.
-
-Recommended send rate: 30 Hz for controller input. Server simulation can run at 60 Hz.
-
-### Reconnection
-
-- Short phone disconnects should preserve the player slot for a grace period.
-- Display disconnects should not end the room if controllers remain connected.
-- If a controller disconnects during race, its car should ghost/coast/brake safely until reconnect or timeout.
-- If VIP disconnects in lobby, transfer VIP after timeout.
-
-## 10. State Model
-
-Room state:
-
-- `roomCode`
-- `phase`: landing, lobby, countdown, racing, results
-- `createdAt`
-- `vipPlayerId`
-- `displayGroups`
-- `players`
-- `raceSettings`
-- `trackId`
-- `raceClock`
-- `results`
-
-Player state:
-
-- `playerId`
-- `controllerClientId`
-- `displayGroupId`
-- `name`
-- `color`
-- `isReady`
-- `isVIP`
-- `isConnected`
-- `joinedAt`
-- `carState`
-- `lapState`
-
-Car state:
-
-- `position`
-- `rotation`
-- `velocity`
-- `speed`
-- `steer`
-- `throttle`
-- `brake`
-- `surfaceType`
-- `lap`
-- `sector`
-- `checkpointIndex`
-- `isFinished`
-
-Race settings:
-
-- `trackId`
-- `lapCount`
-- `rollingStartEnabled`
-- `warmupLapEnabled`
-- `maxPlayers`
-
-## 11. Screens
-
-### Display Screens
-
-- Landing.
-- Create/join game.
-- Lobby with QR code.
-- Track/settings selection.
-- Countdown.
-- Race split-screen.
-- Results leaderboard.
-- Replay/settings choice.
-
-### Phone Screens
-
-- Join by room code.
-- Name/color setup.
-- Motion permission and calibration.
-- Lobby/ready state.
-- VIP settings controls.
-- Race controller.
-- Results mini view.
-- Reconnect screen.
-
-## 12. Leaderboard and Timing
+- Steering has inertia, speed scaling, lateral damping, and grip limits.
+- Braking shifts grip and creates stronger feedback.
+- Curbs and grass are noticeable.
+- Grass/off-road reduces grip and increases drag.
+- Wall hits slow cars and can crash them.
+- Vehicle-specific profiles make the roster feel distinct.
+- Handling favors fun and readability over strict realism.
+
+Current server-authoritative simplified racing physics includes:
+
+- Throttle, brake, and steering input.
+- Per-vehicle tuning.
+- Per-driver setup multipliers where available.
+- Optional warm-up/flying start timing.
+- Velocity-based lateral slip.
+- Aero/speed drag.
+- Downforce-style speed-building grip.
+- Elevation/grade acceleration for uphill/downhill sections.
+- Optional gentle stability assist.
+- Tuned road/curb/grass grip and drag.
+- Rain grip reduction and top-speed changes.
+- Tuk-tuk rollover risk.
+- Wall slowdown.
+- Directional car contact/crash handling.
+- Optional crash/off-track reset.
+- Checkpoint-gated lap finish.
+- DNF handling.
+- Results.
+
+### Collision And Ghost Mode
+
+- Ghost cars on: player cars do not collide with each other.
+- Ghost cars off: directional car contact can push cars and trigger crashes.
+- Walls/off-track behavior still matters in both modes.
+
+### Reset Mode
+
+- Reset mode off: hard crashes kick players out of the race.
+- Reset mode on: crashed cars pause for about 2.5 seconds, then respawn near the last valid track point at low speed with brief invulnerability.
+- If reset mode is on and a car stays off-track for 5 seconds, that driver's phone shows a `Reset to track` button.
+
+### DNF And Race Caps
+
+- Unfinished racing players are marked DNF if they disconnect past the race grace window.
+- Unfinished racing players are marked DNF if a race exceeds its generous time cap.
+- This prevents abandoned races from staying active forever.
+
+### Leaderboard And Timing
 
 The server records:
 
 - Lap times.
+- Best lap times.
 - Total race time.
-- Sector/checkpoint progression.
+- Checkpoint progression.
 - Finish order.
-- DNF/disconnect status.
+- Crashed/DNF status.
 
-Anti-cheat for MVP:
+Results are sorted by finish status, finish time, join order, then name.
+
+Anti-cheat basics:
 
 - Lap only counts after passing ordered checkpoints.
 - Finish only counts after required laps.
 - Controller inputs are accepted only from the assigned controller client.
 
-## 13. MVP Acceptance Criteria
+## 11. Phone Controller
+
+### Layout
+
+During race, the phone screen is split into two full-height touch zones:
+
+- Left side: brake.
+- Right side: throttle.
+
+Each side behaves like a vertical analog slider:
+
+- Touch anywhere on the side to engage.
+- Initial touch value depends on player preference.
+- Moving thumb down increases brake.
+- Moving thumb up increases throttle.
+- The visible slider is feedback only; the player does not need to touch a visible knob precisely.
+
+### Motion Steering
+
+Phone controller supports:
+
+- Landscape race mode.
+- Orientation-aware steering.
+- iOS/WebKit motion permission prompts.
+- Chrome-friendly `devicemotion` and Generic Sensor fallbacks.
+- Countdown-time stable median neutral capture before motion steering is sent.
+- Orientation-frame recentering when the phone changes orientation frame.
+- Per-phone 1-10 motion sensitivity.
+- Saved motion-steering inversion for browser/device sign differences.
+- Explicit neutral calibration.
+- Corrected left/right steering direction.
+- Touch steering fallback with matching arrow direction.
+- Visible motion-sensor/fallback status.
+- Recommended-browser notices.
+- Pre-race motion test meter.
+
+Chrome/Chromium and iOS Safari/WebKit require HTTPS for motion sensors. Plain LAN `http://` may leave the app in touch steering fallback even when the API exists.
+
+### Audio
+
+Controller audio is default-on, has an on/off toggle and test cue, and uses persistent Web Audio layers:
+
+- Start/test cue.
+- Server-marked 5/4/3/2/1 countdown beeps.
+- Louder/lower `GO` cue only after the server reports the race phase has started.
+- Engine tone follows speed/throttle and fades out on race exit.
+- Tire noise follows slip/off-road cornering.
+- Brake tone follows braking at speed.
+- Curb rumble follows curb contact.
+- Impacts get a thud cue.
+- Nearby rivals get quiet stereo-panned engine/pass-by presence.
+- Nearby non-self crashes get lighter panned booms.
+
+Current audio is synthesized. Richer samples and full scene-wide spatial mixing are future work.
+
+### Haptics
+
+Haptics use `navigator.vibrate()` with support status, an on/off toggle, and a test pulse. Vibration is progressive enhancement only and must never be required for gameplay.
+
+Current haptic events:
+
+- Test pulse.
+- Explosive crash pattern.
+- Impact pulse.
+- Hard braking pattern.
+- Curb pulse.
+- Grass/off-road pulse.
+- High-slip pulse.
+- Tuk-tuk tip-risk warning pattern.
+
+Web browsers can vary vibration duration/pattern but not reliable motor amplitude/intensity like native APIs. Android Chromium/Samsung-style browsers are the main target. iOS Safari does not support web vibration. Firefox Android may expose partial or no-op support.
+
+### Visual Controller Feedback
+
+The phone controller shows:
+
+- Throttle percentage.
+- Brake percentage.
+- Steering/tilt meter.
+- Connection and motion status.
+- Calibration state.
+- Audio/haptic enabled state.
+- Countdown control hints.
+- Reset button when eligible.
+
+## 12. Networking Model
+
+The game is server-authoritative:
+
+- Controllers send input to server.
+- Server owns race clock, car state, lap timing, collisions, checkpoints, reset/DNF state, and results.
+- Displays receive state snapshots and render interpolated views.
+- Controllers receive small telemetry/feedback messages for haptics, audio, crash events, countdown marks, and nearby-rival descriptors.
+
+### Runtime Rates
+
+- Server physics tick: 60 Hz.
+- Display race snapshots: 30 Hz.
+- Controller feedback: 20 Hz.
+- Full room state during active races: low-frequency, currently 2 Hz.
+- Lobby/results room state: change-driven/full room updates.
+
+### Current Client Messages
+
+- `create_room`
+- `join_display`
+- `set_profile`
+- `set_vehicle`
+- `set_car_setup`
+- `set_cockpit_style`
+- `set_rear_view_mode`
+- `set_ready`
+- `set_tutorial_done`
+- `input_frame`
+- `request_reset`
+- `vip_set_settings`
+- `vip_start_race`
+- `vip_skip_tutorial`
+- `vip_return_lobby`
+- `display_return_lobby`
+- `close_room`
+- `ping`
+
+### Current Server Messages
+
+- `hello`
+- `live_stats`
+- `joined_display`
+- `joined_controller`
+- `room_state`
+- `race_snapshot`
+- `controller_feedback`
+- `room_closed`
+- `error_notice`
+- `pong`
+
+### Input Frame Shape
+
+Each controller sends compact input frames:
+
+- `seq`: monotonically increasing input sequence number.
+- `steer`: `-1` to `1`.
+- `throttle`: `0` to `1`.
+- `brake`: `0` to `1`.
+
+### Reconnection
+
+- Phone controller sessions use saved room tokens and can auto-resume saved drivers after refreshes or QR rescans.
+- If the same controller resumes in another tab, the previous controller tab is notified.
+- Short phone disconnects preserve the player slot for a grace period.
+- If the VIP disconnects, VIP is reassigned to the earliest joined connected controller.
+- Display refresh can resume the same display group.
+- If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are sent out.
+- If a controller disconnects during race and misses the race grace window, that car is marked DNF.
+
+## 13. State Model
+
+Current shared state types live in `src/shared/types.ts`.
+
+Room state:
+
+- `roomCode`
+- `phase`: `lobby`, `tutorial`, `countdown`, `racing`, or `results`
+- `displayGroups`
+- `players`
+- `settings`
+- `countdownEndsAt`
+- `raceStartedAt`
+- `cars`
+- `crashEvents`
+- `results`
+
+Player state:
+
+- `id`
+- `token`
+- `displayGroupId`
+- `name`
+- `color`
+- `vehicleId`
+- `carSetupId`
+- `cockpitStyle`
+- `rearViewMode`
+- `isReady`
+- `tutorialDone`
+- `isVIP`
+- `connected`
+- `disconnectedAt`
+- `joinedAt`
+
+Race settings:
+
+- `trackId`
+- `lapCount`
+- `tutorialEnabled`
+- `warmupStart`
+- `ghostMode`
+- `rain`
+- `stabilityAssist`
+- `resetEnabled`
+
+Car state:
+
+- Player/vehicle/setup identifiers.
+- Position, velocity, heading, speed, steering, throttle, and brake.
+- Lap, progress, checkpoint, warm-up/timed-lap timing, last lap, best lap, and finish time.
+- Surface, impact, slip, rollover risk, crash, DNF, reset availability, and reset invulnerability.
+
+Race result:
+
+- Player id, name, color.
+- Total time.
+- Best lap time.
+- Status: `finished`, `crashed`, or `dnf`.
+
+## 14. Screens
+
+### Display Screens
+
+- Landing.
+- How-to-play modal.
+- Create/join game.
+- Lobby with QR code.
+- Mobile-display guidance overlay.
+- Tutorial progress display.
+- Countdown lights.
+- Race split-screen.
+- Results leaderboard/podium.
+
+### Phone Screens
+
+- Join by room code.
+- Name/color setup.
+- Controller setup/lobby.
+- Vehicle/setup selector.
+- Rear-view mirror selector.
+- Cockpit style selector.
+- Motion permission/test/calibration.
+- Audio/haptic preferences and tests.
+- VIP settings controls.
+- Pre-race tutorial.
+- Race controller.
+- Reconnect/resume states.
+
+## 15. Acceptance Criteria For The Current Playable Slice
 
 - A computer can create a room and show a QR code plus room code.
-- Phones can join, set name/color, calibrate steering, and appear in lobby.
+- Phones can join, set name/color, choose vehicle/setup/cockpit/mirror options, calibrate/test steering, and appear in lobby.
 - First phone to join becomes VIP.
 - Additional computers can join the same room as display clients.
 - Up to 8 players can join one room.
 - A display can render 1 to 4 local players in split-screen.
-- VIP can select a track, lap count, and rolling/warm-up option.
-- The current MVP track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
-- Race starts, runs, finishes, and shows leaderboard.
+- VIP can select track, lap count, tutorial, warm-up/flying start, ghost cars, rain, assist, and reset mode.
+- The current track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
+- Race starts, runs, finishes, and shows podium/results.
 - Phone steering, brake, and throttle control the car.
 - Audio feedback works on phones after user gesture.
-- Haptics work where supported and fail silently where unsupported.
-- Disconnected players can reconnect within a grace period.
+- Haptics work where supported and fail gracefully where unsupported.
+- Disconnected phones can reconnect within a grace period.
+- Display refresh can resume the same display group during the display grace window.
 - No AI cars are spawned when fewer than 8 players join.
 
-## 14. Suggested Build Milestones
+## 16. Technical Risks And Guardrails
 
-### Milestone 1: Room and Lobby
-
-- Create room.
-- Join display.
-- Join controller.
-- QR code and room code.
-- Player list.
-- VIP assignment.
-
-### Milestone 2: Controller Prototype
-
-- Phone setup screen.
-- Tilt steering calibration.
-- Touch throttle/brake zones.
-- Input frames sent to server.
-- Basic latency/debug overlay.
-
-### Milestone 3: Single-Car Track Prototype
-
-- React Three Fiber scene.
-- One simple track.
-- One controllable car.
-- Rapier collisions.
-- Basic first-person cockpit camera.
-
-### Milestone 4: Server Race Loop
-
-- Server-owned car state.
-- Controller input handling.
-- Display interpolation.
-- Checkpoints, laps, finish order.
-
-### Milestone 5: Multiplayer and Split-Screen
-
-- Multiple players in one room.
-- Display groups.
-- 1/2/3/4 player split-screen layouts.
-- Remote display join.
-
-### Milestone 6: Game Feel
-
-- Better steering curve.
-- Surface grip/drag.
-- Curbs, bumps, wall impacts.
-- Engine/tire/brake audio.
-- Haptic events.
-
-### Milestone 7: Race Flow
-
-- Track selection.
-- Lap settings.
-- Rolling start/warm-up option.
-- Countdown.
-- Results.
-- Replay or return to settings.
-
-## 15. Technical Risks
-
-- Mobile browser motion permissions require explicit UX and testing.
-- Phone vibration support varies significantly and must be optional.
+- Mobile browser motion permissions require explicit UX and real-device testing.
+- Phone vibration support varies significantly and must remain optional.
 - Audio playback must be unlocked by user gesture.
+- Browser/device orientation axes differ across devices, so calibration, inversion, and fallback controls are required.
 - Network latency can make racing feel poor if displays do not interpolate smoothly.
-- Server-authoritative physics may be CPU-heavy if the room count grows; optimize after MVP.
-- Real F1 branding, names, cars, and exact track layouts may create licensing/trademark issues.
-- Browser/device orientation axes differ across devices, so calibration and fallback controls are required.
-- A future AI builder may be tempted to implement exact real circuits. Do not do this for MVP. Use original layouts inspired by well-known racing archetypes.
+- Split-screen and rear-view mirrors duplicate WebGL work. Keep mirror scenes lighter than full scenes.
+- Elevated tracks need manual full-lap visual inspection after layout changes.
+- Do not increase rain, prop, shadow, or mirror cost without checking split-screen.
+- Server-authoritative physics may be CPU-heavy if room count grows; optimize after real load measurements.
+- Real motorsport branding, names, cars, and exact track layouts may create licensing/trademark issues.
+- A future builder may be tempted to implement exact real circuits. Do not do this without explicit clearance.
 
-## 16. Open Questions
+## 17. Next High-Value Work
 
-- Should collisions between player cars be enabled in MVP, or should players ghost through each other?
-- Should every display show all racers on the minimap/leaderboard, or only local display group racers plus top positions?
-- Is the target visual style realistic low-poly, arcade toy-like, retro sim, or clean modern?
-- What is the preferred default race length: 1 lap, 3 laps, or configurable only by VIP?
-- Should the game require landscape orientation on phones during racing?
-- Should players be able to reassign controllers between display groups in the lobby?
+- Run the real-phone checks in `HUMAN_CHECKS.md`, then adjust numeric tuning if steering feels too loose, too assisted, or too punishing in rain.
+- Add display-group reassignment only if multi-display sessions become common.
+- Add proper generated or authored car/track assets.
+- Add automated Playwright smoke tests as checked-in tests instead of ad hoc verification scripts.
+- Add a headless load test for server capacity estimates.
+- Improve wet-road effects and spray.
+- Consider richer audio samples and broader spatial mixing.
 
-## 17. AI Builder Instructions
+## 18. Open Questions
 
-When this spec is handed to an AI coding agent, build toward a playable vertical slice first. Do not spend the first pass on marketing copy, auth, persistent storage, exact track art, or broad engine abstractions.
+- Should display-group reassignment be a normal lobby feature or an admin-only escape hatch?
+- Should larger sessions get stronger display/admin controls?
+- Should every display show all racers on the minimap/leaderboard, or emphasize local display group racers plus top positions?
+- Should there be an optional lower cockpit camera for players who want a more believable seated view?
+- Should ghost mode become the default for public/party play, or should collision remain the current default?
+- Should authored car/track assets replace procedural geometry gradually, or should procedural generation remain the main style?
+
+## 19. AI Builder Instructions
+
+When this spec is handed to an AI coding agent, preserve the current playable slice and make focused changes. Do not spend a maintenance pass on auth, persistent storage, exact track art, or broad engine migrations unless the user specifically asks for that work.
 
 Implementation priorities:
 
-- Prove the full room loop works: create room, join phone, start race, finish race.
-- Prove phone control feels viable: tilt steering, touch throttle/brake, calibration, fallback controls.
-- Prove server authority: server owns car state, lap validation, timing, and results.
-- Prove display rendering: one display, one car, one original track, stable first-person cockpit camera.
-- Add rich feedback early: engine audio, tire slip audio, curb/impact events, optional vibration.
-
-Do not replace the core stack unless there is a clear technical blocker. The default build should use Vite, React, TypeScript, React Three Fiber, Three.js, Rapier 3D, Node.js, Colyseus, and WebSockets.
-
-## 18. Recommended First Implementation Decision
-
-Build the first vertical slice as:
-
-- One display.
-- One phone controller.
-- `Sakura Sprint` as one original short track.
-- One car.
-- Server-authoritative movement.
-- Tilt steering.
-- Touch throttle/brake.
-- One-lap race.
-- Results screen.
-
-After that works end-to-end, add split-screen, extra displays, and the second track.
+- Keep the full room loop working: create room, join phone, start race, finish race, return to lobby.
+- Keep phone control viable: tilt steering, touch throttle/brake, calibration, fallback controls, and clear motion permission UX.
+- Preserve server authority: server owns car state, lap validation, timing, DNF/reset state, and results.
+- Preserve display rendering: stable cockpit view, split-screen readability, minimap/leaderboard/rear-view layout, and smooth interpolation.
+- Preserve rich feedback: engine audio, tire slip audio, curb/impact events, nearby rival cues, and optional vibration.
+- Keep high-frequency game state out of normal React state; use refs, interpolation buffers, server snapshots, and focused controller feedback.
+- Update this spec whenever implementation behavior changes.
