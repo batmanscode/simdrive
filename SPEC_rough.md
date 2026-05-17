@@ -138,3 +138,37 @@ Finished players can switch between active racers, return to their own finish vi
 New players default to cockpit style none
 
 Playtests keep cockpit style hands explicitly
+
+Changes 17/05/2026
+
+Canonical detailed product and technical spec is now SPEC_detailed.md
+
+SPEC_detailed_live.md has been folded into SPEC_detailed.md and removed
+
+Current display flow includes a how-to-play modal, optional pre-race tutorial display, race view, and results
+
+Display landing, lobby, tutorial, and results support System, Light, and Dark themes
+
+Display lobby has small-screen guidance so phone-sized displays know a larger shared screen is recommended
+
+Display refresh can resume the same display group
+
+If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are notified
+
+Display results can return the room to lobby without requiring the VIP controller
+
+VIP settings now include the optional pre-race tutorial, which is on by default
+
+The pre-race tutorial teaches phone pedals and tilt steering before countdown, and the VIP can start anyway if someone gets stuck
+
+Each player can choose rear-view mirror mode: Auto, On, or Off
+
+Rear-view mirror Auto is the default and shows the mirror when other active cars exist
+
+Phone motion support now includes iOS/WebKit permission prompts, Chrome-friendly devicemotion / Generic Sensor fallbacks, saved inversion, and countdown-time steering centering
+
+Race networking now uses lightweight display race snapshots and focused controller feedback messages for the player's car, crash cues, nearby-rival audio, and countdown marks
+
+The current implementation uses a purpose-built Node + Express + ws WebSocket server and lightweight kinematic physics, not Colyseus or Rapier
+
+The public page includes the required Cursor Vibe Jam 2026 entrant widget and Tiny Adz bot-protection/conversion snippet with storage disabled

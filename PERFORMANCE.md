@@ -225,7 +225,7 @@ Manual checks:
 - One display, two local controllers, split-screen.
 - Two display devices with one controller each.
 - Rain on/off.
-- Sakura Sprint, Alpine Grand Prix, Fjord Loop, and Cloudline Ascent.
+- Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
 - For Fjord Loop and Cloudline Ascent, check the full route for floating-road views, missing road, grass stripes over asphalt, false tunnels/walls, and terrain panels crossing same-height road sections.
 - Warm-up start on/off.
 - Reset mode on/off.
@@ -265,7 +265,7 @@ Tradeoff:
 
 ## Bundle Size Note
 
-`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build was about 1.30 MB minified and about 357 kB gzipped for the main JS asset.
+`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build on 2026-05-17 was about 1.35 MB minified and about 369 kB gzipped for the main JS asset.
 
 This is not a build failure and is expected with the current architecture because React, Three.js, React Three Fiber, QR code rendering, icons, the display app, controller app, and race scene all ship in one client bundle.
 

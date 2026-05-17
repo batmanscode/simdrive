@@ -29,7 +29,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Rotate or orientation-lock the phone as the race starts: steering should briefly center itself instead of latching a hard left/right input.
 - Test touch steering while tilting the phone: holding the left or right arrow should override motion steering and turn the car in the matching direction.
 - Test downforce-style grip at speed: fast road corners should feel more planted than slow corners without making rain or grass too forgiving.
-- Test the 1-10 phone motion sensitivity control: defaults should be Formula 1, KZ Kart 1, Stock Truck 4, and Tuk-Tuk 2, and the range should cover both relaxed and sensitive steering.
+- Test the 1-10 phone motion sensitivity control: defaults should be Formula Prototype 1, KZ Kart 1, Stock Truck 4, and Tuk-Tuk 2, and the range should cover both relaxed and sensitive steering.
 - Test all selectable car setups in dry mode: Balanced should feel neutral, High Grip should corner/brake easier, and High Speed should be quicker but less settled. Confirm KZ Kart and Tuk-Tuk show stats but do not expose setup switching.
 - Test sliding/lateral slip: tire sound and vibration should match moments where the car feels loose.
 - Test visible front-wheel direction: left input should show left lock, right input should show right lock, with no confusing partial-turn animation.

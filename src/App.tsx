@@ -71,7 +71,7 @@ type ShowroomSceneryItem = {
 
 const SHOWROOM_SCENERY_ITEMS: ShowroomSceneryItem[] = [
   { assetName: "TrackStartGantryModel", label: "Start gantry" },
-  { assetName: "SponsorBoardModel", label: "#vibejam board", previewYOffset: -0.56 },
+  { assetName: "SponsorBoardModel", label: "#[oss]vibejam board", previewYOffset: -0.56 },
   { assetName: "SakuraBanner", label: "try not to lose board" },
   { assetName: "SakuraBlossomTunnel", label: "Sakura tunnel" },
   { assetName: "AlpineCableCar", label: "Alpine cable car" },
@@ -2826,7 +2826,7 @@ const DEV_ASSETS: DevAsset[] = [
   { group: "Generic Track", name: "RoadsideBoardModel", note: "The pale blank boards seen along routes", render: (rain) => <RoadsideBoardModel rain={rain} /> },
   { group: "Generic Track", name: "BrakingBoardModel", note: "Striped braking marker", render: () => <BrakingBoardModel /> },
   { group: "Generic Track", name: "TrackBarrierModel", note: "Low roadside barrier", render: (rain) => <TrackBarrierModel rain={rain} /> },
-  { group: "Generic Track", name: "SponsorBoardModel", note: "#vibejam sponsor board", render: (rain) => <SponsorBoardModel rain={rain} /> },
+  { group: "Generic Track", name: "SponsorBoardModel", note: "#[oss]vibejam sponsor board", render: (rain) => <SponsorBoardModel rain={rain} /> },
   { group: "Sakura", name: "SakuraToriiGate", render: (rain) => <SakuraToriiGateModel track={TRACKS.sakura} rain={rain} /> },
   { group: "Sakura", name: "SakuraBlossomTunnel", render: (rain) => <SakuraBlossomTunnelPreview rain={rain} /> },
   { group: "Sakura", name: "SakuraTunnelTree", render: (rain) => <SakuraTunnelTree position={[0, 0, 0]} side={1} heading={0} seed={220} rain={rain} /> },
@@ -9273,11 +9273,18 @@ function createSponsorTexture() {
     context.strokeStyle = "#fffaf0";
     context.lineWidth = 8;
     context.strokeRect(18, 30, canvas.width - 36, canvas.height - 60);
+    const sponsorText = "#[oss]vibejam";
+    const maxTextWidth = canvas.width - 92;
+    let sponsorFontSize = 70;
     context.fillStyle = "#fffaf0";
-    context.font = "900 74px Arial, sans-serif";
+    context.font = `900 ${sponsorFontSize}px Arial, sans-serif`;
+    while (context.measureText(sponsorText).width > maxTextWidth && sponsorFontSize > 42) {
+      sponsorFontSize -= 2;
+      context.font = `900 ${sponsorFontSize}px Arial, sans-serif`;
+    }
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText("#vibejam", canvas.width / 2, canvas.height / 2 + 4);
+    context.fillText(sponsorText, canvas.width / 2, canvas.height / 2 + 4);
     context.fillStyle = "#e84f5f";
     context.fillRect(42, 48, 42, 14);
     context.fillRect(canvas.width - 84, canvas.height - 62, 42, 14);
