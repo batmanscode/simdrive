@@ -309,7 +309,7 @@ Race visuals include:
 - Simple gantry.
 - Braking boards.
 - Barriers.
-- One `#vibejam` sponsor board.
+- One `#[oss]vibejam` sponsor board.
 - Lightweight track identity props.
 - Generated terrain support for elevated Fjord/Cloudline sections.
 - Flat coastal bridge/water scenery for Keys Causeway.
