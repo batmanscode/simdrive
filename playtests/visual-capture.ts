@@ -11,6 +11,7 @@ type Target = {
 
 const args = process.argv.slice(2);
 const consoleErrors: string[] = [];
+const DISPLAY_SESSION_STORAGE_KEY = "sim-drive-display-session:v1";
 let driver: RaceDriver | undefined;
 let browser: { close: () => Promise<void> } | undefined;
 
@@ -45,8 +46,14 @@ try {
   await page.getByRole("button", { name: /Create Game/i }).click();
   await page.waitForSelector(".room-code");
   const roomCode = (await page.locator(".room-code").innerText()).trim();
-  await page.waitForFunction(() => sessionStorage.getItem("sim-drive-display-session")?.includes("displayGroupId"));
-  const displaySession = await page.evaluate(() => JSON.parse(sessionStorage.getItem("sim-drive-display-session") || "{}"));
+  await page.waitForFunction((storageKey: string) => {
+    const displaySessionValue = sessionStorage.getItem(storageKey);
+    return displaySessionValue?.includes("displayGroupId");
+  }, DISPLAY_SESSION_STORAGE_KEY);
+  const displaySession = await page.evaluate((storageKey: string) => {
+    const displaySessionValue = sessionStorage.getItem(storageKey);
+    return JSON.parse(displaySessionValue || "{}");
+  }, DISPLAY_SESSION_STORAGE_KEY);
 
   driver = new RaceDriver({
     serverUrl,
@@ -64,6 +71,8 @@ try {
 
   const captures = [];
   for (const target of targets) {
+    // Visual captures intentionally drive one car through ordered targets and pause the same race sequentially.
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop
     await driver.waitForProgress(target.fraction, timeoutMs);
     driver.setHolding(true);
     await sleep(250);
@@ -94,7 +103,10 @@ function parseTargets(argv: string[]): Target[] {
   const values = [
     ...readRepeatedArg(argv, "--target"),
     ...readRepeatedArg(argv, "--targets").flatMap((value) => value.split(","))
-  ].map((value) => value.trim()).filter(Boolean);
+  ].flatMap((value) => {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  });
   const parsed = values.length > 0 ? values : ["0.25:quarter", "0.50:half", "0.75:three-quarter", "0.94:finish"];
   return parsed.map((value) => {
     const [rawProgress, rawLabel] = value.split(":");
