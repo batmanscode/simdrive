@@ -20,6 +20,8 @@ const VEHICLE_STEERING_SENSITIVITY_DEFAULTS: Record<VehicleId, number> = {
 const INVERT_MOTION_STEERING_KEY = "sim-drive-invert-motion-steering";
 const HAPTIC_TEST_PATTERN = [120, 60, 180];
 const CONTROLLER_SESSION_KEY = "sim-drive-controller-session";
+const DISPLAY_SESSION_KEY = "sim-drive-display-session:v1";
+const LEGACY_DISPLAY_SESSION_KEY = "sim-drive-display-session";
 const DISPLAY_THEME_KEY = "sim-drive-display-theme";
 const MOTION_NEUTRAL_SAMPLE_MS = 320;
 const MOTION_NEUTRAL_MAX_SAMPLE_MS = 900;
@@ -196,7 +198,7 @@ function DisplayApp() {
               Feel your car: engine roar, tire slip, curb rumble, and rain grip through sound + haptics.
             </p>
             <div className="hero-actions">
-              <button className="primary" onClick={() => game.send({ type: "create_room" })}>
+              <button type="button" className="primary" onClick={() => game.send({ type: "create_room" })}>
                 <Play size={18} /> Create Game
               </button>
               <span className="hero-action-or">or</span>
@@ -209,7 +211,7 @@ function DisplayApp() {
                   game.send({ type: "join_display", roomCode });
                 }}
               >
-                <input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
+                <input aria-label="Room code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
                 <button type="submit">Join Room on This Screen</button>
               </form>
             </div>
@@ -329,7 +331,7 @@ function HowToPlayModal({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="about-modal tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <dialog className="about-modal tutorial-modal" open aria-labelledby="tutorial-title">
         <button className="about-close" type="button" onClick={onClose}>
           Close
         </button>
@@ -384,7 +386,7 @@ function HowToPlayModal({ onClose }: { onClose: () => void }) {
             </section>
           </div>
         </div>
-      </section>
+      </dialog>
     </div>
   );
 }
@@ -407,7 +409,7 @@ function HomeAboutModal({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <dialog className="about-modal" open aria-labelledby="about-title">
         <button className="about-close" type="button" onClick={onClose}>
           Close
         </button>
@@ -456,7 +458,7 @@ function HomeAboutModal({ onClose }: { onClose: () => void }) {
             ❤️
           </p>
         </div>
-      </section>
+      </dialog>
     </div>
   );
 }
@@ -491,7 +493,7 @@ function ShowroomModal({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="about-modal showroom-modal" role="dialog" aria-modal="true" aria-labelledby="showroom-title">
+      <dialog className="about-modal showroom-modal" open aria-labelledby="showroom-title">
         <button className="about-close" type="button" onClick={onClose}>
           Close
         </button>
@@ -538,7 +540,7 @@ function ShowroomModal({ onClose }: { onClose: () => void }) {
             </div>
           </section>
         </div>
-      </section>
+      </dialog>
     </div>
   );
 }
@@ -645,7 +647,10 @@ function ShowroomSceneryObject({ asset, previewYOffset }: { asset: DevAsset; pre
     if (box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3());
     content.parent?.worldToLocal(center);
-    content.position.sub(asset.pivot ? new THREE.Vector3(...asset.pivot) : center);
+    const pivot = asset.pivot ? new THREE.Vector3(...asset.pivot) : center;
+    content.position.x -= pivot.x;
+    content.position.y -= pivot.y;
+    content.position.z -= pivot.z;
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z, 1);
     content.scale.setScalar(Math.min(4.2, 3.0 / (maxDimension * (asset.zoom ?? 1))));
@@ -684,12 +689,12 @@ function CodexBenchmarksModal({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="about-modal codex-benchmarks-modal" role="dialog" aria-modal="true" aria-labelledby="codex-benchmarks-title">
+      <dialog className="about-modal codex-benchmarks-modal" open aria-labelledby="codex-benchmarks-title">
         <button className="about-close" type="button" onClick={onClose}>
           Close
         </button>
         <CodexBenchmarks />
-      </section>
+      </dialog>
     </div>
   );
 }
@@ -816,7 +821,7 @@ function LobbyDisplay({
             <h2>{track.name}</h2>
           </div>
           <div className="topline-actions">
-            <button className="secondary danger" onClick={() => send({ type: "close_room" })}>Exit Room</button>
+            <button type="button" className="secondary danger" onClick={() => send({ type: "close_room" })}>Exit Room</button>
           </div>
         </div>
 
@@ -879,7 +884,7 @@ function TutorialDisplay({ room, send, themeClass }: { room: RoomState; send: Re
           ))}
         </div>
         <small className="screen-note">VIP: {vip?.name ?? "none"}. The VIP can start anyway from their phone if someone gets stuck.</small>
-        <button className="secondary danger" onClick={() => send({ type: "display_return_lobby" })}>
+        <button type="button" className="secondary danger" onClick={() => send({ type: "display_return_lobby" })}>
           <RotateCcw size={18} /> Return to Lobby
         </button>
       </section>
@@ -931,7 +936,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
 
   return (
     <main className="race-screen">
-      <button className="race-exit" onClick={() => send({ type: "display_return_lobby" })}>
+      <button type="button" className="race-exit" onClick={() => send({ type: "display_return_lobby" })}>
         <RotateCcw size={18} /> Exit Race
       </button>
       <div className={className}>
@@ -947,12 +952,19 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
 
 function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePlayer: Player; paneCount: number }) {
   const sourceCar = room.cars.find((item) => item.playerId === sourcePlayer.id);
-  const [spectatePlayerId, setSpectatePlayerId] = useState<string>();
-  const [autoSpectateSuppressed, setAutoSpectateSuppressed] = useState(false);
+  const [spectateState, setSpectateState] = useState<{
+    finishKey?: string;
+    playerId?: string;
+    autoSpectateSuppressed: boolean;
+  }>({ autoSpectateSuppressed: false });
   const spectateTargets = useMemo(() => raceSpectateTargets(room, sourcePlayer.id), [room, sourcePlayer.id]);
   const spectateTargetsRef = useRef(spectateTargets);
-  const resolvedSpectatePlayerId = spectatePlayerId
-    ? spectateTargets.find((item) => item.id === spectatePlayerId)?.id ?? spectateTargets[0]?.id
+  const finishKey = room.phase === "racing" && sourceCar?.finished ? `${sourcePlayer.id}:${sourceCar.finishTime ?? "finished"}` : undefined;
+  const currentSpectateState = spectateState.finishKey === finishKey ? spectateState : undefined;
+  const selectedSpectatePlayerId = currentSpectateState?.playerId;
+  const autoSpectateSuppressed = currentSpectateState?.autoSpectateSuppressed ?? false;
+  const resolvedSpectatePlayerId = selectedSpectatePlayerId
+    ? spectateTargets.find((item) => item.id === selectedSpectatePlayerId)?.id ?? spectateTargets[0]?.id
     : undefined;
   const focusPlayerId = resolvedSpectatePlayerId ?? sourcePlayer.id;
   const spectatedPlayer = resolvedSpectatePlayerId ? room.players.find((item) => item.id === resolvedSpectatePlayerId) : undefined;
@@ -965,31 +977,28 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
   }, [spectateTargets]);
 
   useEffect(() => {
-    if (room.phase === "racing" && sourceCar?.finished) return;
-    setSpectatePlayerId(undefined);
-    setAutoSpectateSuppressed(false);
-  }, [room.phase, sourceCar?.finished, sourcePlayer.id]);
-
-  useEffect(() => {
-    if (!spectatePlayerId) return;
-    if (spectateTargets.some((player) => player.id === spectatePlayerId)) return;
-    setSpectatePlayerId(spectateTargets[0]?.id);
-  }, [spectatePlayerId, spectateTargets]);
-
-  useEffect(() => {
-    if (room.phase !== "racing" || !sourceCar?.finished || autoSpectateSuppressed || spectatePlayerId) return;
+    if (!finishKey || autoSpectateSuppressed || resolvedSpectatePlayerId) return;
     const timeout = window.setTimeout(() => {
       const target = spectateTargetsRef.current[0];
-      if (target) setSpectatePlayerId(target.id);
+      if (target) {
+        setSpectateState((current) => {
+          if (current.finishKey === finishKey && current.playerId) return current;
+          return { finishKey, playerId: target.id, autoSpectateSuppressed: false };
+        });
+      }
     }, AUTO_SPECTATE_AFTER_FINISH_MS);
     return () => window.clearTimeout(timeout);
-  }, [autoSpectateSuppressed, room.phase, sourceCar?.finished, sourcePlayer.id, spectatePlayerId]);
+  }, [autoSpectateSuppressed, finishKey, resolvedSpectatePlayerId]);
+
+  const selectSpectatePlayer = (playerId: string) => {
+    if (!finishKey) return;
+    setSpectateState({ finishKey, playerId, autoSpectateSuppressed: false });
+  };
 
   const watchLeadingTarget = () => {
     const target = spectateTargetsRef.current[0];
-    if (!target) return;
-    setAutoSpectateSuppressed(false);
-    setSpectatePlayerId(target.id);
+    if (!target || !finishKey) return;
+    setSpectateState({ finishKey, playerId: target.id, autoSpectateSuppressed: false });
   };
 
   return (
@@ -1005,10 +1014,10 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
         <RaceSpectateControls
           activePlayers={spectateTargets}
           spectatedPlayer={spectatedPlayer}
-          onSelect={setSpectatePlayerId}
+          onSelect={selectSpectatePlayer}
           onReturn={() => {
-            setSpectatePlayerId(undefined);
-            setAutoSpectateSuppressed(true);
+            if (!finishKey) return;
+            setSpectateState({ finishKey, autoSpectateSuppressed: true });
           }}
         />
       )}
@@ -1089,20 +1098,23 @@ function StartLights({ countdown }: { countdown: number | string }) {
 }
 
 function RaceFinishBanner({ room }: { room: RoomState }) {
-  const winner = room.cars
-    .filter((car) => car.finished && car.finishTime !== undefined)
-    .sort((a, b) => (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity))[0];
-  const player = winner ? room.players.find((item) => item.id === winner.playerId) : undefined;
+  const winner = room.cars.reduce<CarState | undefined>((best, car) => {
+    if (!car.finished || car.finishTime === undefined) return best;
+    if (!best || car.finishTime < (best.finishTime ?? Infinity)) return car;
+    return best;
+  }, undefined);
+  const winnerPlayerId = winner?.playerId;
+  const player = winnerPlayerId ? room.players.find((item) => item.id === winnerPlayerId) : undefined;
   const [visibleFor, setVisibleFor] = useState<string>();
 
   useEffect(() => {
-    if (!player) return;
-    setVisibleFor(player.id);
+    if (!winnerPlayerId) return;
+    setVisibleFor(winnerPlayerId);
     const timeout = window.setTimeout(() => setVisibleFor(undefined), AUTO_SPECTATE_AFTER_FINISH_MS);
     return () => window.clearTimeout(timeout);
-  }, [player?.id]);
+  }, [winnerPlayerId]);
 
-  if (!player || visibleFor !== player.id || room.phase !== "racing") return null;
+  if (!player || visibleFor !== winnerPlayerId || room.phase !== "racing") return null;
 
   return (
     <div className="finish-banner">
@@ -1130,24 +1142,30 @@ function RaceTipRiskToast({ room, focusPlayerId }: { room: RoomState; focusPlaye
   const car = room.cars.find((item) => item.playerId === focusPlayerId);
   const activeTukTuk = room.phase === "racing" && car?.vehicleId === "tukTuk" && !car.crashed && !car.finished && !car.dnf;
   const tipRisk = activeTukTuk ? car.rolloverRisk : 0;
-  const [latchedTipRisk, setLatchedTipRisk] = useState(0);
+  const [tipRiskLatch, setTipRiskLatch] = useState(() => ({ activeTukTuk, risk: 0 }));
   const latchTimeout = useRef<number | undefined>(undefined);
+  let latchedTipRisk = tipRiskLatch.risk;
+  if (tipRiskLatch.activeTukTuk !== activeTukTuk) {
+    const nextLatch = { activeTukTuk, risk: activeTukTuk ? tipRiskLatch.risk : 0 };
+    latchedTipRisk = nextLatch.risk;
+    setTipRiskLatch(nextLatch);
+  }
+
   useEffect(() => {
     if (tipRisk <= TIP_RISK_TOAST_THRESHOLD) return;
-    setLatchedTipRisk((current) => Math.max(current, tipRisk));
+    setTipRiskLatch((current) => ({ activeTukTuk: true, risk: Math.max(current.activeTukTuk ? current.risk : 0, tipRisk) }));
     if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
-    latchTimeout.current = window.setTimeout(() => setLatchedTipRisk(0), 900);
+    latchTimeout.current = window.setTimeout(() => setTipRiskLatch((current) => ({ ...current, risk: 0 })), 900);
   }, [tipRisk]);
   useEffect(() => {
     if (activeTukTuk) return;
     if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
     latchTimeout.current = undefined;
-    setLatchedTipRisk(0);
   }, [activeTukTuk]);
   useEffect(() => () => {
     if (latchTimeout.current) window.clearTimeout(latchTimeout.current);
   }, []);
-  const displayedTipRisk = Math.max(tipRisk, latchedTipRisk);
+  const displayedTipRisk = activeTukTuk ? Math.max(tipRisk, latchedTipRisk) : 0;
   if (displayedTipRisk <= TIP_RISK_TOAST_THRESHOLD) return null;
   return (
     <div className={displayedTipRisk > 0.72 ? "tip-risk-toast high" : "tip-risk-toast"} aria-live="polite">
@@ -1284,7 +1302,7 @@ function ResultsDisplay({ room, send, themeClass }: { room: RoomState; send: Ret
           ))}
         </ol>
         <p>VIP: {vip?.name ?? "none"}. Return to lobby keeps the same room and drivers.</p>
-        <button className="secondary" onClick={() => send({ type: "display_return_lobby" })}>
+        <button type="button" className="secondary" onClick={() => send({ type: "display_return_lobby" })}>
           <RotateCcw size={18} /> Return to Lobby
         </button>
       </section>
@@ -1383,7 +1401,7 @@ function ControllerApp() {
           </label>
           <div className="color-row">
             {COLORS.map((item) => (
-              <button key={item} type="button" className={item === color ? "color active" : "color"} style={{ background: item }} onClick={() => setColor(item)} />
+              <button key={item} type="button" className={item === color ? "color active" : "color"} style={{ background: item }} aria-label={`Choose ${item} driver color`} onClick={() => setColor(item)} />
             ))}
           </div>
           {token && <small className="phone-note">Saved driver found for this room. Refreshes and QR rescans reconnect automatically.</small>}
@@ -1407,11 +1425,11 @@ function ControllerApp() {
 
 function ControllerLobby({ room, player, send, feedback, joinStatus, browserNotice, steeringLevel, onSteeringLevelChange }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string; browserNotice?: string; steeringLevel: number; onSteeringLevelChange: (value: number) => void }) {
   const [motionEnabled, setMotionEnabled] = useState(false);
-  const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
+  const [motionStatus, setMotionStatus] = useState(() => motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
   const [audioEnabled, setAudioEnabled] = useStoredBoolean("sim-drive-audio-enabled", true);
   const [audioStatus, setAudioStatus] = useState(audioEnabled ? "Audio on" : "Audio off");
-  const [hapticStatus, setHapticStatus] = useState(hapticSupportMessage());
+  const [hapticStatus, setHapticStatus] = useState(() => hapticSupportMessage());
   const [hapticsEnabled, setHapticsEnabled] = useStoredBoolean("sim-drive-haptics-enabled", true);
   const [brakeStart, setBrakeStart] = useStoredNumber("sim-drive-brake-start", 0);
   const [throttleStart, setThrottleStart] = useStoredNumber("sim-drive-throttle-start", 0);
@@ -1504,7 +1522,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
             <strong>{motionEnabled ? "Tilt steering enabled" : "Enable tilt steering"}</strong>
             <span>This browser asks before the controller can read phone tilt.</span>
           </div>
-          <button
+          <button type="button"
             className="primary"
             onClick={() => {
               void requestLobbyMotion();
@@ -1516,7 +1534,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         </div>
       ) : (
         <>
-          <button
+          <button type="button"
             className="secondary"
             onClick={() => {
               void requestLobbyMotion();
@@ -1545,7 +1563,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           }
         }}
       />
-      <button
+      <button type="button"
         className="secondary"
         onClick={() => {
           if (!audioEnabled) {
@@ -1569,7 +1587,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           setHapticStatus(value ? hapticSupportMessage() : "Haptics off");
         }}
       />
-      <button
+      <button type="button"
         className="secondary"
         onClick={() => {
           const result = pulseHaptic(HAPTIC_TEST_PATTERN);
@@ -1616,7 +1634,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           <small className="phone-note">Gentle assist softly aligns the car toward the road direction so steering is more forgiving.</small>
           <Toggle label="Reset mode" value={settings.resetEnabled} onChange={(resetEnabled) => send({ type: "vip_set_settings", settings: { resetEnabled } })} />
           <small className="phone-note">Reset mode respawns crashes. Off-track reset appears after 5 seconds in the grass.</small>
-          <button
+          <button type="button"
             className="primary"
             onClick={async () => {
               if (!(await prepareToDrive())) return;
@@ -1629,7 +1647,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
       )}
       {!player?.isVIP && (
         <>
-          <button
+          <button type="button"
             className="primary ready-button"
             onClick={async () => {
               if (!(await prepareToDrive())) return;
@@ -1650,7 +1668,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
 function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; steeringLevel: number }) {
   const [step, setStep] = useState<"controls" | "range">("controls");
   const [motionEnabled, setMotionEnabled] = useState(false);
-  const [motionStatus, setMotionStatus] = useState(motionLobbyStatus());
+  const [motionStatus, setMotionStatus] = useState(() => motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
   const [rangeTravel, setRangeTravel] = useState(118);
   const [motionListenToken, setMotionListenToken] = useState(0);
@@ -1662,7 +1680,8 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
   const rangeMarkerRef = useRef<HTMLSpanElement>(null);
   const rangeNeutralReadyRef = useRef(false);
   const lastRawSteerRef = useRef<number | undefined>(undefined);
-  const lastOrientationFrameRef = useRef(motionOrientationFrameKey());
+  const initialOrientationFrame = useMemo(() => motionOrientationFrameKey(), []);
+  const lastOrientationFrameRef = useRef(initialOrientationFrame);
   const neutralRef = useRef<number | undefined>(readMotionCalibration()?.neutral);
   const steeringSensitivity = steeringSensitivityFromLevel(steeringLevel);
   const motionSteeringDirection = invertMotionSteering ? -1 : 1;
@@ -1805,7 +1824,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
           <Smartphone size={42} />
           <strong>Turn your phone sideways</strong>
           <span>Rotate to landscape before the start. The tutorial and race controls work best sideways.</span>
-          <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
+          <button type="button" onClick={() => void requestLandscape()}>Try Lock Landscape</button>
         </div>
       </main>
     );
@@ -1892,7 +1911,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
         <Smartphone size={42} />
         <strong>Turn your phone sideways</strong>
         <span>Rotate to landscape before the start. The tutorial and race controls work best sideways.</span>
-        <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
+        <button type="button" onClick={() => void requestLandscape()}>Try Lock Landscape</button>
       </div>
     </main>
   );
@@ -1924,7 +1943,7 @@ function RearViewModeSelector({ value, send }: { value: RearViewMode; send: Retu
       <small className="phone-note">Auto shows it when other cars are active. Off keeps the race HUD cleaner.</small>
       <div className="segmented phone-segmented">
         {(["auto", "on", "off"] as RearViewMode[]).map((mode) => (
-          <button key={mode} className={value === mode ? "active" : undefined} onClick={() => send({ type: "set_rear_view_mode", rearViewMode: mode })}>
+          <button type="button" key={mode} className={value === mode ? "active" : undefined} onClick={() => send({ type: "set_rear_view_mode", rearViewMode: mode })}>
             {rearViewModeLabel(mode)}
           </button>
         ))}
@@ -1952,7 +1971,7 @@ function CockpitStyleSelector({ value, send }: { value: CockpitStyle; send: Retu
       <small className="phone-note">Changes only what you see in your cockpit. It does not affect speed or grip.</small>
       <div className="segmented phone-segmented">
         {(["none", "hands", "paws"] as CockpitStyle[]).map((style) => (
-          <button key={style} className={value === style ? "active" : undefined} onClick={() => send({ type: "set_cockpit_style", cockpitStyle: style })}>
+          <button type="button" key={style} className={value === style ? "active" : undefined} onClick={() => send({ type: "set_cockpit_style", cockpitStyle: style })}>
             {cockpitStyleLabel(style)}
           </button>
         ))}
@@ -2004,7 +2023,7 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, send }: { vehicleId
         {VEHICLE_ORDER.map((id) => {
           const vehicle = VEHICLES[id];
           return (
-            <button
+            <button type="button"
               key={vehicle.id}
               className={vehicle.id === selectedVehicle.id ? "vehicle-card active" : "vehicle-card"}
               onClick={() => send({ type: "set_vehicle", vehicleId: vehicle.id })}
@@ -2025,7 +2044,7 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, send }: { vehicleId
       {!hasSetupChoices && <small className="phone-note">This vehicle has one realistic baseline setup, so there is nothing to tune before the race.</small>}
       <div className="setup-grid">
         {setups.map((setup) => hasSetupChoices ? (
-          <button
+          <button type="button"
             key={setup.id}
             className={setup.id === selectedSetup.id ? "setup-card active" : "setup-card"}
             onClick={() => send({ type: "set_car_setup", carSetupId: setup.id })}
@@ -2164,12 +2183,12 @@ function SteeringSensitivityPreference({ value, onChange }: { value: number; onC
 function TrackPicker({ settings, send }: { settings: RaceSettings; send: ReturnType<typeof useGameSocket>["send"] }) {
   const ids = Object.keys(TRACKS) as Array<keyof typeof TRACKS>;
   const index = ids.indexOf(settings.trackId);
-  const setIndex = (next: number) => send({ type: "vip_set_settings", settings: { trackId: ids[(next + ids.length) % ids.length] } });
+  const chooseTrackIndex = (next: number) => send({ type: "vip_set_settings", settings: { trackId: ids[(next + ids.length) % ids.length] } });
   return (
     <div className="picker">
-      <button onClick={() => setIndex(index - 1)}><ArrowLeft /></button>
+      <button type="button" onClick={() => chooseTrackIndex(index - 1)}><ArrowLeft /></button>
       <strong>{TRACKS[settings.trackId].name}</strong>
-      <button onClick={() => setIndex(index + 1)}><ArrowRight /></button>
+      <button type="button" onClick={() => chooseTrackIndex(index + 1)}><ArrowRight /></button>
     </div>
   );
 }
@@ -2178,16 +2197,16 @@ function Stepper({ label, value, min, max, onChange }: { label: string; value: n
   return (
     <div className="stepper">
       <span>{label}</span>
-      <button onClick={() => onChange(Math.max(min, value - 1))}>-</button>
+      <button type="button" onClick={() => onChange(Math.max(min, value - 1))}>-</button>
       <strong>{value}</strong>
-      <button onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+      <button type="button" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
     </div>
   );
 }
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
   return (
-    <button className={value ? "toggle on" : "toggle"} onClick={() => onChange(!value)}>
+    <button type="button" className={value ? "toggle on" : "toggle"} onClick={() => onChange(!value)}>
       <span>{label}</span><strong>{value ? "On" : "Off"}</strong>
     </button>
   );
@@ -2201,7 +2220,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   const [calibrationLabel, setCalibrationLabel] = useState("Calibrate");
   const [motionStatus, setMotionStatus] = useState(initialMotionCalibrationRef.current ? "Motion steering" : motionInitialStatus());
   const [motionSamplesLive, setMotionSamplesLive] = useState(false);
-  const [hapticStatus, setHapticStatus] = useState(hapticShortStatus());
+  const [hapticStatus, setHapticStatus] = useState(() => hapticShortStatus());
   const [motionListenToken, setMotionListenToken] = useState(0);
   const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
   const steerRef = useRef(0);
@@ -2384,7 +2403,8 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
     }, 33);
     return () => {
       window.clearInterval(timer);
-      silenceControllerAudio(audioRef.current);
+      const controllerAudio = audioRef.current;
+      silenceControllerAudio(controllerAudio);
     };
   }, [audioEnabled, hapticsEnabled, send]);
 
@@ -2438,20 +2458,20 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
         <Smartphone size={42} />
         <strong>Turn your phone sideways</strong>
         <span>Rotate to landscape before the start. Pedals, touch steering, and motion steering work best sideways.</span>
-        <button onClick={() => void requestLandscape()}>Try Lock Landscape</button>
+        <button type="button" onClick={() => void requestLandscape()}>Try Lock Landscape</button>
       </div>
-      <button className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
+      <button type="button" className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">
         <span>{Math.round(speedToKmh(car?.speed ?? 0))} km/h</span>
         <span>{car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
-        <button
+        <button type="button"
           onClick={() => {
             requestRaceMotion();
           }}
         >
           {motionStatus}
         </button>
-        <button
+        <button type="button"
           onClick={() => {
             const result = pulseHaptic(HAPTIC_TEST_PATTERN);
             setHapticStatus(hapticResultMessage(result, "compact"));
@@ -2459,12 +2479,12 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
         >
           {hapticStatus}
         </button>
-        <button onClick={() => setInvertMotionSteering(!invertMotionSteering)}>
+        <button type="button" onClick={() => setInvertMotionSteering(!invertMotionSteering)}>
           {invertMotionSteering ? "Steer inverted" : "Steer normal"}
         </button>
       </div>
       {resetAvailable && (
-        <button className="reset-to-track" onClick={() => send({ type: "request_reset" })}>
+        <button type="button" className="reset-to-track" onClick={() => send({ type: "request_reset" })}>
           Reset to track
         </button>
       )}
@@ -2477,9 +2497,9 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
       <div className="steer-touch">
-        <button onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
+        <button type="button" onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
         <div className="tilt-meter"><span style={{ transform: `translateX(${(touchSteer || steerUi) * 42}px)` }} /></div>
-        <button onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
+        <button type="button" onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -2657,19 +2677,18 @@ function rearViewCars(cars: CarState[], focus: CarState, quality: RaceRenderQual
   const forwardX = Math.sin(focus.heading);
   const forwardZ = Math.cos(focus.heading);
   const maxDistance = REAR_VIEW_MAX_DISTANCE[quality];
-  return cars
-    .filter((car) => car.playerId !== focus.playerId && !car.dnf)
-    .map((car) => {
-      const dx = car.x - focus.x;
-      const dz = car.z - focus.z;
-      const distance = Math.hypot(dx, dz);
-      const forwardDistance = dx * forwardX + dz * forwardZ;
-      return { car, distance, forwardDistance };
-    })
-    .filter((item) => item.distance <= maxDistance && item.forwardDistance <= REAR_VIEW_FORWARD_MARGIN)
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, REAR_VIEW_CAR_LIMIT)
-    .map((item) => item.car);
+  const visibleCars: Array<{ car: CarState; distance: number }> = [];
+  for (const car of cars) {
+    if (car.playerId === focus.playerId || car.dnf) continue;
+    const dx = car.x - focus.x;
+    const dz = car.z - focus.z;
+    const distance = Math.hypot(dx, dz);
+    const forwardDistance = dx * forwardX + dz * forwardZ;
+    if (distance > maxDistance || forwardDistance > REAR_VIEW_FORWARD_MARGIN) continue;
+    visibleCars.push({ car, distance });
+  }
+  visibleCars.sort((a, b) => a.distance - b.distance);
+  return visibleCars.slice(0, REAR_VIEW_CAR_LIMIT).map((item) => item.car);
 }
 
 function rearViewCameraProfile(vehicleId: VehicleId) {
@@ -2997,7 +3016,7 @@ function DevAssetGallery() {
   const assetCardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const assetBoardRef = useRef<HTMLDivElement | null>(null);
   const assetViewportRef = useRef(assetViewport);
-  const assetPointerRefs = useRef(new Map<number, DevAssetPoint>());
+  const assetPointers = useMemo(() => new Map<number, DevAssetPoint>(), []);
   const assetDragRef = useRef<{ pointerId: number; point: DevAssetPoint } | undefined>(undefined);
   const assetPinchRef = useRef<{
     startCenter: DevAssetPoint;
@@ -3033,11 +3052,11 @@ function DevAssetGallery() {
   }, []);
   const resetAssetViewport = useCallback(() => {
     setAssetViewport(DEV_ASSET_DEFAULT_VIEWPORT);
-    assetPointerRefs.current.clear();
+    assetPointers.clear();
     assetDragRef.current = undefined;
     assetPinchRef.current = undefined;
     setIsAssetPanning(false);
-  }, []);
+  }, [assetPointers]);
   const zoomAssetViewportBy = useCallback((factor: number) => {
     setAssetViewport((current) => zoomDevAssetViewport(current, current.zoom * factor));
   }, []);
@@ -3088,7 +3107,7 @@ function DevAssetGallery() {
     }
 
     const { point } = devAssetPointerPoint(event, event.currentTarget);
-    const pointers = assetPointerRefs.current;
+    const pointers = assetPointers;
     pointers.set(event.pointerId, point);
 
     const summary = devAssetPointerSummary(pointers);
@@ -3110,12 +3129,12 @@ function DevAssetGallery() {
       assetDragRef.current = { pointerId: event.pointerId, point };
       setIsAssetPanning(true);
     }
-  }, [assetZoomEnabled]);
+  }, [assetPointers, assetZoomEnabled]);
 
   const handleAssetPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!assetZoomEnabled || !assetPointerRefs.current.has(event.pointerId)) return;
+    if (!assetZoomEnabled || !assetPointers.has(event.pointerId)) return;
     const { point, size } = devAssetPointerPoint(event, event.currentTarget);
-    const pointers = assetPointerRefs.current;
+    const pointers = assetPointers;
     pointers.set(event.pointerId, point);
 
     const summary = devAssetPointerSummary(pointers);
@@ -3139,18 +3158,18 @@ function DevAssetGallery() {
     const deltaY = point.y - drag.point.y;
     drag.point = point;
     setAssetViewport((current) => clampDevAssetViewport(current.zoom, current.panX + deltaX, current.panY + deltaY, size));
-  }, [assetZoomEnabled]);
+  }, [assetPointers, assetZoomEnabled]);
 
   const handleAssetPointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (!assetZoomEnabled) return;
-    assetPointerRefs.current.delete(event.pointerId);
+    assetPointers.delete(event.pointerId);
     try {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
       // Browsers may already release touch captures on gesture cancellation.
     }
 
-    const pointers = assetPointerRefs.current;
+    const pointers = assetPointers;
     const summary = devAssetPointerSummary(pointers);
     if (summary) {
       const current = assetViewportRef.current;
@@ -3174,7 +3193,7 @@ function DevAssetGallery() {
 
     assetDragRef.current = undefined;
     setIsAssetPanning(false);
-  }, [assetZoomEnabled]);
+  }, [assetPointers, assetZoomEnabled]);
 
   return (
     <main className={`dev-assets ${darkMode ? "theme-dark" : "theme-light"}`}>
@@ -3313,7 +3332,6 @@ function usePrefersDarkMode() {
     const query = window.matchMedia?.("(prefers-color-scheme: dark)");
     if (!query) return;
     const update = () => setPrefersDark(query.matches);
-    update();
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
@@ -3332,7 +3350,6 @@ function useIsPhoneDisplay() {
     const update = () => setIsPhoneDisplay(isLikelyPhoneDisplay());
     window.addEventListener("resize", update);
     for (const query of queries) query.addEventListener?.("change", update);
-    update();
     return () => {
       window.removeEventListener("resize", update);
       for (const query of queries) query.removeEventListener?.("change", update);
@@ -3570,7 +3587,7 @@ function DevAssetGroupScene({
     const target = new THREE.Vector3(targetX, targetY, targetZ);
     const position = new THREE.Vector3(targetX, cameraY, cameraZ);
     if (zoomEnabled && viewport.zoom > DEV_ASSET_MIN_ZOOM + 0.001) {
-      const viewDirection = target.clone().sub(position).normalize();
+      const viewDirection = new THREE.Vector3(target.x - position.x, target.y - position.y, target.z - position.z).normalize();
       const right = new THREE.Vector3().crossVectors(viewDirection, orthographicCamera.up).normalize();
       const cameraUp = new THREE.Vector3().crossVectors(right, viewDirection).normalize();
       const panOffset = right.multiplyScalar(-viewport.panX / cameraZoom).add(cameraUp.multiplyScalar(viewport.panY / cameraZoom));
@@ -3653,7 +3670,9 @@ function DevAssetCell({
     const center = box.getCenter(new THREE.Vector3());
     content.parent?.worldToLocal(center);
     const pivot = asset.pivot ? new THREE.Vector3(...asset.pivot) : center;
-    content.position.sub(pivot);
+    content.position.x -= pivot.x;
+    content.position.y -= pivot.y;
+    content.position.z -= pivot.z;
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z, 1);
     const scale = scaleMode === "fit" ? Math.min(5.8, 5.4 / (maxDimension * (asset.zoom ?? 1))) : 1;
@@ -3676,7 +3695,7 @@ function DevAssetCell({
     if (spin && spinRef.current) spinRef.current.rotation.y += delta * 0.32;
   });
 
-  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+  const selectAssetFromScene = useCallback((event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
     onAssetClick(asset);
   }, [asset, onAssetClick]);
@@ -3695,7 +3714,7 @@ function DevAssetCell({
   }, [gl]);
 
   return (
-    <group position={position} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+    <group position={position} onClick={selectAssetFromScene} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
       <mesh position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[3.25, 32]} />
         <meshBasicMaterial color={darkMode ? "#111820" : rain ? "#4e565b" : "#c7d8de"} transparent opacity={darkMode ? 0.62 : 0.32} depthWrite={false} />
@@ -5973,11 +5992,14 @@ function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }
     group.current.rotation.y = focus.heading;
     for (const child of group.current.children) {
       if (child.userData.kind === "mist") continue;
-      child.position.y -= (child.userData.speed as number) * 3.8;
-      child.position.z += (child.userData.speed as number) * 1.1;
-      if (child.position.y < 0.1) {
-        child.position.y = 31;
-        child.position.z = ((child.userData.seed as number) * 53 % 72) - 18;
+      const position = child.position;
+      const speed = child.userData.speed as number;
+      const nextY = position.y - speed * 3.8;
+      position.y = nextY;
+      position.z += speed * 1.1;
+      if (nextY < 0.1) {
+        position.y = 31;
+        position.z = ((child.userData.seed as number) * 53 % 72) - 18;
       }
     }
   });
@@ -6008,7 +6030,7 @@ function CrashExplosions({ events, track }: { events: CrashEvent[]; track: Track
 
 function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }) {
   const group = useRef<THREE.Group>(null);
-  const startedAtRef = useRef(performance.now());
+  const startedAt = useMemo(() => performance.now(), []);
   const fire = useRef<THREE.MeshBasicMaterial>(null);
   const cap = useRef<THREE.MeshBasicMaterial>(null);
   const smoke = useRef<THREE.MeshBasicMaterial>(null);
@@ -6017,7 +6039,7 @@ function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }
   const baseY = useMemo(() => event.y ?? nearestTrackPoint(track, { x: event.x, z: event.z }).y, [event.x, event.y, event.z, track]);
 
   useFrame(() => {
-    const age = clamp((performance.now() - startedAtRef.current) / CRASH_EXPLOSION_VISUAL_MS, 0, 1);
+    const age = clamp((performance.now() - startedAt) / CRASH_EXPLOSION_VISUAL_MS, 0, 1);
     const pop = Math.sin(Math.min(1, age * 1.55) * Math.PI);
     const rise = age * 1.4;
     group.current?.scale.setScalar(baseScale * (0.45 + age * 0.9));
@@ -8165,7 +8187,7 @@ function useGameSocket() {
         if (message.type === "live_stats") setLiveStats(message.stats);
         if (message.type === "joined_display") {
           setDisplayGroupId(message.displayGroupId);
-          sessionStorage.setItem("sim-drive-display-session", JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
+          sessionStorage.setItem(DISPLAY_SESSION_KEY, JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
         }
         if (message.type === "joined_controller") {
           setPlayerId(message.playerId);
@@ -8197,7 +8219,7 @@ function useGameSocket() {
         }
         if (message.type === "room_closed") {
           console.warn(message.message);
-          sessionStorage.removeItem("sim-drive-display-session");
+          clearDisplaySession();
           setRoom(undefined);
           setDisplayGroupId(undefined);
           setPlayerId(undefined);
@@ -8212,7 +8234,7 @@ function useGameSocket() {
         if (message.type === "error_notice") {
           console.warn(message.message);
           if (message.message === "Room not found.") {
-            sessionStorage.removeItem("sim-drive-display-session");
+            clearDisplaySession();
           }
           setNotice({ id: Date.now(), message: message.message });
         }
@@ -8285,7 +8307,6 @@ function useResolvedDisplayTheme(mode: DisplayThemeMode) {
     const query = window.matchMedia?.("(prefers-color-scheme: dark)");
     if (!query) return;
     const onChange = () => setSystemTheme(query.matches ? "dark" : "light");
-    onChange();
     query.addEventListener?.("change", onChange);
     return () => query.removeEventListener?.("change", onChange);
   }, []);
@@ -8385,7 +8406,7 @@ function clearControllerSession(roomCode?: string) {
 
 function readDisplaySession() {
   try {
-    const value = sessionStorage.getItem("sim-drive-display-session");
+    const value = sessionStorage.getItem(DISPLAY_SESSION_KEY) ?? sessionStorage.getItem(LEGACY_DISPLAY_SESSION_KEY);
     if (!value) return undefined;
     const parsed = JSON.parse(value) as { roomCode?: string; displayGroupId?: string };
     if (!parsed.roomCode || !parsed.displayGroupId) return undefined;
@@ -8393,6 +8414,11 @@ function readDisplaySession() {
   } catch {
     return undefined;
   }
+}
+
+function clearDisplaySession() {
+  sessionStorage.removeItem(DISPLAY_SESSION_KEY);
+  sessionStorage.removeItem(LEGACY_DISPLAY_SESSION_KEY);
 }
 
 function wsUrl() {
@@ -8803,7 +8829,8 @@ function motionSamplesStable(values: number[]) {
 
 function median(values: number[]) {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = Array.from(values);
+  sorted.sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
 }
 
@@ -9016,13 +9043,23 @@ function updateNearbyAudio(audio: ControllerAudio, car: CarState | undefined, ne
     .slice(0, RIVAL_AUDIO_MAX_LAYERS);
   const activeIds = new Set(audibleCars.map((rival) => rival.playerId));
   const usedLayers = new Set<RivalAudioLayer>();
+  const layerByPlayerId = new Map<string, RivalAudioLayer>();
+  for (const layer of audio.rivalLayers) {
+    if (layer.playerId) layerByPlayerId.set(layer.playerId, layer);
+  }
 
   for (const rival of audibleCars) {
-    let layer = audio.rivalLayers.find((item) => item.playerId === rival.playerId);
+    let layer = layerByPlayerId.get(rival.playerId);
     if (!layer || usedLayers.has(layer)) {
-      layer = audio.rivalLayers.find((item) => !usedLayers.has(item) && (!item.playerId || !activeIds.has(item.playerId)));
+      for (const candidate of audio.rivalLayers) {
+        if (!usedLayers.has(candidate) && (!candidate.playerId || !activeIds.has(candidate.playerId))) {
+          layer = candidate;
+          break;
+        }
+      }
       if (!layer) continue;
       layer.playerId = rival.playerId;
+      layerByPlayerId.set(rival.playerId, layer);
     }
     usedLayers.add(layer);
 

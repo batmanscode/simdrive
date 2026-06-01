@@ -255,6 +255,7 @@ export class RaceDriver {
       settings: {
         trackId: this.trackId,
         lapCount: this.options.lapCount,
+        tutorialEnabled: false,
         warmupStart: this.options.warmupStart,
         resetEnabled: this.options.resetEnabled,
         ghostMode: this.options.ghostMode,
@@ -329,7 +330,7 @@ export class RaceDriver {
       maxDistance: Number(this.maxDistance.toFixed(2)),
       maxSpeed: Number(this.maxSpeed.toFixed(2)),
       maxProgress: Number(this.maxProgress.toFixed(2)),
-      progressMarks: [...this.progressMarks].sort((a, b) => a - b),
+      progressMarks: sortedNumbers(this.progressMarks),
       surfaces: this.surfaces,
       results: this.results,
       errorNotices: this.errorNotices
@@ -425,6 +426,12 @@ function angleDelta(from: number, to: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function sortedNumbers(values: Iterable<number>) {
+  const sorted = Array.from(values);
+  sorted.sort((a, b) => a - b);
+  return sorted;
 }
 
 function numberArgDescription(options: NumberArgOptions) {

@@ -779,6 +779,17 @@ function sendControllerFeedback(room: Room) {
     ? clamp(Math.ceil((room.countdownEndsAt - now) / 1000), 1, 5)
     : undefined;
   const crashEvents = activeCrashEvents(room);
+  const crashEventsByPlayer = new Map<string, CrashEvent[]>();
+  for (const event of crashEvents) {
+    for (const playerId of event.playerIds) {
+      const playerEvents = crashEventsByPlayer.get(playerId);
+      if (playerEvents) {
+        playerEvents.push(event);
+      } else {
+        crashEventsByPlayer.set(playerId, [event]);
+      }
+    }
+  }
   for (const client of clients.values()) {
     if (client.roomCode !== room.code || client.role !== "controller" || !client.playerId) continue;
     if (room.controllerClients.get(client.playerId) !== client.id) continue;
@@ -787,7 +798,7 @@ function sendControllerFeedback(room: Room) {
       car: room.cars.get(client.playerId),
       roomPhase: room.phase,
       raceTime,
-      crashEvents: crashEvents.filter((event) => event.playerIds.includes(client.playerId!)),
+      crashEvents: crashEventsByPlayer.get(client.playerId) ?? [],
       nearbyAudioCars: nearbyAudioCarsForPlayer(room, client.playerId),
       nearbyCrashEvents: nearbyCrashEventsForPlayer(room, client.playerId, crashEvents),
       countdownMark,
@@ -943,7 +954,10 @@ function releasePreviousControllerSlot(client: Client, nextRoom: Room, nextPlaye
 function assignVip(room: Room) {
   let vip = [...room.players.values()].find((player) => player.isVIP && player.connected);
   if (!vip) {
-    vip = [...room.players.values()].filter((player) => player.connected).sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    for (const player of room.players.values()) {
+      if (!player.connected) continue;
+      if (!vip || player.joinedAt < vip.joinedAt) vip = player;
+    }
   }
   for (const player of room.players.values()) {
     player.isVIP = player.id === vip?.id;
