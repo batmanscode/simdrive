@@ -462,7 +462,6 @@ function tickRoom(room: Room, dt: number) {
   const track = TRACKS[room.settings.trackId];
   const raceTime = (Date.now() - room.raceStartedAt) / 1000;
   const raceTimeLimit = raceLimitSeconds(track, room.settings.lapCount);
-  const crashedBeforeContacts = new Map<string, boolean>();
   for (const car of room.cars.values()) {
     const player = room.players.get(car.playerId);
     const wasCrashed = car.crashed;
@@ -489,24 +488,14 @@ function tickRoom(room: Room, dt: number) {
     stepCar(car, input, track, room.settings, dt, raceTime);
     if (!wasCrashed && car.crashed && !car.finished && !car.dnf) {
       addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 28, 0.65, 1), [car.playerId], car.y);
-    } else if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= wallExplosionSpeedThreshold(car)) {
+    } else if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && (car.wallImpactSpeed ?? 0) >= wallExplosionSpeedThreshold(car)) {
       addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId], car.y);
     }
-    crashedBeforeContacts.set(car.playerId, car.crashed);
     updateResetAvailability(car, raceTime);
   }
-  resolveCarContacts([...room.cars.values()], room.settings);
-  const newlyCrashed = [...room.cars.values()].filter((car) => car.crashed && !crashedBeforeContacts.get(car.playerId));
-  if (newlyCrashed.length > 0) {
-    addCrashEvent(
-      room,
-      "car",
-      newlyCrashed.reduce((sum, car) => sum + car.x, 0) / newlyCrashed.length,
-      newlyCrashed.reduce((sum, car) => sum + car.z, 0) / newlyCrashed.length,
-      1,
-      newlyCrashed.map((car) => car.playerId),
-      newlyCrashed.reduce((sum, car) => sum + car.y, 0) / newlyCrashed.length
-    );
+  const contactCrashes = resolveCarContacts([...room.cars.values()], room.settings);
+  for (const crash of contactCrashes) {
+    addCrashEvent(room, "car", crash.x, crash.z, crash.severity, crash.playerIds, crash.y);
   }
   if (room.settings.resetEnabled) {
     for (const car of room.cars.values()) {

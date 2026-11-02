@@ -109,6 +109,11 @@ export type CarState = {
   impact: number;
   slip: number;
   rolloverRisk: number;
+  yawRate?: number;
+  longitudinalLoad?: number;
+  lateralLoad?: number;
+  gripUsage?: number;
+  wallImpactSpeed?: number;
 };
 
 export type CrashEvent = {

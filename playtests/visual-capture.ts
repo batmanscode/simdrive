@@ -33,6 +33,7 @@ try {
   const launchedBrowser = await chromium.launch({ headless: !headed });
   browser = launchedBrowser;
   const context = await launchedBrowser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
+  await context.route(/https:\/\/(?:vibejam\.cc|cdn\.tinystats\.net)\//, (route: any) => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
   const page = await context.newPage();
 
   page.on("console", (message: any) => {

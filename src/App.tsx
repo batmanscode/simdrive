@@ -1,3 +1,6 @@
+import { SculptedBox } from "./race/SculptedBox";
+import { bodyMotion, cameraRoadLook } from "./race/camera";
+import { AsphaltMaterial, LandscapeMaterial, RoadsideGrass, CarGroundShadows, MotorsportLight, MotorsportSky, racePalette, RainStreaks, SakuraLandscape, SakuraPetals } from "./race/Atmosphere";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Activity, ArrowLeft, ArrowRight, Flag, Gamepad2, Gauge, Grid2X2, Info, Maximize2, Minus, Monitor, Moon, Play, Plus, RotateCcw, Search, Smartphone, Sun, Trophy, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -1219,6 +1222,7 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
       return statusScore(b) - statusScore(a) || b.distance - a.distance;
     });
 
+  if (rows.length < 2) return null;
   return (
     <ol className="race-leaderboard" aria-label="Race leaderboard">
       {rows.map(({ player, car }, index) => (
@@ -2570,14 +2574,12 @@ function RaceCanvas({ room, focusPlayerId, paneCount }: { room: RoomState; focus
     <Canvas
       shadows={quality === "full"}
       dpr={quality === "split" ? [0.75, 1] : [1, 1.35]}
-      gl={{ antialias: quality === "full", powerPreference: "high-performance" }}
+      gl={{ antialias: quality === "full", powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
       camera={{ fov: 76, near: 0.1, far: 1500 }}
     >
-      <color attach="background" args={[room.settings.rain ? "#78818a" : "#9fc4dc"]} />
-      <fog attach="fog" args={[room.settings.rain ? "#8b949b" : "#b8d4e2", room.settings.rain ? 38 : 95, room.settings.rain ? 210 : 380]} />
-      <ambientLight intensity={room.settings.rain ? 0.58 : 0.72} />
-      <hemisphereLight args={[room.settings.rain ? "#b7c2cc" : "#d8f0ff", "#526447", room.settings.rain ? 0.55 : 0.42]} />
-      <directionalLight position={[20, 35, 12]} intensity={room.settings.rain ? 0.72 : 1.38} castShadow={quality === "full"} />
+      <fog attach="fog" args={[racePalette(room.settings.trackId, room.settings.rain).fog, room.settings.rain ? 55 : 130, room.settings.rain ? 290 : 650]} />
+      <MotorsportSky trackId={room.settings.trackId} rain={room.settings.rain} />
+      <MotorsportLight trackId={room.settings.trackId} rain={room.settings.rain} shadows={quality === "full"} />
       <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
     </Canvas>
   );
@@ -2741,15 +2743,20 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
       renderFocus.y + cameraProfile.height + Math.sin(performance.now() / 35) * shake,
       renderFocus.z - Math.cos(renderFocus.heading) * cameraProfile.back
     );
-    camera.lookAt(renderFocus.x + Math.sin(renderFocus.heading) * cameraProfile.lookAhead, renderFocus.y + cameraProfile.lookHeight, renderFocus.z + Math.cos(renderFocus.heading) * cameraProfile.lookAhead);
+    const gradeLook = cameraRoadLook(track, focus, cameraProfile.lookAhead);
+    camera.lookAt(renderFocus.x + Math.sin(renderFocus.heading) * cameraProfile.lookAhead, renderFocus.y + cameraProfile.lookHeight + gradeLook - (focus.longitudinalLoad ?? 0) * 0.18, renderFocus.z + Math.cos(renderFocus.heading) * cameraProfile.lookAhead);
+    camera.rotateZ(-(focus.lateralLoad ?? 0) * 0.012);
   });
 
   return (
     <>
       <TrackMesh track={track} rain={room.settings.rain} />
       <TrackProps track={track} rain={room.settings.rain} />
+      <RoadsideGrass track={track} rain={room.settings.rain} />
       <DynamicSkidMarks cars={room.cars} rain={room.settings.rain} quality={quality} track={track} />
-      {room.settings.rain && focus && <RainEffect focus={focus} dropCount={quality === "split" ? 90 : 240} />}
+      {room.settings.rain && focus && <RainStreaks focus={focus} count={quality === "split" ? 90 : 240} />}
+      {!room.settings.rain && track.id === "sakura" && focus && <SakuraPetals focus={focus} count={quality === "split" ? 24 : 60} />}
+      <CarGroundShadows cars={room.cars} />
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
         const color = player?.color ?? "#ff3b5c";
@@ -3778,7 +3785,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain, detail = "full" }: { tr
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[groundX, terrainBaseY - 0.08, groundZ]} receiveShadow>
         <planeGeometry args={[groundWidth, groundDepth]} />
-        <meshStandardMaterial color={groundColor} roughness={0.95} />
+        <LandscapeMaterial color={groundColor} />
       </mesh>
       {elevatedTerrainGeometry && (
         <mesh geometry={elevatedTerrainGeometry} receiveShadow>
@@ -3786,14 +3793,14 @@ const TrackMesh = memo(function TrackMesh({ track, rain, detail = "full" }: { tr
         </mesh>
       )}
       <mesh geometry={shoulderGeometry} receiveShadow>
-        <meshStandardMaterial color={shoulderColor} roughness={0.96} side={THREE.DoubleSide} />
+        <LandscapeMaterial color={shoulderColor} />
       </mesh>
       {!mirrorDetail && <TrackTerrain track={track} rain={rain} />}
       <mesh geometry={runoffGeometry} receiveShadow>
-        <meshStandardMaterial color={runoffColor} roughness={0.92} side={THREE.DoubleSide} />
+        <LandscapeMaterial color={runoffColor} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
-        <meshStandardMaterial color={rain ? "#2f383b" : "#2c2e31"} roughness={rain ? 0.34 : 0.76} metalness={rain ? 0.14 : 0.04} side={THREE.DoubleSide} />
+        <AsphaltMaterial rain={rain} />
       </mesh>
       {racingLineGeometry && (
         <mesh geometry={racingLineGeometry}>
@@ -4208,7 +4215,7 @@ const TrackProps = memo(function TrackProps({ track, rain, detail = "full" }: { 
         </group>
       );
       })}
-      {!mirrorDetail && track.id === "sakura" && <SakuraSignatureProps track={track} rain={rain} />}
+      {!mirrorDetail && track.id === "sakura" && <><SakuraSignatureProps track={track} rain={rain} /><SakuraLandscape track={track} rain={rain} /></>}
       {!mirrorDetail && track.id === "alpine" && <AlpineSignatureProps track={track} rain={rain} />}
       {!mirrorDetail && <TrackIdentityProps track={track} rain={rain} />}
     </group>
@@ -4763,7 +4770,7 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
 function SakuraTree({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
   const blossom = rain ? "#d98ea5" : "#f2a8bd";
   const blossomShade = rain ? "#c77d96" : "#ffc1cf";
-  const height = 2.3 + seededUnit(seed * 11) * 0.7;
+  const height = 2.8 + seededUnit(seed * 11) * 0.9;
   return (
     <group position={position} rotation={[0, seededUnit(seed * 7) * Math.PI, 0]}>
       <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 3) * Math.PI]} scale={[1.8, 1.05, 1]} receiveShadow>
@@ -4774,6 +4781,7 @@ function SakuraTree({ position, seed, rain }: { position: [number, number, numbe
         <cylinderGeometry args={[0.14, 0.22, height, 7]} />
         <meshStandardMaterial color="#5d4037" roughness={0.78} />
       </mesh>
+      {[-1, 1].map(side => <mesh key={`branch-${side}`} position={[side*0.36, height*0.7, 0]} rotation={[0.25,0,-side*0.6]} castShadow><cylinderGeometry args={[0.07,0.12,height*0.55,6]} /><meshStandardMaterial color="#5d4037" roughness={0.95} /></mesh>)}
       {[
         [0, height + 0.25, 0],
         [0.42, height - 0.1, 0.08],
@@ -4782,7 +4790,7 @@ function SakuraTree({ position, seed, rain }: { position: [number, number, numbe
         [-0.1, height + 0.02, 0.5]
       ].map(([x, y, z], index) => (
         <mesh key={index} position={[x, y, z]} scale={[1.24 - index * 0.04, 0.78, 1.0 - index * 0.03]} castShadow>
-          <sphereGeometry args={[0.72, 12, 8]} />
+          <icosahedronGeometry args={[0.83, 1]} />
           <meshStandardMaterial color={index % 2 === 0 ? blossom : blossomShade} roughness={0.86} />
         </mesh>
       ))}
@@ -5973,53 +5981,6 @@ function CloudWisps({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
   );
 }
 
-function RainEffect({ focus, dropCount }: { focus: CarState; dropCount: number }) {
-  const group = useRef<THREE.Group>(null);
-  const drops = useMemo(() => Array.from({ length: dropCount }, (_, index) => ({
-    x: ((index * 37) % 58) - 29,
-    y: 2 + ((index * 19) % 30),
-    z: ((index * 53) % 72) - 18,
-    speed: 0.24 + ((index * 11) % 24) / 100
-  })), [dropCount]);
-
-  useFrame(() => {
-    if (!group.current) return;
-    group.current.position.set(
-      focus.x + Math.sin(focus.heading) * 18,
-      focus.y,
-      focus.z + Math.cos(focus.heading) * 18
-    );
-    group.current.rotation.y = focus.heading;
-    for (const child of group.current.children) {
-      if (child.userData.kind === "mist") continue;
-      const position = child.position;
-      const speed = child.userData.speed as number;
-      const nextY = position.y - speed * 3.8;
-      position.y = nextY;
-      position.z += speed * 1.1;
-      if (nextY < 0.1) {
-        position.y = 31;
-        position.z = ((child.userData.seed as number) * 53 % 72) - 18;
-      }
-    }
-  });
-
-  return (
-    <group ref={group}>
-      {drops.map((drop, index) => (
-        <mesh key={index} position={[drop.x, drop.y, drop.z]} rotation={[0.55, 0, 0]} userData={{ speed: drop.speed, seed: index }}>
-          <boxGeometry args={[index % 3 === 0 ? 0.045 : 0.03, index % 3 === 0 ? 2.2 : 1.55, 0.035]} />
-          <meshBasicMaterial color={index % 4 === 0 ? "#ffffff" : "#b9d9e8"} transparent opacity={index % 3 === 0 ? 0.72 : 0.5} depthWrite={false} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.055, 5]} rotation={[-Math.PI / 2, 0, 0]} userData={{ kind: "mist" }}>
-        <planeGeometry args={[22, 34]} />
-        <meshBasicMaterial color="#dbecef" transparent opacity={0.14} depthWrite={false} />
-      </mesh>
-    </group>
-  );
-}
-
 function CrashExplosions({ events, track }: { events: CrashEvent[]; track: TrackDef }) {
   return (
     <group>
@@ -6229,6 +6190,9 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.16, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
     group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+    const motion = bodyMotion(car);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, motion.pitch, amount);
+    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, motion.roll, amount);
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.16, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
@@ -6256,11 +6220,11 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
           </mesh>
         ))}
         <mesh castShadow position={[0, 0.1, 0.78]}>
-          <boxGeometry args={[0.72, 0.22, 0.5]} />
+          <SculptedBox args={[0.72, 0.22, 0.5]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
         </mesh>
         <mesh castShadow position={[0, 0.22, 0.84]}>
-          <boxGeometry args={[0.5, 0.022, 0.3]} />
+          <SculptedBox args={[0.5, 0.022, 0.3]} />
           <meshStandardMaterial color={color} roughness={0.32} metalness={0.18} />
         </mesh>
         {[-1, 1].map((side) => (
@@ -6278,11 +6242,11 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
           <meshStandardMaterial color="#0f1318" roughness={0.44} metalness={0.16} />
         </mesh>
         <mesh castShadow position={[-0.72, 0.08, 0.08]}>
-          <boxGeometry args={[0.24, 0.18, 1.0]} />
+          <SculptedBox args={[0.24, 0.18, 1.0]} />
           <meshStandardMaterial color={color} roughness={0.36} metalness={0.14} />
         </mesh>
         <mesh castShadow position={[-0.72, 0.185, 0.08]}>
-          <boxGeometry args={[0.18, 0.018, 0.82]} />
+          <SculptedBox args={[0.18, 0.018, 0.82]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
         </mesh>
         <mesh castShadow position={[-0.82, 0.204, 0.08]}>
@@ -6298,11 +6262,11 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
           <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.16} />
         </mesh>
         <mesh castShadow position={[0.72, 0.08, 0.08]}>
-          <boxGeometry args={[0.24, 0.18, 1.0]} />
+          <SculptedBox args={[0.24, 0.18, 1.0]} />
           <meshStandardMaterial color={color} roughness={0.36} metalness={0.14} />
         </mesh>
         <mesh castShadow position={[0.72, 0.185, 0.08]}>
-          <boxGeometry args={[0.18, 0.018, 0.82]} />
+          <SculptedBox args={[0.18, 0.018, 0.82]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
         </mesh>
         <mesh castShadow position={[0.82, 0.204, 0.08]}>
@@ -6394,6 +6358,9 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.38, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
     group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+    const motion = bodyMotion(car);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, motion.pitch, amount);
+    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, motion.roll, amount);
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.38, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
@@ -6405,7 +6372,7 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
       )}
       <group visible={visible}>
         <mesh castShadow position={[0, 0.06, 0]}>
-          <boxGeometry args={[1.84, 0.38, 3.22]} />
+          <SculptedBox args={[1.84, 0.38, 3.22]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
         </mesh>
         {[-1, 1].map((side) => (
@@ -6415,11 +6382,11 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
           </mesh>
         ))}
         <mesh castShadow position={[0, 0.33, 0.72]} rotation={[-0.06, 0, 0]}>
-          <boxGeometry args={[1.58, 0.28, 1.12]} />
+          <SculptedBox args={[1.58, 0.28, 1.12]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
         </mesh>
         <mesh castShadow position={[0, 0.6, -0.26]}>
-          <boxGeometry args={[1.44, 0.66, 0.9]} />
+          <SculptedBox args={[1.44, 0.66, 0.9]} />
           <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
         </mesh>
         <mesh position={[0, 0.72, 0.2]} rotation={[-0.25, 0, 0]}>
@@ -6484,7 +6451,7 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
         {[[-0.98, 1.1], [0.98, 1.1], [-0.98, -1.1], [0.98, -1.1]].map(([x, z]) => (
           <group key={`fender-${x}-${z}`}>
             <mesh castShadow position={[x, 0.1, z]}>
-              <boxGeometry args={[0.24, 0.26, 0.78]} />
+              <SculptedBox args={[0.24, 0.26, 0.78]} />
               <meshStandardMaterial color={color} roughness={0.36} metalness={0.16} />
             </mesh>
             <mesh position={[x, 0.17, z]}>
@@ -6515,6 +6482,9 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.28, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
     group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+    const motion = bodyMotion(car);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, motion.pitch, amount);
+    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, motion.roll, amount);
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.28, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
@@ -6526,7 +6496,7 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
       )}
       <group rotation={[0, 0, roll]} visible={visible}>
         <mesh castShadow position={[0, 0.12, -0.1]}>
-          <boxGeometry args={[1.08, 0.24, 1.72]} />
+          <SculptedBox args={[1.08, 0.24, 1.72]} />
           <meshStandardMaterial color={color} roughness={0.42} metalness={0.08} />
         </mesh>
         {[-1, 1].map((side) => (
@@ -6570,11 +6540,11 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
           <meshStandardMaterial color="#111318" roughness={0.42} />
         </mesh>
         <mesh castShadow position={[0, 0.26, 0.8]}>
-          <boxGeometry args={[0.28, 0.18, 0.64]} />
+          <SculptedBox args={[0.28, 0.18, 0.64]} />
           <meshStandardMaterial color={color} roughness={0.4} metalness={0.08} />
         </mesh>
         <mesh castShadow position={[0, 0.26, 0.96]} rotation={[0.12, 0, 0]}>
-          <boxGeometry args={[0.52, 0.08, 0.24]} />
+          <SculptedBox args={[0.52, 0.08, 0.24]} />
           <meshStandardMaterial color={color} roughness={0.4} metalness={0.08} />
         </mesh>
         <mesh castShadow position={[0, 0.48, 0.48]} rotation={[0.2, 0, 0]}>
@@ -6644,6 +6614,9 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.3, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
     group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+    const motion = bodyMotion(car);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, motion.pitch, amount);
+    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, motion.roll, amount);
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.3, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
@@ -6654,19 +6627,19 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         </mesh>
       )}
       <mesh castShadow visible={visible} position={[0, 0.06, 0.1]}>
-        <boxGeometry args={[0.86, 0.22, 2.85]} />
+        <SculptedBox args={[0.86, 0.22, 2.85]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.26} />
       </mesh>
       <mesh castShadow visible={visible} position={[0, 0.08, 1.35]}>
-        <boxGeometry args={[0.44, 0.16, 1.35]} />
+        <SculptedBox args={[0.44, 0.16, 1.35]} />
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.22} />
       </mesh>
       <mesh castShadow visible={visible} position={[0, 0.055, 2.06]}>
-        <boxGeometry args={[0.26, 0.12, 0.72]} />
+        <SculptedBox args={[0.26, 0.12, 0.72]} />
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.2} />
       </mesh>
       <mesh castShadow visible={visible} position={[0, 0.035, 2.48]}>
-        <boxGeometry args={[0.14, 0.09, 0.48]} />
+        <SculptedBox args={[0.14, 0.09, 0.48]} />
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.18} />
       </mesh>
       <mesh castShadow visible={visible} position={[0, 0.11, 2.12]}>
@@ -6678,15 +6651,15 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         <meshStandardMaterial color="#fffaf0" roughness={0.42} metalness={0.08} />
       </mesh>
       <mesh castShadow visible={visible} position={[-0.56, 0.03, -0.12]}>
-        <boxGeometry args={[0.46, 0.24, 1.02]} />
+        <SculptedBox args={[0.46, 0.24, 1.02]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       <mesh castShadow visible={visible} position={[0.56, 0.03, -0.12]}>
-        <boxGeometry args={[0.46, 0.24, 1.02]} />
+        <SculptedBox args={[0.46, 0.24, 1.02]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       <mesh castShadow visible={visible} position={[0, 0.36, -0.78]}>
-        <boxGeometry args={[0.12, 0.62, 0.9]} />
+        <SculptedBox args={[0.12, 0.62, 0.9]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
       </mesh>
       <mesh castShadow position={[0, 0.72, -0.86]} rotation={[0.08, 0, 0]} visible={visible}>
@@ -6750,13 +6723,13 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
             <meshStandardMaterial color="#111318" roughness={0.48} metalness={0.08} />
           </mesh>
           <mesh castShadow position={[side * 0.68, 0.2, 0.28]} rotation={[0, side * -0.12, side * 0.08]}>
-            <boxGeometry args={[0.28, 0.035, 0.46]} />
+            <SculptedBox args={[0.28, 0.035, 0.46]} />
             <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
           </mesh>
         </group>
       ))}
       <mesh castShadow position={[0, 0.22, 2.05]} visible={visible}>
-        <boxGeometry args={[2.25, 0.08, 0.34]} />
+        <SculptedBox args={[2.25, 0.08, 0.34]} />
         <meshStandardMaterial color={color} roughness={0.32} metalness={0.2} />
       </mesh>
       <mesh castShadow position={[0, 0.1, 2.38]} visible={visible}>
@@ -6784,7 +6757,7 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         <meshStandardMaterial color="#111318" roughness={0.48} />
       </mesh>
       <mesh castShadow position={[0, 0.58, -1.62]} visible={visible}>
-        <boxGeometry args={[2.05, 0.16, 0.36]} />
+        <SculptedBox args={[2.05, 0.16, 0.36]} />
         <meshStandardMaterial color={color} roughness={0.32} metalness={0.2} />
       </mesh>
       <mesh castShadow position={[0, 0.78, -1.76]} visible={visible}>
@@ -6804,19 +6777,19 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         <meshStandardMaterial color="#ff2b38" emissive="#b80018" emissiveIntensity={car.surface === "grass" || car.brake > 0.2 ? 1.8 : 0.75} roughness={0.3} />
       </mesh>
       <mesh castShadow position={[-0.55, 0.1, -0.95]} rotation={[0, 0, -0.28]} visible={visible}>
-        <boxGeometry args={[0.16, 0.12, 1.22]} />
+        <SculptedBox args={[0.16, 0.12, 1.22]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       <mesh castShadow position={[0.55, 0.1, -0.95]} rotation={[0, 0, 0.28]} visible={visible}>
-        <boxGeometry args={[0.16, 0.12, 1.22]} />
+        <SculptedBox args={[0.16, 0.12, 1.22]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       <mesh castShadow position={[-0.68, 0.07, 0.82]} rotation={[0, 0, 0.22]} visible={visible}>
-        <boxGeometry args={[0.14, 0.1, 1.18]} />
+        <SculptedBox args={[0.14, 0.1, 1.18]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       <mesh castShadow position={[0.68, 0.07, 0.82]} rotation={[0, 0, -0.22]} visible={visible}>
-        <boxGeometry args={[0.14, 0.1, 1.18]} />
+        <SculptedBox args={[0.14, 0.1, 1.18]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
       </mesh>
       {[-1, 1].map((side) => (
@@ -6890,23 +6863,26 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
     group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, car.y + 0.65, amount);
     group.current.position.z = THREE.MathUtils.lerp(group.current.position.z, car.z, amount);
     group.current.rotation.y = lerpAngle(group.current.rotation.y, car.heading, amount);
+    const motion = bodyMotion(car);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, motion.pitch, amount);
+    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, motion.roll, amount);
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.65, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
       <mesh position={[0, -0.22, 1.88]}>
-        <boxGeometry args={[0.62, 0.28, 3.3]} />
+        <SculptedBox args={[0.62, 0.28, 3.3]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
       </mesh>
       <mesh position={[0, -0.13, 2.28]}>
-        <boxGeometry args={[0.34, 0.14, 1.22]} />
+        <SculptedBox args={[0.34, 0.14, 1.22]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
       </mesh>
       <mesh position={[0, -0.15, 3.0]}>
-        <boxGeometry args={[0.19, 0.1, 0.62]} />
+        <SculptedBox args={[0.19, 0.1, 0.62]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
       </mesh>
       <mesh position={[0, -0.17, 3.42]}>
-        <boxGeometry args={[0.1, 0.07, 0.28]} />
+        <SculptedBox args={[0.1, 0.07, 0.28]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
       </mesh>
       <mesh position={[0, -0.01, 2.3]}>
@@ -6914,7 +6890,7 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
         <meshStandardMaterial color="#fffaf0" roughness={0.45} metalness={0.08} />
       </mesh>
       <mesh position={[0, -0.1, 2.45]}>
-        <boxGeometry args={[1.72, 0.08, 0.42]} />
+        <SculptedBox args={[1.72, 0.08, 0.42]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
       </mesh>
       <mesh position={[0, -0.2, 2.78]}>
@@ -6962,11 +6938,11 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
         </group>
       ))}
       <mesh position={[-0.58, -0.08, 1.88]} rotation={[0, 0, 0.28]}>
-        <boxGeometry args={[0.1, 0.08, 1.52]} />
+        <SculptedBox args={[0.1, 0.08, 1.52]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.16} />
       </mesh>
       <mesh position={[0.58, -0.08, 1.88]} rotation={[0, 0, -0.28]}>
-        <boxGeometry args={[0.1, 0.08, 1.52]} />
+        <SculptedBox args={[0.1, 0.08, 1.52]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.16} />
       </mesh>
       <mesh position={[-0.46, 0.02, 0.78]} rotation={[0, 0.24, 0]}>
@@ -7119,11 +7095,11 @@ function KartCockpit({ car, color, cockpitStyle }: { car: CarState; color: strin
         <meshStandardMaterial color="#15191f" roughness={0.48} />
       </mesh>
       <mesh position={[0, -0.15, 1.35]}>
-        <boxGeometry args={[0.68, 0.18, 0.5]} />
+        <SculptedBox args={[0.68, 0.18, 0.5]} />
         <meshStandardMaterial color={color} roughness={0.36} metalness={0.12} />
       </mesh>
       <mesh position={[0, -0.052, 1.38]}>
-        <boxGeometry args={[0.48, 0.018, 0.28]} />
+        <SculptedBox args={[0.48, 0.018, 0.28]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.14} />
       </mesh>
       {[-1, 1].map((side) => (
@@ -7253,7 +7229,7 @@ function TruckCockpit({ car, color, cockpitStyle }: { car: CarState; color: stri
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
       <mesh position={[0, -0.28, 1.25]}>
-        <boxGeometry args={[2.08, 0.22, 2.2]} />
+        <SculptedBox args={[2.08, 0.22, 2.2]} />
         <meshStandardMaterial color={color} roughness={0.38} metalness={0.12} />
       </mesh>
       <mesh position={[0, -0.1, 2.05]}>
@@ -7269,7 +7245,7 @@ function TruckCockpit({ car, color, cockpitStyle }: { car: CarState; color: stri
         <meshStandardMaterial color="#252b33" roughness={0.46} metalness={0.08} />
       </mesh>
       <mesh position={[0, -0.02, 0.86]} rotation={[-0.08, 0, 0]}>
-        <boxGeometry args={[2.28, 0.035, 0.5]} />
+        <SculptedBox args={[2.28, 0.035, 0.5]} />
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
       </mesh>
       <mesh position={[0, -0.04, 0.86]} rotation={[-0.08, 0, 0]}>
@@ -7413,7 +7389,7 @@ function TukTukCockpit({ car, color, cockpitStyle }: { car: CarState; color: str
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
       <group rotation={[0, 0, roll]}>
         <mesh position={[0, -0.16, 0.86]} rotation={[-0.12, 0, 0]}>
-          <boxGeometry args={[0.88, 0.22, 0.62]} />
+          <SculptedBox args={[0.88, 0.22, 0.62]} />
           <meshStandardMaterial color={color} roughness={0.42} metalness={0.08} />
         </mesh>
         <mesh position={[0, -0.02, 0.72]} rotation={[-0.12, 0, 0]}>

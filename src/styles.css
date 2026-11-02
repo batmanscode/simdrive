@@ -3677,3 +3677,32 @@ input {
     font-weight: 900;
   }
 }
+
+/* Sunlit trackday: small instruments leave the road and apex in view. */
+.race-hud {
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  border-radius: 0;
+  font-size: 13px;
+}
+.race-hud > div {
+  padding: 9px 12px;
+  border: 1px solid rgba(255,250,240,.16);
+  border-radius: 7px;
+  background: rgba(15,24,30,.8);
+  box-shadow: 0 3px 16px #0002;
+  font-variant-numeric: tabular-nums;
+}
+.race-hud > div:last-child { color: #e8f4ed; min-width: 90px; justify-content: center; }
+.race-minimap { width: min(16vw, 168px); min-width: 100px; background: rgba(15,24,30,.52); padding: 6px; }
+.race-leaderboard { background: rgba(15,24,30,.75); backdrop-filter: none; }
+.race-pane-split .race-hud { font-size: 11px; top: 8px; left: 8px; right: 8px; }
+.race-pane-split .race-hud > div { padding: 6px 8px; }
+.race-pane-split .race-minimap { width: 100px; top: 50px; left: 8px; }
+.race-pane-split .race-leaderboard { top: 50px; right: 8px; min-width: 130px; width: 145px; }
+.race-pane-split .race-leaderboard li { font-size: 10px; gap: 4px; padding: 4px; grid-template-columns: 14px 7px minmax(0,1fr) auto; }
+@media (max-width: 700px) {
+  .race-hud > div { padding: 6px 8px; font-size: 11px; }
+  .race-minimap { top: 52px; }
+}

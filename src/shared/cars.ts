@@ -33,6 +33,8 @@ export type CarSetup = {
 };
 
 export type VehiclePhysicsProfile = {
+  mass: number;
+  yawResponse: number;
   dryTopSpeedKmh: number;
   rainTopSpeedKmh: number;
   acceleration: number;
@@ -125,6 +127,8 @@ export type VehicleDefinition = {
 };
 
 const FORMULA_PHYSICS: VehiclePhysicsProfile = {
+  mass: 800,
+  yawResponse: 15,
   dryTopSpeedKmh: 365,
   rainTopSpeedKmh: 322,
   acceleration: 24.5,
@@ -147,6 +151,8 @@ const FORMULA_PHYSICS: VehiclePhysicsProfile = {
 };
 
 const KART_PHYSICS: VehiclePhysicsProfile = {
+  mass: 175,
+  yawResponse: 20,
   dryTopSpeedKmh: 125,
   rainTopSpeedKmh: 100,
   acceleration: 13.5,
@@ -169,6 +175,8 @@ const KART_PHYSICS: VehiclePhysicsProfile = {
 };
 
 const STOCK_TRUCK_PHYSICS: VehiclePhysicsProfile = {
+  mass: 1540,
+  yawResponse: 9,
   dryTopSpeedKmh: 285,
   rainTopSpeedKmh: 238,
   acceleration: 15.8,
@@ -191,6 +199,8 @@ const STOCK_TRUCK_PHYSICS: VehiclePhysicsProfile = {
 };
 
 const TUK_TUK_PHYSICS: VehiclePhysicsProfile = {
+  mass: 360,
+  yawResponse: 11,
   dryTopSpeedKmh: 65,
   rainTopSpeedKmh: 52,
   acceleration: 5.4,
@@ -291,7 +301,7 @@ export const VEHICLES: Record<VehicleId, VehicleDefinition> = {
       grassMs: 24,
       slipMs: 16
     },
-    camera: { height: 1.55, back: 0.2, lateral: 0.12, lookAhead: 18, lookHeight: 1.1 }
+    camera: { height: 1.65, back: 0.32, lateral: 0, lookAhead: 18, lookHeight: 1.25 }
   },
   kart: {
     id: "kart",
