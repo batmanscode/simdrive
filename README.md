@@ -2,7 +2,7 @@
 
 Sim Drive is a multiplayer browser racing game where a shared display hosts the race and phones become tilt-steering controllers.
 
-![Sim Drive gameplay preview](public/simdrive_poster.png)
+![Sim Drive gameplay preview](public/race-preview.jpg)
 
 ## Status
 
@@ -29,11 +29,11 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - First joined controller becomes VIP.
 - Lobby shows the QR code, race settings, selected track, driver lineup, each driver's vehicle, setup, and cockpit style.
 - The home screen shows a live active-driver count only when at least one driver is online.
-- One-player practice works.
+- One-player practice works. Best-lap/run ghosts are stored on the display browser, matched by driver name/color, vehicle/setup, weather, assists, and pace. Resets/crashes and changing-weather runs do not record a ghost.
 
 ### Race settings
 
-- VIP can choose track, laps, pre-race tutorial, warm-up/flying start, ghost cars, rain, gentle stability assist, and reset mode.
+- VIP keeps manual control of track, laps, tutorial, flying start, ghost cars, rain, assist, and resets. Optional Race extras add equal straight-line pace, gradual weather changes, and a three-race championship with points and track voting.
 
 ### Vehicles and driver options
 
@@ -45,20 +45,21 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 ### Race display
 
 - Display landing/lobby/tutorial/results screens support System, Light, and Dark themes.
-- Five tracks are available: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
-- Race view renders a cockpit-style 3D scene with smooth procedural track ribbons, raised curbs, rubber/skid road detail, generated terrain support for elevated tracks, vehicle-specific cockpit silhouettes, countdown lights, and a short first-place banner.
-- Race view includes a minimap, live global leaderboard, rear-view mirror, and display-side auto-spectate for finished racers while others are still active.
-- Results include podium-style placement, total time, and best lap.
+- Five circuits plus Fjord Passage, a one-way run through the existing fjord landscape. The run uses a grid start and one finish; circuit lap/flying-start preferences are retained.
+- Stylized motorsport presentation: layered skies and distant ridges, track-specific light, textured road/terrain, wet-road sheen, batched rain/spray/petals, sculpted bodywork, and load/grade-aware cockpit motion.
+- Race view includes a minimap, leaderboard (compact global position in split-screen), mirror, lap/run timing, nearby overlap indicators, and auto-spectate after finishing. Personal corner hints, best-lap ghosts, and camera movement are optional.
+- Results include placement, total/best time, driving awards, an optional local first-finish replay, and championship standings/voting when enabled.
 
 ### Phone controller
 
+- VIP lobby separates Your car & controls from Race settings; device preferences and race extras are collapsible. The original phone tutorial is retained. Slow off-track recovery offers Hold to reverse; releasing it returns to normal pedals.
 - Phone controller supports tilt steering with iOS/WebKit motion permission prompts, Chrome-friendly `devicemotion`/Generic Sensor fallbacks, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, fallback touch steering, touch brake/throttle zones, first-tap pedal preferences, motion/audio/haptic tests, quick countdown control hints, vehicle-specific/nearby-rival audio, and vibration where supported.
 - Controller setup/lobby screens show a recommended-browser notice when the phone is not on the preferred Android Chromium-style browser path.
 - Web vibration depends on browser support. Android Chromium/Samsung-style browsers are the main target; iOS Safari does not support it; Firefox Android may expose partial/no-op support.
 
 ### Server behavior
 
-- Server owns room state, race phase, vehicle-specific velocity-based movement, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, elevation/grade effects, tuk-tuk rollover risk, optional crash/off-track reset, checkpoint-gated lap completion, directional collisions, DNF handling, and results.
+- Server owns room state, race phase, vehicle-specific velocity-based movement, rolling-contact yaw inertia, shared braking/cornering grip, mass-aware contacts, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, elevation/grade effects, tuk-tuk rollover risk, optional crash/off-track reset, checkpoint-gated lap completion, height-aware directional collisions, glancing wall recovery, DNF handling, and results.
 - If every display/host browser disconnects, the room stays resumable for a 20-second grace window. If no display reconnects in that window, the room closes and controllers are sent back out of the game.
 
 ## Project docs

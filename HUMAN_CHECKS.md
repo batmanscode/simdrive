@@ -2,6 +2,18 @@
 
 Things that need real-device playtesting before we trust the tuning.
 
+## Motorsports update
+
+- Judge tilt steering/braking/weight transfer on a real phone; synthetic browser sensor checks cannot establish physical game feel.
+- Check four-player wet rendering on real display hardware, including compact positions/mirrors, automatic resolution, soft tire wakes, and nearby translucent ghost rivals.
+- Stop off-track facing a wall, hold Reverse, steer backward, and release. Reverse must not latch after lifting, pointer cancellation, refresh, crash, or finish.
+- Try camera movement off and the display OS reduced-motion preference; the added shake/pitch/roll should stop while the view still follows hills.
+- Finish a first uninterrupted lap in a multi-lap practice race: the saved ghost should become usable on the next lap. Check separate names/colors, vehicles, setups, wet/assist/equal-pace settings and browser storage limits.
+- Run the optional championship: vote from multiple phones, advance/tune, abort/retry a round without losing previous points, and finish/end the series.
+- Select Fjord Passage with circuit lap/flying-start preferences set: it must remain one grid-start run, and those preferences must still be present when selecting a circuit again.
+- Check the local first-finish replay, pause/close/focus return, and verify it never controls the live race.
+- Finish/crash out before another racer: the phone should show a waiting status, avoid repeated impact buzz/idle engine noise, and the display should spectate a remaining racer. Temporary reset-enabled crashes should still recover normally.
+
 ## Driving Feel
 
 - Test on a phone controller in dry mode with gentle assist on.
@@ -37,7 +49,7 @@ Things that need real-device playtesting before we trust the tuning.
 - Test lobby readability: QR code, room code, race settings, selected track, driver lineup, vehicles, driver setups, and cockpit styles should be obvious at a glance.
 - Test warm-up/flying start: first pass should show `Warm-up`, timed lap 1 and total race time should begin at the line, and hard car-to-car contact during warm-up should not crash players out.
 - Test race presentation: countdown lights, first-place banner, live leaderboard, top-left minimap, finished-racer auto-spectate controls, and podium results should feel useful without obstructing driving.
-- Test finished-racer spectate flow in multiplayer: after one local/display player finishes while others are still active, that pane should switch to the leading active racer after about 2.5 seconds; previous/next should switch active racers; `My finish` should return to the finished car and show `Finished`; `Watch` should re-enter spectate.
+- Test finished-racer spectate flow in multiplayer: after one local/display player finishes while others are still active, that pane should switch to the leading active racer after about 2.5 seconds; previous/next should switch active racers; `My car` should return to the finished car and show `Finished`; `Watch` should re-enter spectate.
 - Test haptics on Android Chrome/Chromium and Samsung Internet if available. If a supported browser reports a requested pulse but the phone does not buzz, check Silent mode, Do Not Disturb, power saving, and Android/Samsung touch vibration or system haptics before treating it as an app bug.
 - Test haptics on Firefox Android if available, but treat failure as likely browser support rather than an app bug unless the test pulse reports a clear app-side error.
 - Test whether normal fast cornering produces enough tire sound/slip feedback; current web haptics mostly pulse for slip/curbs/grass/braking/impacts and tuk-tuk tip risk, not continuous true g-force.
