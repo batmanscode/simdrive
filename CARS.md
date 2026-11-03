@@ -51,7 +51,7 @@ Contacts use gameplay masses (Formula 800, Kart 175, Truck 1540, Tuk-Tuk 360) an
 
 Optional Equal pace uses a 180 km/h dry baseline before setups/weather, scaling acceleration/braking/drag while retaining steering, grip and mass differences. Tuk-tuk tip thresholds scale with that pace. Standard class speeds below are unchanged.
 
-Vehicle art uses shaped body panels and shared wheels across external/cockpit views. Rims and sidewall marks sit on the axle, and both sides roll from signed travel distance. The truck has a sloped cab/hood; the tuk-tuk has an open passenger cabin and cloth canopy. These visual shapes do not change handling or collision dimensions.
+Vehicle art uses shaped body panels, baked paint/trim colours and shared wheels across external/cockpit views. Rims and sidewall marks sit on the axle, and both sides roll from signed travel distance. Matte rubber, metal, upholstery and cloth have distinct finishes. Profiled wings, engine/seat detail and wheel arches are merged into single draws; truck glass uses a baked sky/ground tint without a reflection pass. These visual shapes do not change handling or collision dimensions.
 
 ## Physics Notes
 
@@ -68,7 +68,7 @@ Vehicle art uses shaped body panels and shared wheels across external/cockpit vi
 
 | Vehicle | External Visual | Cockpit Visual |
 | --- | --- | --- |
-| Formula Prototype | Open-wheel formula body, wings, exposed tyres, slimmer suspension, airbox/headrest detail | Formula nose, front tyres, compact formula wheel with integrated display and shift lights |
-| KZ Kart | Low kart chassis, layered nose/side pod panels, exposed small wheels | Low kart floor, layered nose pod, front wheels, visible steering column, mounted kart data logger, small wheel |
-| Stock Truck | Stock pickup body, cab, bed, fenders, spoiler | Centered driver POV for gameplay readability, broad hood/cowl, roll-cage pillars, wheel, steering column, analog gauge, subtle digital speedometer |
-| Tuk-Tuk | Three-wheeler body, canopy, single front wheel | Narrow nose, canopy, handlebar-like dash, small analog speedometer, wheel |
+| Formula Prototype | Tapered nose, profiled wings with cream tips, exposed tyres, slim suspension, airbox/headrest detail | Formula nose, front tyres, compact wheel with metal spokes, integrated display and shift lights |
+| KZ Kart | Tubular chassis, shaped colour pods with cream flashes, bucket seat, exposed finned engine and small wheels | Low floor/nose pod, front wheels, metal frame/column, mounted data logger, small wheel |
+| Stock Truck | Sloped cab/hood, twin stripes, tinted glass, open wheel arches, bed and painted spoiler | Centered driver POV, broad striped hood/cowl, thinner tubular cage, wheel, analog gauge and digital speedometer |
+| Tuk-Tuk | Open three-wheeler cabin, sagged cloth canopy, warm bench upholstery, housed round headlight | Narrow nose, canopy, metal handlebar, rubber grips and small analog speedometer |

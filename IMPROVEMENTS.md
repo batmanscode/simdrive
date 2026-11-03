@@ -2,6 +2,7 @@
 
 - Cockpit camera: evaluate a lower seat option on real phones. Load/grade-aware motion and a steadier camera option are now available; preserve road visibility when tuning further.
 - Track art: keep the stylized motorsport direction. Consider selective authored GLB hero assets when their visual benefit fits the split-screen draw budget.
+- Future vehicle art direction: consider a cohesive family of sculpted racing miniatures, with more authored body shapes across all four classes. This is a future experiment, separate from the current material/body polish; preserve class personality, player colours, cockpit sightlines, collision dimensions, and the split-screen rendering budget.
 - Weather: profile the current batched rain/tire wakes and stylized wet sheen on real display hardware before considering heavier reflections.
 - Cockpit cosmetics: later, consider optional forearms/wrists for Hands/Paws if the cockpit needs more physicality, but keep them off for now to avoid cluttering the first-person view.
 - Cockpit cosmetic materials: later, consider racing-glove styling, tiny cuff bands, or paw glove bands if the bare hand/paw materials feel too toy-like against the formula cockpit.

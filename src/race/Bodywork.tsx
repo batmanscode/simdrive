@@ -11,6 +11,9 @@ export function BodyPanel({
   visible = true,
   roughness = 0.38,
   metalness = 0.18,
+  finish = "paint",
+  twinStripe = false,
+  endBand = false,
 }: {
   sections: readonly Station[];
   color: string;
@@ -19,12 +22,20 @@ export function BodyPanel({
   visible?: boolean;
   roughness?: number;
   metalness?: number;
+  finish?: "paint" | "fabric" | "seat";
+  twinStripe?: boolean;
+  endBand?: boolean;
 }) {
   const geometry = useMemo(() => {
     const positions: number[] = [],
       colors: number[] = [];
     const paint = new THREE.Color(color),
       cream = new THREE.Color("#f3ecd9");
+    const shoulder = paint
+      .clone()
+      .lerp(cream, finish === "paint" ? 0.12 : 0.04);
+    const side = paint.clone().multiplyScalar(finish === "paint" ? 0.76 : 0.86);
+    const lower = paint.clone().multiplyScalar(0.48);
     const rings = sections.map(([z, width, low, high]) => {
       const w = width / 2,
         bevel = Math.min((high - low) * 0.22, w * 0.2);
@@ -36,6 +47,8 @@ export function BodyPanel({
         [w, high - bevel, z],
         [w - bevel, high, z],
         [s, high, z],
+        [s * 0.36, high, z],
+        [-s * 0.36, high, z],
         [-s, high, z],
         [-w + bevel, high, z],
         [-w, high - bevel, z],
@@ -52,16 +65,23 @@ export function BodyPanel({
       for (let i = 0; i < 3; i++) colors.push(tint.r, tint.g, tint.b);
     };
     for (let j = 0; j < rings.length - 1; j++)
-      for (let i = 0; i < 10; i++) {
-        const next = (i + 1) % 10;
-        const tint = i === 5 && stripe > 0 ? cream : paint;
+      for (let i = 0; i < 12; i++) {
+        const next = (i + 1) % 12;
+        const top = i >= 4 && i <= 8;
+        const stripeFace = i >= 5 && i <= 7 && stripe > 0;
+        let tint = side;
+        if (i === 0) tint = lower;
+        else if (top) tint = paint;
+        else if (i === 3 || i === 9) tint = shoulder;
+        if (stripeFace) tint = twinStripe && i === 6 ? paint : cream;
+        if (endBand && top && j === rings.length - 2) tint = cream;
         triangle(rings[j][i], rings[j][next], rings[j + 1][next], tint);
         triangle(rings[j][i], rings[j + 1][next], rings[j + 1][i], tint);
       }
-    for (let i = 1; i < 9; i++) {
-      triangle(rings[0][0], rings[0][i + 1], rings[0][i], paint);
+    for (let i = 1; i < 11; i++) {
+      triangle(rings[0][0], rings[0][i + 1], rings[0][i], side);
       const front = rings[rings.length - 1];
-      triangle(front[0], front[i], front[i + 1], paint);
+      triangle(front[0], front[i], front[i + 1], side);
     }
     const result = new THREE.BufferGeometry();
     result.setAttribute(
@@ -71,7 +91,7 @@ export function BodyPanel({
     result.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     result.computeVertexNormals();
     return result;
-  }, [sections, color, stripe]);
+  }, [sections, color, stripe, finish, twinStripe, endBand]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry} position={position} visible={visible} castShadow>
@@ -88,9 +108,9 @@ export const FORMULA_HULL: readonly Station[] = [
   [-1.32, 0.22, -0.05, 0.12],
   [-0.72, 0.72, -0.08, 0.19],
   [0.05, 0.86, -0.06, 0.23],
-  [0.6, 0.6, -0.06, 0.22],
-  [1.35, 0.34, -0.055, 0.16],
-  [2.15, 0.19, -0.04, 0.12],
+  [0.6, 0.56, -0.06, 0.2],
+  [1.35, 0.3, -0.055, 0.13],
+  [2.15, 0.18, -0.04, 0.085],
   [2.72, 0.1, -0.025, 0.07],
 ];
 export const FORMULA_SIDEPOD: readonly Station[] = [
@@ -119,6 +139,12 @@ export const KART_NOSE: readonly Station[] = [
   [0.18, 0.7, -0.09, 0.12],
   [0.32, 0.56, -0.065, 0.04],
 ];
+export const KART_SIDEPOD: readonly Station[] = [
+  [-0.5, 0.15, -0.09, 0.045],
+  [-0.32, 0.24, -0.09, 0.11],
+  [0.32, 0.24, -0.09, 0.11],
+  [0.5, 0.16, -0.06, 0.065],
+];
 export const TRUCK_HOOD: readonly Station[] = [
   [-0.58, 1.47, -0.14, 0.16],
   [-0.22, 1.58, -0.14, 0.17],
@@ -140,6 +166,7 @@ export const TRUCK_COCKPIT_HOOD: readonly Station[] = [
 export const TUK_CANOPY: readonly Station[] = [
   [-0.86, 1.24, -0.035, 0.015],
   [-0.58, 1.32, -0.035, 0.085],
+  [-0.08, 1.3, -0.045, 0.045],
   [0.46, 1.32, -0.035, 0.075],
   [0.82, 1.24, -0.035, 0.01],
 ];
