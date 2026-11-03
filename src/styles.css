@@ -836,6 +836,7 @@ input {
 }
 
 .gameplay-preview { width: 100%; height: 100%; display: block; object-fit: cover; }
+.mock-leaderboard { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; padding: 9px; border-radius: 8px; background: rgba(16, 18, 20, 0.72); border: 1px solid rgba(255, 250, 240, 0.18); font-size: 12px; font-weight: 900; }
 .gameplay-preview-label { position: absolute; left: 12px; bottom: 12px; padding: 7px 9px; border-radius: 4px; background: #10231de6; color: #e9f4ec; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
 
 .mock-phone {

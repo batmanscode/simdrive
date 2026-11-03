@@ -753,6 +753,11 @@ function HeroShowcase() {
     <div className="hero-showcase" aria-hidden>
       <div className="mock-race">
         <img className="gameplay-preview" src="/race-preview.jpg" alt="" width={1440} height={900} />
+        <div className="mock-leaderboard">
+          <span>1 YOU</span>
+          <span>2 LOSER</span>
+          <span>3 OTHER LOSER</span>
+        </div>
         <span className="gameplay-preview-label">IN-GAME · SAKURA SPRINT</span>
       </div>
       <div className="mock-phone">
