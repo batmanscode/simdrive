@@ -154,3 +154,9 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Each pair is two draws. Matched four-class paw submissions changed 1,106→1,056 draws with +6.85% triangles; None retained identical counts in all four views. PERFORMANCE.md records the geometry budget and measurement limits.
 - Gemini reviewed visual/UX readability and explicitly rechecked orientations; final thumbs, wrist approaches and sightlines passed the visual review. Before/afters and experiments were shared privately.
 - Typecheck and production client/server build passed. Generated captures/helpers remain ignored; no new dependencies or CI.
+
+### Classic paw restoration
+
+The natural-colour mitten prototypes were rejected in visual review; restored the pre-polish cartoon paw geometry in off-white/grey, retaining wheel-linked steering and one mesh per paw. All four classes passed parked centre/full-left/full-right captures, with no page/console/shader errors. The accepted glove preview remained byte-identical. The matched four-pane fixture retained the original 118,098 triangles while keeping the batched 1,056 draws.
+
+A production-build four-player wet Sakura race used Paws, mirrors on, steady camera, one lap, ghost mode and native controller inputs. All four finished (Formula 25.959s, Kart 27.352s, Truck 28.353s, Tuk 40.257s), with eight active canvases and no crashes, errors, resets or pose overrides. This is a functional/visual check, not a hardware FPS measurement. Gemini reviewed the rejected designs and the final fallback. Build/typecheck passed; captures remain ignored.

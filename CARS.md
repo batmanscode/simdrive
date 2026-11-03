@@ -43,7 +43,7 @@ Source links:
 | Colour choices | Same controller palette for every vehicle |
 | Cockpit cosmetics | None, Hands, or Paws; visual only; new players default to None |
 
-Hands uses compact cream racing gloves; Paws uses plush lavender costume mitts, cream toes, fur ruffs and pink beans. Cuteness takes priority over realistic anatomy; double-sided bean motifs keep the paw identity visible while gripping. Both have short cuffs and share a single baked mesh per hand, fitted to the Formula grips, round wheel or Tuk handlebar. Thumbs wrap the upper/inner rim; round-wheel wrists have a separate lap-side fit for the flatter wheel angle. Hands rotate with the wheel/bar so their curled grip stays attached during steering. Camera positions and wheel angles are unchanged.
+Hands uses compact cream racing gloves with curled fingers, wrapped thumbs and short cuffs. Paws retains the original simple cartoon shapes in off-white and grey; the plush-mitt experiments were discarded. Both bake to one mesh per hand and rotate directly with the wheel/bar. The gloves fit each grip, with round-wheel wrists directed toward the lap. Camera positions and wheel angles are unchanged.
 
 ## Motorsports handling update
 
