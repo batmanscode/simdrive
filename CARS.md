@@ -51,6 +51,8 @@ Contacts use gameplay masses (Formula 800, Kart 175, Truck 1540, Tuk-Tuk 360) an
 
 Optional Equal pace uses a 180 km/h dry baseline before setups/weather, scaling acceleration/braking/drag while retaining steering, grip and mass differences. Tuk-tuk tip thresholds scale with that pace. Standard class speeds below are unchanged.
 
+Vehicle art uses shaped body panels and shared wheels across external/cockpit views. Rims and sidewall marks sit on the axle, and both sides roll from signed travel distance. The truck has a sloped cab/hood; the tuk-tuk has an open passenger cabin and cloth canopy. These visual shapes do not change handling or collision dimensions.
+
 ## Physics Notes
 
 | Area | Behavior |

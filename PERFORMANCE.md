@@ -40,6 +40,17 @@ Main contributors found:
 
 ## Current Optimizations
 
+The vehicle-art pass merges both rim faces and spokes into one draw, and replaces stacked body pieces with single profiled panels. Matched focused asset previews (including the same preview floor) measured:
+
+| Vehicle | Draw calls before → after | Triangles before → after |
+| --- | --- | --- |
+| Formula | 78 → 63 | 8,304 → 6,552 |
+| Kart | 73 → 60 | 5,296 → 4,756 |
+| Truck | 53 → 45 | 4,736 → 4,300 |
+| Tuk-tuk | 47 → 42 | 3,272 → 3,472 |
+
+Together these previews submit 16% fewer draws and 12% fewer triangles. The open tuk-tuk cabin trades 200 extra triangles for five fewer draws. These counts describe rendering work, not hardware FPS.
+
 Networking:
 
 - Display snapshots now run at 30 Hz.

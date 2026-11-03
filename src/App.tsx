@@ -1,3 +1,5 @@
+import { RacingWheel as VehicleWheel } from "./race/RacingWheel";
+import { BodyPanel, FORMULA_HULL, FORMULA_SIDEPOD, FORMULA_COVER, FORMULA_COCKPIT_NOSE, KART_NOSE, TRUCK_HOOD, TRUCK_CAB, TRUCK_COCKPIT_HOOD, TUK_CANOPY, TUK_SIDE, TUK_REAR, TUK_SEAT, TUK_BACK } from "./race/Bodywork";
 import { TireCloud } from "./race/TireCloud";
 import { JourneyFinish } from "./race/JourneyFinish";
 import { AdaptiveResolution } from "./race/AdaptiveResolution";
@@ -562,7 +564,7 @@ function ShowroomVehicleCard({ vehicleId }: { vehicleId: VehicleId }) {
   return (
     <article className="showroom-car-card">
       <div className="showroom-car-stage" aria-hidden>
-        <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+        <Canvas camera={{ position: vehicle.id === "formula" ? [4.2, 2.7, 6] : [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
           <color attach="background" args={["#181b21"]} />
           <ambientLight intensity={0.82} />
           <directionalLight position={[3, 5, 4]} intensity={1.35} />
@@ -2179,7 +2181,7 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, equalPace, send }: 
 function CarSetupPreview({ vehicle, setup, color }: { vehicle: VehicleDefinition; setup: CarSetup; color: string }) {
   return (
     <div className="car-preview">
-      <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+      <Canvas camera={{ position: vehicle.id === "formula" ? [4.2, 2.7, 6] : [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
         <color attach="background" args={["#253338"]} />
         <ambientLight intensity={0.85} />
         <hemisphereLight args={["#e5f4ff", "#63755b", 0.75]} />
@@ -6290,39 +6292,11 @@ function VehicleModel({ car, color, dimmed }: { car: CarState; color: string; di
   return <FormulaCarModel car={car} color={color} dimmed={dimmed} />;
 }
 
-function VehicleWheel({ radius, width, spin, side, steer = 0, hub = "#303640", stripe = "#f1eadc" }: { radius: number; width: number; spin: number; side: number; steer?: number; hub?: string; stripe?: string }) {
-  return (
-    <group rotation={[0, steer, 0]}>
-      <group rotation={[spin * side, 0, 0]}>
-        <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[radius, radius, width, 24]} />
-          <meshStandardMaterial color="#050608" roughness={0.72} />
-        </mesh>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[radius * 0.48, radius * 0.48, width + 0.02, 18]} />
-          <meshStandardMaterial color={hub} roughness={0.38} metalness={0.36} />
-        </mesh>
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[radius * 1.02, radius * 0.055, 8, 24]} />
-          <meshStandardMaterial color="#161a20" roughness={0.5} />
-        </mesh>
-        {[0, Math.PI / 3, (Math.PI * 2) / 3].map((angle) => (
-          <mesh key={angle} position={[0, width * 0.78, 0]} rotation={[0, 0, Math.PI / 2 + angle]}>
-            <boxGeometry args={[radius * 0.9, radius * 0.09, radius * 0.09]} />
-            <meshStandardMaterial color={stripe} roughness={0.55} metalness={0.12} />
-          </mesh>
-        ))}
-      </group>
-    </group>
-  );
-}
-
 function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
   const visible = !dimmed;
   const ghosted = visible && Boolean(car.resetInvulnerableUntil);
-  const wheelSpin = car.wheelDistance * 4.6;
   const frontSteer = visualWheelSteer(car.steer, 0.58);
   useFrame((_, delta) => {
     if (!group.current) return;
@@ -6360,28 +6334,7 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
             <meshStandardMaterial color="#262c34" roughness={0.42} metalness={0.28} />
           </mesh>
         ))}
-        <mesh castShadow position={[0, 0.1, 0.78]}>
-          <SculptedBox args={[0.72, 0.22, 0.5]} />
-          <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
-        </mesh>
-        <mesh castShadow position={[0, 0.22, 0.84]}>
-          <SculptedBox args={[0.5, 0.022, 0.3]} />
-          <meshStandardMaterial color={color} roughness={0.32} metalness={0.18} />
-        </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={`kart-nose-seam-${side}`} castShadow position={[side * 0.26, 0.235, 0.84]}>
-            <boxGeometry args={[0.016, 0.012, 0.28]} />
-            <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
-          </mesh>
-        ))}
-        <mesh castShadow position={[0, 0.236, 0.69]}>
-          <boxGeometry args={[0.43, 0.012, 0.018]} />
-          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.14} />
-        </mesh>
-        <mesh castShadow position={[0, 0.225, 1.08]}>
-          <boxGeometry args={[0.62, 0.02, 0.055]} />
-          <meshStandardMaterial color="#0f1318" roughness={0.44} metalness={0.16} />
-        </mesh>
+        <BodyPanel sections={KART_NOSE} color={color} stripe={0.07} position={[0, 0.1, 0.78]} />
         <mesh castShadow position={[-0.72, 0.08, 0.08]}>
           <SculptedBox args={[0.24, 0.18, 1.0]} />
           <meshStandardMaterial color={color} roughness={0.36} metalness={0.14} />
@@ -6477,7 +6430,7 @@ function KartModel({ car, color, dimmed }: { car: CarState; color: string; dimme
         ))}
         {[[-0.78, -0.82], [0.78, -0.82], [-0.78, 0.82], [0.78, 0.82]].map(([x, z]) => (
           <group key={`${x}-${z}`} position={[x, -0.03, z]}>
-            <VehicleWheel radius={0.24} width={0.2} spin={wheelSpin} side={x < 0 ? -1 : 1} steer={z > 0 ? frontSteer : 0} />
+            <VehicleWheel radius={0.24} width={0.2} distance={car.wheelDistance} side={x < 0 ? -1 : 1} steer={z > 0 ? frontSteer : 0} />
           </group>
         ))}
       </group>
@@ -6490,7 +6443,6 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
   const visible = !dimmed;
   const ghosted = visible && Boolean(car.resetInvulnerableUntil);
-  const wheelSpin = car.wheelDistance * 2.55;
   const frontSteer = visualWheelSteer(car.steer, 0.42);
   useFrame((_, delta) => {
     if (!group.current) return;
@@ -6522,26 +6474,20 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
             <meshStandardMaterial color="#101418" roughness={0.48} metalness={0.12} />
           </mesh>
         ))}
-        <mesh castShadow position={[0, 0.33, 0.72]} rotation={[-0.06, 0, 0]}>
-          <SculptedBox args={[1.58, 0.28, 1.12]} />
-          <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
+        <BodyPanel sections={TRUCK_HOOD} color={color} stripe={0.23} position={[0, 0.33, 0.72]} />
+        <BodyPanel sections={TRUCK_CAB} color={color} />
+        <mesh position={[0, 0.695, 0.13]} rotation={[-0.77, 0, 0]}>
+          <planeGeometry args={[1.2, 0.62]} />
+          <meshStandardMaterial color="#2d4b56" roughness={0.2} metalness={0.16} />
         </mesh>
-        <mesh castShadow position={[0, 0.6, -0.26]}>
-          <SculptedBox args={[1.44, 0.66, 0.9]} />
-          <meshStandardMaterial color={color} roughness={0.34} metalness={0.16} />
-        </mesh>
-        <mesh position={[0, 0.72, 0.2]} rotation={[-0.25, 0, 0]}>
-          <boxGeometry args={[1.18, 0.04, 0.48]} />
-          <meshStandardMaterial color="#111820" roughness={0.18} metalness={0.02} />
-        </mesh>
-        <mesh position={[0, 0.72, -0.76]} rotation={[0.2, 0, 0]}>
-          <boxGeometry args={[1.12, 0.04, 0.42]} />
-          <meshStandardMaterial color="#111820" roughness={0.18} metalness={0.02} />
+        <mesh position={[0, 0.66, -0.79]} rotation={[0.38, Math.PI, 0]}>
+          <planeGeometry args={[1.05, 0.3]} />
+          <meshStandardMaterial color="#2d4b56" roughness={0.2} metalness={0.16} />
         </mesh>
         {[-1, 1].map((side) => (
           <mesh key={`truck-side-window-${side}`} position={[side * 0.73, 0.66, -0.28]} rotation={[0, 0, side * 0.08]}>
             <boxGeometry args={[0.045, 0.34, 0.58]} />
-            <meshStandardMaterial color="#111820" roughness={0.18} metalness={0.02} />
+            <meshStandardMaterial color="#2d4b56" roughness={0.2} metalness={0.16} />
           </mesh>
         ))}
         <mesh castShadow position={[0, 0.32, -1.25]}>
@@ -6586,7 +6532,7 @@ function StockTruckModel({ car, color, dimmed }: { car: CarState; color: string;
         </mesh>
         {[[-0.94, -1.1], [0.94, -1.1], [-0.94, 1.1], [0.94, 1.1]].map(([x, z]) => (
           <group key={`${x}-${z}`} position={[x, -0.12, z]}>
-            <VehicleWheel radius={0.34} width={0.3} spin={wheelSpin} side={x < 0 ? -1 : 1} steer={z > 0 ? frontSteer : 0} hub="#2e333b" stripe="#d8dde2" />
+            <VehicleWheel radius={0.34} width={0.3} distance={car.wheelDistance} side={x < 0 ? -1 : 1} steer={z > 0 ? frontSteer : 0} hub="#2e333b" stripe="#d8dde2" />
           </group>
         ))}
         {[[-0.98, 1.1], [0.98, 1.1], [-0.98, -1.1], [0.98, -1.1]].map(([x, z]) => (
@@ -6611,7 +6557,6 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
   const visible = !dimmed;
   const ghosted = visible && Boolean(car.resetInvulnerableUntil);
-  const wheelSpin = car.wheelDistance * 4.9;
   const frontSteer = visualWheelSteer(car.steer, 0.62);
   const riskLean = car.steer === 0 ? 0 : -Math.sign(car.steer) * car.rolloverRisk * 0.12;
   const riskWobble = Math.sin(car.wheelDistance * 14) * car.rolloverRisk * 0.035;
@@ -6646,32 +6591,15 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
             <meshStandardMaterial color="#15181d" roughness={0.48} metalness={0.16} />
           </mesh>
         ))}
-        <mesh castShadow position={[0, 0.55, -0.22]}>
-          <boxGeometry args={[1.0, 0.72, 1.28]} />
-          <meshStandardMaterial color="#20242a" roughness={0.48} metalness={0.08} />
+        {[-1, 1].map(side => <BodyPanel key={side} sections={TUK_SIDE} color={color} position={[side * 0.5, 0.34, -0.28]} roughness={0.42} metalness={0.08} />)}
+        <BodyPanel sections={TUK_REAR} color={color} position={[0, 0.55, -0.86]} roughness={0.42} metalness={0.08} />
+        <BodyPanel sections={TUK_SEAT} color="#685344" position={[0, 0.37, -0.48]} roughness={0.9} metalness={0} />
+        <BodyPanel sections={TUK_BACK} color="#685344" position={[0, 0.61, -0.77]} roughness={0.9} metalness={0} />
+        <mesh position={[0, 0.75, 0.37]} rotation={[-0.15, 0, 0]}>
+          <planeGeometry args={[0.9, 0.43]} />
+          <meshStandardMaterial color="#a5d1d4" roughness={0.2} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
-        {[-1, 1].map((side) => (
-          <mesh key={`tuktuk-side-opening-${side}`} position={[side * 0.52, 0.64, -0.24]}>
-            <boxGeometry args={[0.035, 0.44, 0.72]} />
-            <meshStandardMaterial color="#0e1115" roughness={0.35} metalness={0.04} />
-          </mesh>
-        ))}
-        <mesh castShadow position={[0, 0.36, -0.58]}>
-          <boxGeometry args={[0.84, 0.18, 0.58]} />
-          <meshStandardMaterial color="#111318" roughness={0.54} />
-        </mesh>
-        <mesh position={[0, 0.66, -0.48]}>
-          <boxGeometry args={[0.9, 0.34, 0.76]} />
-          <meshStandardMaterial color="#0e1115" roughness={0.34} metalness={0.04} />
-        </mesh>
-        <mesh position={[0, 0.72, 0.35]} rotation={[-0.15, 0, 0]}>
-          <boxGeometry args={[0.86, 0.04, 0.46]} />
-          <meshStandardMaterial color="#151f22" roughness={0.18} />
-        </mesh>
-        <mesh castShadow position={[0, 1.04, -0.2]} rotation={[0.03, 0, 0]}>
-          <boxGeometry args={[1.32, 0.09, 1.62]} />
-          <meshStandardMaterial color="#f1d25d" roughness={0.5} metalness={0.04} />
-        </mesh>
+        <BodyPanel sections={TUK_CANOPY} color="#d7be7b" position={[0, 1.04, -0.2]} roughness={0.92} metalness={0} />
         <mesh castShadow position={[0, 0.96, -0.2]}>
           <boxGeometry args={[1.38, 0.05, 1.68]} />
           <meshStandardMaterial color="#111318" roughness={0.46} metalness={0.08} />
@@ -6703,11 +6631,11 @@ function TukTukModel({ car, color, dimmed }: { car: CarState; color: string; dim
           <meshStandardMaterial color="#fff1c2" emissive="#f0c96d" emissiveIntensity={0.45} roughness={0.3} />
         </mesh>
         <group position={[0, -0.03, 0.98]}>
-          <VehicleWheel radius={0.25} width={0.18} spin={wheelSpin} side={1} steer={frontSteer} hub="#303640" stripe="#f7e6bc" />
+          <VehicleWheel radius={0.25} width={0.18} distance={car.wheelDistance} side={1} steer={frontSteer} hub="#303640" stripe="#f7e6bc" />
         </group>
         {[[-0.62, -0.82], [0.62, -0.82]].map(([x, z]) => (
           <group key={`${x}-${z}`} position={[x, -0.05, z]}>
-            <VehicleWheel radius={0.28} width={0.2} spin={wheelSpin} side={x < 0 ? -1 : 1} hub="#303640" stripe="#f7e6bc" />
+            <VehicleWheel radius={0.28} width={0.2} distance={car.wheelDistance} side={x < 0 ? -1 : 1} hub="#303640" stripe="#f7e6bc" />
           </group>
         ))}
         {[-1, 1].map((side) => (
@@ -6746,7 +6674,6 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
   const visible = !dimmed;
   const ghosted = visible && Boolean(car.resetInvulnerableUntil);
-  const wheelSpin = car.wheelDistance * 3.1;
   const frontSteer = visualWheelSteer(car.steer, 0.48);
   useFrame((_, delta) => {
     if (!group.current) return;
@@ -6767,42 +6694,10 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
           <meshBasicMaterial color="#d9f6ff" transparent opacity={0.18} depthWrite={false} />
         </mesh>
       )}
-      <mesh castShadow visible={visible} position={[0, 0.06, 0.1]}>
-        <SculptedBox args={[0.86, 0.22, 2.85]} />
-        <meshStandardMaterial color={color} roughness={0.34} metalness={0.26} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.08, 1.35]}>
-        <SculptedBox args={[0.44, 0.16, 1.35]} />
-        <meshStandardMaterial color={color} roughness={0.35} metalness={0.22} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.055, 2.06]}>
-        <SculptedBox args={[0.26, 0.12, 0.72]} />
-        <meshStandardMaterial color={color} roughness={0.35} metalness={0.2} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.035, 2.48]}>
-        <SculptedBox args={[0.14, 0.09, 0.48]} />
-        <meshStandardMaterial color={color} roughness={0.35} metalness={0.18} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.11, 2.12]}>
-        <boxGeometry args={[0.18, 0.035, 1.0]} />
-        <meshStandardMaterial color="#111318" roughness={0.46} metalness={0.16} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.18, 1.45]}>
-        <boxGeometry args={[0.12, 0.045, 1.85]} />
-        <meshStandardMaterial color="#fffaf0" roughness={0.42} metalness={0.08} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[-0.56, 0.03, -0.12]}>
-        <SculptedBox args={[0.46, 0.24, 1.02]} />
-        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0.56, 0.03, -0.12]}>
-        <SculptedBox args={[0.46, 0.24, 1.02]} />
-        <meshStandardMaterial color={color} roughness={0.36} metalness={0.18} />
-      </mesh>
-      <mesh castShadow visible={visible} position={[0, 0.36, -0.78]}>
-        <SculptedBox args={[0.12, 0.62, 0.9]} />
-        <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
-      </mesh>
+      <BodyPanel sections={FORMULA_HULL} color={color} stripe={0.08} visible={visible} />
+      <BodyPanel sections={FORMULA_SIDEPOD} color={color} position={[-0.56, 0, 0]} visible={visible} />
+      <BodyPanel sections={FORMULA_SIDEPOD} color={color} position={[0.56, 0, 0]} visible={visible} />
+      <BodyPanel sections={FORMULA_COVER} color={color} visible={visible} />
       <mesh castShadow position={[0, 0.72, -0.86]} rotation={[0.08, 0, 0]} visible={visible}>
         <boxGeometry args={[0.34, 0.18, 0.44]} />
         <meshStandardMaterial color="#111318" roughness={0.42} metalness={0.14} />
@@ -6878,23 +6773,15 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
         <meshStandardMaterial color="#111318" roughness={0.5} />
       </mesh>
       <mesh castShadow position={[0, 0.02, 2.68]} visible={visible}>
-        <boxGeometry args={[2.15, 0.045, 0.14]} />
+        <boxGeometry args={[2.36, 0.045, 0.14]} />
         <meshStandardMaterial color="#20242a" roughness={0.48} />
       </mesh>
-      <mesh castShadow position={[-1.18, 0.15, 2.18]} visible={visible}>
-        <boxGeometry args={[0.1, 0.42, 0.46]} />
+      <mesh castShadow position={[-1.18, 0.15, 2.35]} visible={visible}>
+        <boxGeometry args={[0.08, 0.42, 0.86]} />
         <meshStandardMaterial color="#111318" roughness={0.48} />
       </mesh>
-      <mesh castShadow position={[1.18, 0.15, 2.18]} visible={visible}>
-        <boxGeometry args={[0.1, 0.42, 0.46]} />
-        <meshStandardMaterial color="#111318" roughness={0.48} />
-      </mesh>
-      <mesh castShadow position={[-1.32, 0.08, 2.54]} visible={visible}>
-        <boxGeometry args={[0.08, 0.42, 0.34]} />
-        <meshStandardMaterial color="#111318" roughness={0.48} />
-      </mesh>
-      <mesh castShadow position={[1.32, 0.08, 2.54]} visible={visible}>
-        <boxGeometry args={[0.08, 0.42, 0.34]} />
+      <mesh castShadow position={[1.18, 0.15, 2.35]} visible={visible}>
+        <boxGeometry args={[0.08, 0.42, 0.86]} />
         <meshStandardMaterial color="#111318" roughness={0.48} />
       </mesh>
       <mesh castShadow position={[0, 0.58, -1.62]} visible={visible}>
@@ -6953,34 +6840,11 @@ function FormulaCarModel({ car, color, dimmed }: { car: CarState; color: string;
           </mesh>
         </group>
       ))}
-      {[[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]].map(([x, z]) => {
-        const isFront = z > 0;
-        const side = x < 0 ? -1 : 1;
-        return (
-        <group key={`${x}-${z}`} position={[x, -0.05, z]} rotation={[0, isFront ? frontSteer : 0, 0]} visible={visible}>
-          <group rotation={[wheelSpin * side, 0, 0]}>
-            <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.32, 0.32, 0.28, 24]} />
-              <meshStandardMaterial color="#050608" roughness={0.72} />
-            </mesh>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.17, 0.17, 0.3, 18]} />
-              <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.45} />
-            </mesh>
-            <mesh rotation={[0, Math.PI / 2, 0]}>
-              <torusGeometry args={[0.325, 0.018, 8, 24]} />
-              <meshStandardMaterial color="#161a20" roughness={0.5} />
-            </mesh>
-            {[0, Math.PI / 3, (Math.PI * 2) / 3].map((angle) => (
-              <mesh key={angle} position={[0, 0.21, 0]} rotation={[0, 0, Math.PI / 2 + angle]}>
-                <boxGeometry args={[0.3, 0.032, 0.032]} />
-                <meshStandardMaterial color="#f1eadc" roughness={0.55} metalness={0.12} />
-              </mesh>
-            ))}
-          </group>
+      {[[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]].map(([x, z]) => (
+        <group key={`${x}-${z}`} position={[x, -0.05, z]} visible={visible}>
+          <VehicleWheel radius={0.32} width={0.28} distance={car.wheelDistance} side={x < 0 ? -1 : 1} steer={z > 0 ? frontSteer : 0} />
         </group>
-        );
-      })}
+      ))}
     </group>
   );
 }
@@ -6995,7 +6859,6 @@ function Cockpit({ car, color, cockpitStyle }: { car: CarState; color: string; c
 function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: string; cockpitStyle: CockpitStyle }) {
   const group = useRef<THREE.Group>(null);
   const initial = useRef({ x: car.x, y: car.y, z: car.z, heading: car.heading });
-  const wheelSpin = car.wheelDistance * 3.1;
   const frontSteer = visualWheelSteer(car.steer, 0.52);
   useFrame((_, delta) => {
     if (!group.current) return;
@@ -7010,72 +6873,26 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
   });
   return (
     <group ref={group} position={[initial.current.x, initial.current.y + 0.65, initial.current.z]} rotation={[0, initial.current.heading, 0]}>
-      <mesh position={[0, -0.22, 1.88]}>
-        <SculptedBox args={[0.62, 0.28, 3.3]} />
-        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
-      </mesh>
-      <mesh position={[0, -0.13, 2.28]}>
-        <SculptedBox args={[0.34, 0.14, 1.22]} />
-        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
-      </mesh>
-      <mesh position={[0, -0.15, 3.0]}>
-        <SculptedBox args={[0.19, 0.1, 0.62]} />
-        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
-      </mesh>
-      <mesh position={[0, -0.17, 3.42]}>
-        <SculptedBox args={[0.1, 0.07, 0.28]} />
-        <meshStandardMaterial color={color} roughness={0.38} metalness={0.14} />
-      </mesh>
-      <mesh position={[0, -0.01, 2.3]}>
-        <boxGeometry args={[0.1, 0.055, 2.5]} />
-        <meshStandardMaterial color="#fffaf0" roughness={0.45} metalness={0.08} />
-      </mesh>
+      <BodyPanel sections={FORMULA_COCKPIT_NOSE} color={color} stripe={0.08} />
       <mesh position={[0, -0.1, 2.45]}>
-        <SculptedBox args={[1.72, 0.08, 0.42]} />
+        <SculptedBox args={[1.84, 0.08, 0.42]} />
         <meshStandardMaterial color={color} roughness={0.34} metalness={0.18} />
       </mesh>
       <mesh position={[0, -0.2, 2.78]}>
-        <boxGeometry args={[2.02, 0.055, 0.18]} />
+        <boxGeometry args={[1.84, 0.055, 0.18]} />
         <meshStandardMaterial color="#111318" roughness={0.5} />
       </mesh>
-      <mesh position={[-0.92, -0.1, 2.45]}>
-        <boxGeometry args={[0.08, 0.26, 0.46]} />
+      <mesh position={[-0.93, -0.1, 2.6]}>
+        <boxGeometry args={[0.06, 0.26, 0.76]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
-      <mesh position={[0.92, -0.1, 2.45]}>
-        <boxGeometry args={[0.08, 0.26, 0.46]} />
-        <meshStandardMaterial color="#101214" roughness={0.48} />
-      </mesh>
-      <mesh position={[-1.06, -0.13, 2.68]}>
-        <boxGeometry args={[0.08, 0.38, 0.32]} />
-        <meshStandardMaterial color="#101214" roughness={0.48} />
-      </mesh>
-      <mesh position={[1.06, -0.13, 2.68]}>
-        <boxGeometry args={[0.08, 0.38, 0.32]} />
+      <mesh position={[0.93, -0.1, 2.6]}>
+        <boxGeometry args={[0.06, 0.26, 0.76]} />
         <meshStandardMaterial color="#101214" roughness={0.48} />
       </mesh>
       {[[-0.92, 1.5], [0.92, 1.5]].map(([x, z]) => (
-        <group key={x} position={[x, -0.1, z]} rotation={[0, frontSteer, 0]}>
-          <group rotation={[wheelSpin * (x < 0 ? -1 : 1), 0, 0]}>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.34, 0.34, 0.22, 22]} />
-              <meshStandardMaterial color="#050608" roughness={0.75} />
-            </mesh>
-            <mesh rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.16, 0.16, 0.24, 16]} />
-              <meshStandardMaterial color="#2e333b" roughness={0.36} metalness={0.4} />
-            </mesh>
-            <mesh rotation={[0, Math.PI / 2, 0]}>
-              <torusGeometry args={[0.345, 0.018, 8, 24]} />
-              <meshStandardMaterial color="#161a20" roughness={0.5} />
-            </mesh>
-            {[0, Math.PI / 3, (Math.PI * 2) / 3].map((angle) => (
-              <mesh key={angle} position={[0, 0.22, 0]} rotation={[0, 0, Math.PI / 2 + angle]}>
-                <boxGeometry args={[0.31, 0.032, 0.032]} />
-                <meshStandardMaterial color="#f1eadc" roughness={0.55} metalness={0.12} />
-              </mesh>
-            ))}
-          </group>
+        <group key={x} position={[x, -0.1, z]}>
+          <VehicleWheel radius={0.34} width={0.22} distance={car.wheelDistance} side={x < 0 ? -1 : 1} steer={frontSteer} />
         </group>
       ))}
       <mesh position={[-0.58, -0.08, 1.88]} rotation={[0, 0, 0.28]}>
@@ -7227,7 +7044,6 @@ function FormulaWheelHand({ side, style }: { side: -1 | 1; style: Exclude<Cockpi
 
 function KartCockpit({ car, color, cockpitStyle }: { car: CarState; color: string; cockpitStyle: CockpitStyle }) {
   const group = useCockpitPose(car, 0.34);
-  const wheelSpin = car.wheelDistance * 4.6;
   const frontSteer = visualWheelSteer(car.steer, 0.58);
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
@@ -7235,28 +7051,7 @@ function KartCockpit({ car, color, cockpitStyle }: { car: CarState; color: strin
         <boxGeometry args={[0.82, 0.08, 1.7]} />
         <meshStandardMaterial color="#15191f" roughness={0.48} />
       </mesh>
-      <mesh position={[0, -0.15, 1.35]}>
-        <SculptedBox args={[0.68, 0.18, 0.5]} />
-        <meshStandardMaterial color={color} roughness={0.36} metalness={0.12} />
-      </mesh>
-      <mesh position={[0, -0.052, 1.38]}>
-        <SculptedBox args={[0.48, 0.018, 0.28]} />
-        <meshStandardMaterial color={color} roughness={0.34} metalness={0.14} />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={`kart-cockpit-nose-seam-${side}`} position={[side * 0.25, -0.038, 1.38]}>
-          <boxGeometry args={[0.014, 0.01, 0.26]} />
-          <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.12} />
-        </mesh>
-      ))}
-      <mesh position={[0, -0.037, 1.24]}>
-        <boxGeometry args={[0.42, 0.01, 0.016]} />
-        <meshStandardMaterial color="#0b1015" roughness={0.46} metalness={0.12} />
-      </mesh>
-      <mesh position={[0, -0.042, 1.61]}>
-        <boxGeometry args={[0.58, 0.016, 0.052]} />
-        <meshStandardMaterial color="#11161c" roughness={0.44} metalness={0.14} />
-      </mesh>
+      <BodyPanel sections={KART_NOSE} color={color} stripe={0.07} position={[0, -0.15, 1.35]} />
       <mesh position={[0, -0.21, 1.28]}>
         <boxGeometry args={[1.58, 0.055, 0.055]} />
         <meshStandardMaterial color="#242a31" roughness={0.42} metalness={0.24} />
@@ -7297,7 +7092,7 @@ function KartCockpit({ car, color, cockpitStyle }: { car: CarState; color: strin
       ))}
       {[[-0.74, 1.28], [0.74, 1.28]].map(([x, z]) => (
         <group key={x} position={[x, -0.2, z]}>
-          <VehicleWheel radius={0.25} width={0.18} spin={wheelSpin} side={x < 0 ? -1 : 1} steer={frontSteer} />
+          <VehicleWheel radius={0.25} width={0.18} distance={car.wheelDistance} side={x < 0 ? -1 : 1} steer={frontSteer} />
         </group>
       ))}
       <group position={[0, -0.09, 0.36]} scale={[0.68, 0.68, 0.68]}>
@@ -7369,14 +7164,7 @@ function TruckCockpit({ car, color, cockpitStyle }: { car: CarState; color: stri
   const group = useCockpitPose(car, 0.86);
   return (
     <group ref={group.ref} position={group.position} rotation={group.rotation}>
-      <mesh position={[0, -0.28, 1.25]}>
-        <SculptedBox args={[2.08, 0.22, 2.2]} />
-        <meshStandardMaterial color={color} roughness={0.38} metalness={0.12} />
-      </mesh>
-      <mesh position={[0, -0.1, 2.05]}>
-        <boxGeometry args={[1.88, 0.06, 0.28]} />
-        <meshStandardMaterial color="#fffaf0" roughness={0.45} />
-      </mesh>
+      <BodyPanel sections={TRUCK_COCKPIT_HOOD} color={color} stripe={0.27} />
       <mesh position={[0, 0.02, 0.52]}>
         <boxGeometry args={[2.22, 0.26, 0.46]} />
         <meshStandardMaterial color="#101214" roughness={0.54} />
@@ -7560,7 +7348,7 @@ function TukTukCockpit({ car, color, cockpitStyle }: { car: CarState; color: str
         </mesh>
         <mesh position={[0, 1.225, 0.72]} rotation={[0.04, 0, 0]}>
           <boxGeometry args={[1.14, 0.035, 0.28]} />
-          <meshStandardMaterial color="#f1d25d" roughness={0.52} metalness={0.04} />
+          <meshStandardMaterial color="#d7be7b" roughness={0.92} metalness={0} />
         </mesh>
         <TukTukHandlebar steer={car.steer} cockpitStyle={cockpitStyle} />
         <CockpitRevLights speed={car.speed} throttle={car.throttle} />

@@ -85,3 +85,10 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Browser checks covered real rendered pedal/steering/reverse pointer controls, synthetic orientation centering/inversion and touch override, saved-driver refresh, return to lobby, first-ever personal best available on lap two, ghost reuse, native replay/pause/close isolation, original tutorial, and four-vehicle wet split-screen rendering without page/console/shader errors.
 - Multiplayer browser flow covered finished-phone waiting/neutral inputs, display auto-spectate, VIP transfer, native phone voting/next-round tuning, and countdown abort preserving round two and completed points. Updated landing preview rendered on desktop/mobile without errors.
 - Software-only headless Chromium is unsuitable for judging hardware frame rate or physical phone steering/haptic feel. Real-device follow-ups remain in `HUMAN_CHECKS.md`. Local scenario scripts/captures were not added as CI or application dependencies.
+
+## 2026-11-03 — Vehicle artwork
+
+- Matched focused asset captures and WebGL submission counts covered all four vehicles. Combined draw calls fell 251→210 and submitted triangles 21,608→19,080; the open tuk-tuk adds 200 triangles while saving five draws. These are rendering-work counts, not hardware FPS.
+- Front/side views and native four-player wet rendering covered the shaped bodies, shared wheels, mirrors and translucent rivals without page/console/shader errors. A full dry Sakura run and finish replay completed with the new Formula artwork; the home preview was refreshed from actual driving.
+- Gemini reviewed visual coherence/readability. Inboard rim contrast and tire-mark placement were refined. Its alleged tuk-tuk ceiling artifact was traced to the existing track's torii beam/lanterns, rather than passenger-cabin geometry.
+- This pass changes visual assets only; shared physics, vehicle tuning, collision dimensions, controls and race rules are unchanged. The previous gameplay matrix was not rerun for these art changes.
