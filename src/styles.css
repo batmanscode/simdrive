@@ -3681,7 +3681,7 @@ input {
 .race-position { position: absolute; top: 48px; right: 8px; z-index: 3; display: grid; gap: 3px; padding: 8px 10px; border-radius: 6px; background: #0f181ed9; color: #f5f5e8; min-width: 85px; max-width: 155px; pointer-events: none; }
 .race-position > strong { font-size: 19px; line-height: 1; font-variant-numeric: tabular-nums; }
 .race-position small { font-size: 10px; opacity: .65; font-weight: 500; }
-.race-position > span { font-size: 9px; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-position > span { font-size: 11px; color: #d1d5db; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .race-pane-split { --race-rear-view-top: 44px; --race-rear-view-height: clamp(30px,3.2vw,46px); --race-rear-view-width: clamp(150px,38%,230px); }
 @media (prefers-reduced-motion: reduce) { .switch-track, .switch-track > i { transition: none; } }
 .reverse-control { position: absolute; z-index: 5; left: 12px; bottom: 16px; width: 130px; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; border-radius: 7px; background: #f3dec6; color: #412c16; touch-action: none; user-select: none; }

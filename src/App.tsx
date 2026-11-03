@@ -936,7 +936,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
 
   return (
     <main className="race-screen">
-      <button type="button" className="race-exit" onClick={() => send({ type: "display_return_lobby" })}>
+      <button type="button" className="race-exit" title="Return every driver to the lobby (Esc)" onClick={() => send({ type: "display_return_lobby" })}>
         <RotateCcw size={18} /> {room.championship ? "Abort round" : "Exit Race"}
       </button>
       <div className={className}>
