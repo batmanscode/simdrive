@@ -74,14 +74,14 @@ type CodexBenchmarkLap = {
 };
 
 const CODEX_BENCHMARK_LAPS: CodexBenchmarkLap[] = [
-  { trackId: "cloudline", vehicleId: "formula", setupId: "balanced", lapTime: "8:28.009", avgSpeedKmh: 226.0, surface: "curb", surfaceLabel: "tiny curb" },
-  { trackId: "cloudline", vehicleId: "stockTruck", setupId: "balanced", lapTime: "8:32.607", avgSpeedKmh: 224.0, surface: "road", surfaceLabel: "road-only" },
-  { trackId: "cloudline", vehicleId: "kart", setupId: "balanced", lapTime: "15:00.386", avgSpeedKmh: 127.5, surface: "curb", surfaceLabel: "tiny curb" },
-  { trackId: "cloudline", vehicleId: "tukTuk", setupId: "balanced", lapTime: "28:58.112", avgSpeedKmh: 66.1, surface: "road", surfaceLabel: "road-only" },
-  { trackId: "sakura", vehicleId: "formula", setupId: "balanced", lapTime: "7.618s", avgSpeedKmh: 227.5, surface: "grass", surfaceLabel: "grass + curb" },
-  { trackId: "sakura", vehicleId: "stockTruck", setupId: "balanced", lapTime: "9.667s", avgSpeedKmh: 179.2, surface: "grass", surfaceLabel: "brief grass" },
-  { trackId: "sakura", vehicleId: "kart", setupId: "balanced", lapTime: "15.344s", avgSpeedKmh: 112.9, surface: "grass", surfaceLabel: "grass + curb" },
-  { trackId: "sakura", vehicleId: "tukTuk", setupId: "balanced", lapTime: "60.935s", avgSpeedKmh: 28.4, surface: "road", surfaceLabel: "road-only" }
+  { trackId: "cloudline", vehicleId: "formula", setupId: "balanced", lapTime: "8:28.656", avgSpeedKmh: 225.7, surface: "curb", surfaceLabel: "tiny curb" },
+  { trackId: "cloudline", vehicleId: "stockTruck", setupId: "balanced", lapTime: "8:33.447", avgSpeedKmh: 223.6, surface: "road", surfaceLabel: "road-only" },
+  { trackId: "cloudline", vehicleId: "kart", setupId: "balanced", lapTime: "15:00.471", avgSpeedKmh: 127.5, surface: "curb", surfaceLabel: "tiny curb" },
+  { trackId: "cloudline", vehicleId: "tukTuk", setupId: "balanced", lapTime: "28:58.159", avgSpeedKmh: 66.1, surface: "road", surfaceLabel: "road-only" },
+  { trackId: "sakura", vehicleId: "formula", setupId: "balanced", lapTime: "7.763s", avgSpeedKmh: 223.2, surface: "grass", surfaceLabel: "grass + curb" },
+  { trackId: "sakura", vehicleId: "stockTruck", setupId: "balanced", lapTime: "9.989s", avgSpeedKmh: 173.5, surface: "grass", surfaceLabel: "grass + curb" },
+  { trackId: "sakura", vehicleId: "kart", setupId: "balanced", lapTime: "15.407s", avgSpeedKmh: 112.5, surface: "grass", surfaceLabel: "grass + curb" },
+  { trackId: "sakura", vehicleId: "tukTuk", setupId: "balanced", lapTime: "28.170s", avgSpeedKmh: 61.5, surface: "curb", surfaceLabel: "curb" }
 ];
 
 const SHOWROOM_TRACK_IDS: TrackId[] = ["sakura", "alpine", "fjord", "causeway", "cloudline", "passage"];
@@ -738,7 +738,7 @@ function CodexBenchmarks() {
         </div>
       </div>
       <p className="codex-benchmarks-copy">
-        Historical automated laps, recorded before the motorsport handling update. They are kept for reference and are not directly comparable to current personal bests.
+        Recorded 3 Nov 2026 with motorsport handling. Solo, dry, standing-start laps; assists on, class pace and default setups. Surface tags summarize each recorded run.
       </p>
       <div className="codex-benchmark-list">
         {CODEX_BENCHMARK_LAPS.map((lap) => {
