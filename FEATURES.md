@@ -26,7 +26,9 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Each driver can choose a personal rear-view mirror mode: Auto, On, or Off; new players default to Auto, which shows the mirror only when other active cars exist.
 - Non-VIP players can see the chosen race settings, vehicles, and driver setups in the lobby.
-- Five circuits plus Fjord Passage: a checkpoint-gated one-way run ending beyond the fjord village, with its own finish gate/map marker and preserved circuit preferences.
+- Five circuits plus Fjord Passage and three short sprints: checkpoint-gated one-way runs with their own finish gates/map markers and preserved circuit preferences. Route choices are grouped by map.
+- Authored shorelines/bridge decks, an Alpine stone arch, a working fjord quay, road-clear rock/grass banks, and elevation-based Cloudline forest/rock/snow.
+- Cosmetic vehicle-specific suspension settling, restrained canopy movement and harmonic engine voices with sound-only RPM/gearing and load response.
 - Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#[oss]vibejam` sponsor board, weather visuals, dust/spray effects, vehicle-specific cockpit silhouettes, and per-driver cockpit Hands/Paws/None display cosmetics.
 - Phone controller supports tilt steering with iOS/WebKit permission prompts, Chrome-friendly `devicemotion` and Generic Sensor fallbacks, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
 - Controller setup/lobby screens warn when the phone is not on the recommended Android Chromium-style browser path for best motion and haptic support.

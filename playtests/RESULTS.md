@@ -100,3 +100,13 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Gemini reviewed visual coherence and driving readability. The pass retained clear track edges and sightlines; nearby snow faces and pine clusters were refined after review. Sakura keeps its rounded, faceted hills.
 - Typecheck and production build passed. No new CI, test dependency, physics, collision, control or race-rule changes. Generated captures and exploratory helpers remain ignored; hardware FPS still requires a real-device check.
 - Browser captures isolate external widgets. An additional unblocked home check traced `Unexpected identifier 'a'` to line 7 of the existing hosted Vibe Jam widget; its script currently fails standalone syntax parsing. The competition snippet is unchanged by this pass, and the home/podium still render.
+
+## 2026-11-03 — Scenic routes and feedback
+
+- All 24 fixed-timestep runs finished across the three new sprints, all four vehicles, dry/wet. Targeted checks covered course lengths/checkpoints and Causeway sprint bridge-wall parity with the full circuit.
+- Native browser driving completed Alpine and all three sprint finishes with route-context captures and no page/console/shader errors. Phone route selection preserved circuit laps/flying-start preferences; real phone-page audio unlock/start/throttle/exit checks reached silence outside the race.
+- Wet four-player Causeway Sprint rendered all eight race/mirror canvases without page/console/shader errors, including overlapping ghost rivals and a steady-camera preference.
+- 27,335 road/curb/runoff ray probes found no new bank/shore geometry above the driven surface. Cosmetic spring checks covered settling, slow frames and steady-camera behavior. Four engine trajectories rendered finite, unclipped samples and silent tails after crash; listening comfort still needs real phone/speaker judgment.
+- Matched scenery captures and Gemini visual/UX reviews refined bridge cues, snow-verge contrast, village grounding and route controls. Combined draw submissions stayed approximately level with +0.46% triangles across the ten comparison views. External widgets were isolated as in the previous art checks.
+- Typecheck and the production client/server build passed. The home preview was refreshed from an actual driven lap, retaining the original joke podium.
+- Generated scripts, captures and audio clips remain ignored. Car artwork/liveries/drivers, the vehicle roster and handling tuning are unchanged; no new CI or application dependencies.

@@ -18,8 +18,8 @@ Reference for current phone-side sound and vibration feedback. This is useful wh
 - Start/test cue: short confirmation tone when audio is enabled or tested.
 - Audio test also triggers a small on-screen pulse preview on the phone controller.
 - Countdown: server-marked 5/4/3/2/1 beeps after audio is unlocked, followed by a louder/lower `GO` cue only after the server reports the race phase has started.
-- Engine: persistent tone follows car speed and throttle.
-- Tire: filtered noise follows slip, grass/off-road driving, and curb contact.
+- Engine: vehicle-specific harmonic voices follow cosmetic RPM/gear stages, throttle load and overrun, with softer shift cuts and filtered intake noise. Gear thresholds respect setup/equal-pace speeds; race acceleration and transmission physics are unchanged. A bounded output limiter protects combined engine/tire/impact cues.
+- Tire: filtered noise rises gently near the grip limit, then follows actual slip, grass/off-road driving and curb contact.
 - Brake: tone fades in during braking at speed.
 - Curb: low rumble follows curb contact at speed.
 - Impact: short thud cue when impact is above threshold.
@@ -53,3 +53,5 @@ Speed thresholds below use the same km/h scale shown on the in-game speedometer.
 Road cornering near the combined grip limit (`gripUsage > 0.78`, slip below 0.5, speed above 35 km/h) can request a light 8 ms pulse at most every 400 ms. Impact, tip-risk, hard-braking and surface cues retain priority; stronger slip feedback follows actual sliding. Hardware feel still needs supported real-phone testing.
 
 Finished/DNF drivers are quiet. Crashes retain their single event cue while suppressing repeated impact pulses and engine/tire noise until recovery.
+
+Engine A/Bs were rendered locally for level/tail checks and reviewed for audible UX. Phone speakers, earphones and physical steering/haptics still need real-device judgment.

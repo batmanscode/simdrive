@@ -1,8 +1,9 @@
-import type { TrackDef, TrackId, Vec2 } from "./types.js";
+import type { SceneryId, TrackDef, TrackId, Vec2 } from "./types.js";
 
-const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
+const CIRCUITS: Record<SceneryId, TrackDef> = {
   sakura: {
     id: "sakura",
+    sceneryId: "sakura",
     name: "Sakura Sprint",
     description: "Short, flowing esses with one heavy braking hairpin and forgiving runoff.",
     inspiration: "Suzuka-style esses and compact Japanese mountain roads.",
@@ -24,6 +25,7 @@ const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
   },
   alpine: {
     id: "alpine",
+    sceneryId: "alpine",
     name: "Alpine Grand Prix",
     description: "Longer high-speed course with an uphill sweep, fast changes, and a heavy chicane.",
     inspiration: "Spa-style elevation, Monza-style speed, and high alpine passes.",
@@ -48,6 +50,7 @@ const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
   },
   fjord: {
     id: "fjord",
+    sceneryId: "fjord",
     name: "Fjord Loop",
     description: "Endurance loop around cliffside water, timber tunnels, high ridges, and a downhill village run.",
     inspiration: "Norway's Geiranger-Trollstigen scenery, Nordschleife endurance rhythm, and coastal mountain roads.",
@@ -84,6 +87,7 @@ const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
   },
   causeway: {
     id: "causeway",
+    sceneryId: "causeway",
     name: "Keys Causeway",
     description: "Flat coastal endurance route with a landmark bridge straight, island bends, and wide ocean views.",
     inspiration: "Florida Keys Overseas Highway and Seven Mile Bridge causeway driving.",
@@ -121,6 +125,7 @@ const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
   },
   cloudline: {
     id: "cloudline",
+    sceneryId: "cloudline",
     name: "Cloudline Ascent",
     description: "A huge mountain-pass lap with stacked switchbacks, exposed ridge straights, and a long summit descent.",
     inspiration: "Pikes Peak's race-to-the-clouds climb, Stelvio-style switchbacks, and high alpine observatory roads.",
@@ -188,8 +193,37 @@ export const TRACKS: Record<TrackId, TrackDef> = {
     description: "A one-way journey past waterfalls, cliffside lookouts and the coastal village. Grid start, one run to the finish.",
     targetLap: "Point-to-point",
     finishFraction: 0.735
+  },
+  fjordSprint: {
+    ...CIRCUITS.fjord,
+    id: "fjordSprint",
+    name: "Fjord Waterfall Sprint",
+    description: "A short coastal climb past the waterfall to the ridge lookout. One run, grid start.",
+    targetLap: "1.5 km sprint",
+    finishFraction: .26
+  },
+  causewaySprint: {
+    ...CIRCUITS.causeway,
+    id: "causewaySprint",
+    name: "Keys Island Sprint",
+    description: "Cross the long sea bridge and sweep through the lighthouse island. One run, grid start.",
+    targetLap: "3.0 km sprint",
+    finishFraction: .46
+  },
+  cloudlineSprint: {
+    ...CIRCUITS.cloudline,
+    id: "cloudlineSprint",
+    name: "Cloudline Foothill Sprint",
+    description: "A compact run through forest bends and the first mountain switchbacks. One run, grid start.",
+    targetLap: "3.0 km sprint",
+    finishFraction: .21
   }
 };
+
+/** Route variants share the original landscape and never move the driven road. */
+export function sceneryTrack(track: TrackDef): TrackDef {
+  return TRACKS[track.sceneryId];
+}
 
 export function raceCourseLength(track: TrackDef) {
   return trackMetrics(track).totalLength * (track.finishFraction ?? 1);

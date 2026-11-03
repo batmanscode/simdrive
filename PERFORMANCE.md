@@ -57,6 +57,10 @@ Matched dry solo captures at 1280×800 measured the following totals across two 
 
 Across these ten views, draws fell 3,366→2,623 (22%) and triangles were effectively flat, 1,092,226→1,093,787 (+0.14%). Alpine/Fjord spend a little more geometry on groves and cabin details. These are submission counts, not a hardware frame-rate measurement.
 
+The following landscape/route pass adds coastal deck/pier/shoreline geometry, authored cuttings, a stone arch and harbor setting. At the same ten fixed views, combined color/shadow draws changed 2,623→2,621 and triangles 1,093,787→1,098,867 (+0.46%). Shoreline geometry and fewer high-elevation trees offset the new landmarks. These counts do not establish hardware FPS.
+
+Route variants share the original scenery family and control points. Terrain probes protect other road layers; generated ribbons and new landscape buffers are disposed on replacement/unmount. Cosmetic suspension uses bounded substeps without React frame state. Engine voices run on the phone with native Web Audio nodes and reuse the tire noise buffer; no audio media downloads or new application dependencies are required.
+
 ## Current Optimizations
 
 The vehicle-art pass merges both rim faces and spokes into one draw, and replaces stacked body pieces with single profiled panels. Matched focused asset previews (including the same preview floor) measured:

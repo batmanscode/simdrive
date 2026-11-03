@@ -2,11 +2,11 @@ import { Vegetation, type Plant } from "./Vegetation";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { CarState, TrackDef, TrackId } from "../shared/types";
-import { sampleTrack, trackMetrics } from "../shared/tracks";
+import type { CarState, SceneryId, TrackDef, TrackId } from "../shared/types";
+import { sampleTrack, trackMetrics, TRACKS } from "../shared/tracks";
 
 const PALETTES: Record<
-  TrackId,
+  SceneryId,
   { sky: string; horizon: string; sun: string; fog: string; ground: string }
 > = {
   sakura: {
@@ -22,13 +22,6 @@ const PALETTES: Record<
     sun: "#fff1d1",
     fog: "#b5ccd1",
     ground: "#526e52",
-  },
-  passage: {
-    sky: "#5d9cb0",
-    horizon: "#dde1ca",
-    sun: "#ffe4b3",
-    fog: "#a4bdba",
-    ground: "#405d51",
   },
   fjord: {
     sky: "#5d9cb0",
@@ -62,7 +55,7 @@ export function racePalette(trackId: TrackId, rain: boolean) {
         fog: "#a0b0b5",
         ground: "#43594e",
       }
-    : PALETTES[trackId];
+    : PALETTES[TRACKS[trackId].sceneryId];
 }
 
 const skyVertex = `varying vec3 vDirection;
@@ -124,15 +117,15 @@ export function MotorsportSky({
   const wet = wetness ?? (rain ? 1 : 0);
   const targets = useMemo(
     () => ({
-      sky: new THREE.Color(PALETTES[trackId].sky).lerp(
+      sky: new THREE.Color(PALETTES[TRACKS[trackId].sceneryId].sky).lerp(
         new THREE.Color(racePalette(trackId, true).sky),
         wet,
       ),
-      horizon: new THREE.Color(PALETTES[trackId].horizon).lerp(
+      horizon: new THREE.Color(PALETTES[TRACKS[trackId].sceneryId].horizon).lerp(
         new THREE.Color(racePalette(trackId, true).horizon),
         wet,
       ),
-      sun: new THREE.Color(PALETTES[trackId].sun).lerp(
+      sun: new THREE.Color(PALETTES[TRACKS[trackId].sceneryId].sun).lerp(
         new THREE.Color(racePalette(trackId, true).sun),
         wet,
       ),
@@ -147,17 +140,17 @@ export function MotorsportSky({
       wet: { value: rain ? 1 : 0 },
       mountains: {
         value:
-          trackId === "causeway"
+          TRACKS[trackId].sceneryId === "causeway"
             ? 0.08
-            : trackId === "sakura"
+            : TRACKS[trackId].sceneryId === "sakura"
               ? 0.6
-              : trackId === "cloudline"
+              : TRACKS[trackId].sceneryId === "cloudline"
                 ? 2.8
-                : trackId === "alpine"
+                : TRACKS[trackId].sceneryId === "alpine"
                   ? 1.8
                   : 2.1,
       },
-      ridgeTint: { value: new THREE.Color(PALETTES[trackId].ground) },
+      ridgeTint: { value: new THREE.Color(PALETTES[TRACKS[trackId].sceneryId].ground) },
     }),
     [trackId],
   );
@@ -203,7 +196,7 @@ export function MotorsportLight({
   const initialIntensity = useRef(2.5 - wet * 1.4).current;
   const sunColor = useMemo(
     () =>
-      new THREE.Color(PALETTES[trackId].sun).lerp(
+      new THREE.Color(PALETTES[TRACKS[trackId].sceneryId].sun).lerp(
         new THREE.Color(racePalette(trackId, true).sun),
         wet,
       ),
@@ -544,10 +537,11 @@ export function SakuraLandscape({
   );
 }
 
-export function LandscapeMaterial({ color }: { color: string }) {
+export function LandscapeMaterial({ color, vertexColors = false }: { color: string; vertexColors?: boolean }) {
   return (
     <meshStandardMaterial
       color={color}
+      vertexColors={vertexColors}
       roughness={1}
       side={THREE.DoubleSide}
       onBeforeCompile={(shader) => {

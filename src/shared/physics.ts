@@ -400,7 +400,7 @@ function wallDistanceLimit(track: TrackDef, progress?: number) {
 }
 
 function wallMarginAtProgress(track: TrackDef, progress?: number) {
-  if (track.id !== "causeway" || progress === undefined) return track.wallMargin;
+  if (track.sceneryId !== "causeway" || progress === undefined) return track.wallMargin;
   const totalLength = trackMetrics(track).totalLength;
   if (totalLength <= 0) return track.wallMargin;
   return isCausewayBridgeProgress(wrap(progress, totalLength) / totalLength) ? 0.75 : track.wallMargin;
