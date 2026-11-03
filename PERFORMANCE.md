@@ -107,6 +107,17 @@ An actual controller page joined a four-driver room, unlocked audio through Test
 
 ## Current Optimizations
 
+The subsequent vehicle material/body polish keeps wheel dimensions, animation and cockpit cameras unchanged. Fixed details and livery colours are baked into one mesh per part; glass adds no reflection pass or texture. Matched focused previews with the same floor measured:
+
+| Vehicle | Draw calls before → after | Triangles before → after |
+| --- | --- | --- |
+| Formula | 63 → 63 | 6,552 → 7,036 |
+| Kart | 60 → 48 | 4,756 → 3,824 |
+| Truck | 45 → 41 | 4,300 → 4,340 |
+| Tuk-Tuk | 42 → 42 | 3,472 → 4,080 |
+
+Combined draws fell 210→194 (7.6%); triangles changed 19,080→19,280 (+1.05%). These asset submission counts are not hardware FPS measurements. Native wet four-class driving and all eight race/mirror canvases were also checked.
+
 The vehicle-art pass merges both rim faces and spokes into one draw, and replaces stacked body pieces with single profiled panels. Matched focused asset previews (including the same preview floor) measured:
 
 | Vehicle | Draw calls before → after | Triangles before → after |

@@ -135,3 +135,12 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Isolated comparisons covered flat/sloped roads, fog and transparent ghost/spray overlap. Geometry/alpha checks and visual inspection found no noticeable regression; Gemini reviewed visual/UX readability. Ground decals render before transparent cars/wakes, and bounded conservative culling can submit a few offscreen quads.
 - A native Alpine lap finished without application errors. A separate native two-driver braking run produced visible marks from actual inputs and verified GPU-buffer release on return to the lobby; both cars remained on the road without crashing. No pose overrides were used for these driving checks.
 - Typecheck and production build passed. Physics, controls, update rates, mark thresholds/placement/opacity/intervals/caps and race rules are unchanged. Browser checks isolated external widgets as above; measured submissions do not establish hardware FPS. Captures, probes and reference artifacts remain ignored; no CI or dependencies were added.
+
+
+## 2026-11-03 — Vehicle material and body polish
+
+- Matched four-class asset previews covered geometry, paint/trim contrast and shared wheels without page/console/shader errors. Combined submissions changed 210→194 draws and 19,080→19,280 triangles; details and measurement limits are in PERFORMANCE.md.
+- A native production-page wet Sakura race finished with all four classes: Formula 25.952 s, Kart 27.263 s, Truck 28.345 s and Tuk-Tuk 40.337 s. All eight driving/mirror canvases, Hands/Paws/None, steady-camera preference, overlapping ghost rivals, results and finish replay passed without application errors. No crashes, pose overrides or resets occurred.
+- Gemini reviewed exterior art and live cockpit visual/UX readability. Refinements included the truck cage, darker glass gradient, seat insert and housed Tuk headlight; final sightlines and mirrors remained clear. Before/afters were shared privately. The racing-miniatures redesign remains a future idea in IMPROVEMENTS.md.
+- A separate dry native driving capture refreshed the actual gameplay home preview. Physics, collisions, controls, camera positions, race rules and update rates are unchanged. Generated captures/helpers remain ignored; no new dependencies, tests or CI were added.
+- All eight player colours rendered across all four classes. A 390 px controller page joined and switched through the four vehicle previews in pink without application errors; the desktop home retained the original joke podium.
