@@ -62,6 +62,22 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 - Server owns room state, race phase, vehicle-specific velocity-based movement, rolling-contact yaw inertia, shared braking/cornering grip, mass-aware contacts, per-driver setup multipliers, warm-up/flying start timing, downforce-style speed-building grip, elevation/grade effects, tuk-tuk rollover risk, optional crash/off-track reset, checkpoint-gated lap completion, height-aware directional collisions, glancing wall recovery, DNF handling, and results.
 - If every display/host browser disconnects, the room stays resumable for a 20-second grace window. If no display reconnects in that window, the room closes and controllers are sent back out of the game.
 
+## Analytics
+
+Production builds on `simdrive.xyz` and `www.simdrive.xyz` use the self-hosted [Umami dashboard](https://anal.personalslave.xyz/websites/2cb0ef87-81c8-4051-8978-d4c479c59d12). Pageviews and a small set of confirmed milestones help show where players get into a race or drop out:
+
+| Events | Meaning |
+| --- | --- |
+| `room-created` | A display successfully created a room. |
+| `controller-joined` | A phone successfully joined, with room-link/manual entry. |
+| `race-started`, `race-results` | The original host display observed racing/results, with track, player count, weather and race options. Results include finish/crash/DNF counts. |
+| `driver-started`, `driver-finished` | The phone's own car started driving/finished, with vehicle, setup and cockpit choice. |
+| `motion-setup` | Enabling motion returned ready, unsupported, insecure or not-granted. Ready describes permission setup, not proof of sensor readings. |
+
+The dashboard has three goals (Host: start a race, Host: reach race results, Phone: finish a race) and separate host/phone funnels with a 24-hour window to accommodate long Cloudline races. These measure browser journeys, not cross-device users or authoritative server totals. Extra displays do not multiply host milestones; bounded tab-session deduplication prevents refresh/reconnect repeats.
+
+The tracker is asynchronous and optional. Development/local builds and Do Not Track browsers do not load it. Names, room codes, controller tokens and telemetry are not sent; URL/referrer query strings and fragments are stripped. There is no user identification, session recording or gameplay-loop instrumentation. The public website ID is configuration, not a login credential.
+
 ## Project docs
 
 - `SPEC_detailed.md`: canonical product and technical spec.

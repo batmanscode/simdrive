@@ -1,4 +1,5 @@
 import { CockpitGrip } from "./race/CockpitGrip";
+import { trackMilestone, trackRoomMilestones, type AnalyticsClient } from "./analytics";
 import { createBodyDynamics, stepBodyDynamics } from "./race/BodyDynamics";
 import { createEngineVoice, updateEngineVoice, silenceEngineVoice, type EngineVoice } from "./audio/EngineVoice";
 import { Earthworks, FjordQuay, colorMountainGround } from "./race/Earthworks";
@@ -2193,10 +2194,16 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, equalPace, send }: 
   );
 }
 
+function carPreviewEvents() {
+  // This preview has no pointer controls. Avoid binding to a div that a fast
+  // lobby-to-race transition can unmount before the canvas finishes setting up.
+  return { enabled: false, priority: 0 };
+}
+
 function CarSetupPreview({ vehicle, setup, color }: { vehicle: VehicleDefinition; setup: CarSetup; color: string }) {
   return (
     <div className="car-preview">
-      <Canvas camera={{ position: vehicle.id === "formula" ? [4.2, 2.7, 6] : [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
+      <Canvas events={carPreviewEvents} camera={{ position: vehicle.id === "formula" ? [4.2, 2.7, 6] : [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
         <color attach="background" args={["#253338"]} />
         <ambientLight intensity={0.85} />
         <hemisphereLight args={["#e5f4ff", "#63755b", 0.75]} />
@@ -8095,6 +8102,8 @@ function mergeIndexedGeometries(geometries: THREE.BufferGeometry[]) {
 
 function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null);
+  const analyticsClientRef = useRef<AnalyticsClient>({});
+  const creatingRoomRef = useRef(false);
   const queuedMessagesRef = useRef<object[]>([]);
   const reconnectTimerRef = useRef<number | undefined>(undefined);
   const reconnectAttemptRef = useRef(0);
@@ -8138,16 +8147,22 @@ function useGameSocket() {
         if (message.type === "hello") setClientId(message.clientId);
         if (message.type === "live_stats") setLiveStats(message.stats);
         if (message.type === "joined_display") {
+          analyticsClientRef.current = { displayGroupId: message.displayGroupId };
+          if (creatingRoomRef.current) trackMilestone("room-created", message.roomCode);
+          creatingRoomRef.current = false;
           setDisplayGroupId(message.displayGroupId);
           sessionStorage.setItem(DISPLAY_SESSION_KEY, JSON.stringify({ roomCode: message.roomCode, displayGroupId: message.displayGroupId }));
         }
         if (message.type === "joined_controller") {
+          analyticsClientRef.current = { displayGroupId: message.displayGroupId, playerId: message.playerId };
+          trackMilestone("controller-joined", `${message.roomCode}:${message.playerId}`, { entry: new URLSearchParams(location.search).has("room") ? "room-link" : "manual" });
           setPlayerId(message.playerId);
           setDisplayGroupId(message.displayGroupId);
           setJoinedToken(message.token);
           setNotice(undefined);
         }
         if (message.type === "room_state") {
+          trackRoomMilestones(message.state, analyticsClientRef.current);
           if (!location.pathname.startsWith("/controller")) recordRaceReplay(message.state, message.serverNow);
           if (message.state.phase === "lobby" || message.state.phase === "countdown") setFeedback(current => message.state.cars.find(car => car.playerId === current?.playerId));
           setRoom(message.state);
@@ -8175,6 +8190,8 @@ function useGameSocket() {
           setRoom((current) => current ? { ...current, phase: message.roomPhase } : current);
         }
         if (message.type === "room_closed") {
+          analyticsClientRef.current = {};
+          creatingRoomRef.current = false;
           console.warn(message.message);
           clearDisplaySession();
           setRoom(undefined);
@@ -8189,6 +8206,7 @@ function useGameSocket() {
           setNotice({ id: Date.now(), message: message.message });
         }
         if (message.type === "error_notice") {
+          creatingRoomRef.current = false;
           console.warn(message.message);
           if (message.message === "Room not found.") {
             clearDisplaySession();
@@ -8229,6 +8247,7 @@ function useGameSocket() {
   }, []);
 
   const send = useCallback((message: object) => {
+    if ("type" in message && message.type === "create_room") creatingRoomRef.current = true;
     const ws = wsRef.current;
     if (!ws || ws.readyState === WebSocket.CONNECTING) {
       if (shouldQueueSocketMessage(message)) queuedMessagesRef.current.push(message);
@@ -8385,6 +8404,8 @@ function wsUrl() {
 
 async function enableControllerDevice(options: { landscape?: boolean } = {}) {
   const motion = await requestMotion();
+  const result = motion.enabled ? "ready" : !sensorSupported() ? "unsupported" : !motionContextAllowed() ? "insecure" : "not-granted";
+  trackMilestone("motion-setup", result, { result });
   if (options.landscape ?? true) await requestLandscape();
   return motion;
 }
