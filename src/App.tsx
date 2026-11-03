@@ -12,7 +12,7 @@ import { RacingWheel as VehicleWheel } from "./race/RacingWheel";
 import { BodyPanel, FORMULA_HULL, FORMULA_SIDEPOD, FORMULA_COVER, FORMULA_COCKPIT_NOSE, KART_NOSE, TRUCK_HOOD, TRUCK_CAB, TRUCK_COCKPIT_HOOD, TUK_CANOPY, TUK_SIDE, TUK_REAR, TUK_SEAT, TUK_BACK } from "./race/Bodywork";
 import { TireCloud } from "./race/TireCloud";
 import { JourneyFinish } from "./race/JourneyFinish";
-import { AdaptiveResolution } from "./race/AdaptiveResolution";
+import { AdaptiveResolution, useRaceDpr } from "./race/AdaptiveResolution";
 import { ReplayDialog } from "./race/ReplayDialog";
 import { readRaceReplay, recordRaceReplay } from "./race/replay";
 import { cornerAdvice, formatLapTime, PersonalGhost, practiceKey, readPersonalLap, useDisplayPracticeRecorders } from "./race/Practice";
@@ -2798,15 +2798,16 @@ const REAR_VIEW_MAX_DISTANCE: Record<RaceRenderQuality, number> = {
 
 function RaceCanvas({ room, focusPlayerId, paneCount, replay = false, cameraMotion }: { room: RoomState; focusPlayerId: string; paneCount: number; replay?: boolean; cameraMotion?: boolean }) {
   const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
+  const [dpr, selectDpr] = useRaceDpr(quality === "split");
   return (
     <Canvas
       shadows={quality === "full"}
-      dpr={quality === "split" ? [0.75, 1] : [1, 1.35]}
+      dpr={dpr}
       gl={{ antialias: quality === "full", powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
       camera={{ fov: replay ? 54 : 76, near: 0.1, far: 1500 }}
     >
       <fog attach="fog" args={[racePalette(room.settings.trackId, room.settings.rain).fog, room.settings.rain ? 55 : 130, room.settings.rain ? 290 : 650]} />
-      <AdaptiveResolution split={quality === "split"} />
+      <AdaptiveResolution split={quality === "split"} dpr={dpr} onChange={selectDpr} />
       <MotorsportSky trackId={room.settings.trackId} rain={room.settings.rain} wetness={room.settings.wetness} />
       <MotorsportLight trackId={room.settings.trackId} rain={room.settings.rain} wetness={room.settings.wetness} shadows={quality === "full"} />
       <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} replay={replay} cameraMotion={cameraMotion} />

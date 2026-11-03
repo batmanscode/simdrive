@@ -233,6 +233,20 @@ export type TrackMetrics = {
   totalLength: number;
   segmentStarts: number[];
   samples: TrackSample[];
+  segments: TrackSegment[];
+};
+
+type TrackSegment = {
+  dx: number;
+  dz: number;
+  lengthSquared: number;
+  length: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
 };
 
 export type TrackSample = {
@@ -283,14 +297,26 @@ export function trackMetrics(track: TrackDef): TrackMetrics {
 
   const samples = sampleSmoothTrack(track);
   const segmentStarts: number[] = [];
+  const segments: TrackSegment[] = [];
   let totalLength = 0;
   for (let i = 0; i < samples.length; i += 1) {
     segmentStarts.push(totalLength);
     const a = samples[i];
     const b = samples[(i + 1) % samples.length];
-    totalLength += distance3D(a, b);
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length = distance3D(a, b);
+    // Conservative padding includes projection rounding at segment endpoints.
+    const padding = 1e-6;
+    segments.push({
+      dx, dz, lengthSquared: dx * dx + dz * dz, length,
+      minX: Math.min(a.x, b.x) - padding, maxX: Math.max(a.x, b.x) + padding,
+      minY: Math.min(a.y, b.y) - padding, maxY: Math.max(a.y, b.y) + padding,
+      minZ: Math.min(a.z, b.z) - padding, maxZ: Math.max(a.z, b.z) + padding
+    });
+    totalLength += length;
   }
-  const metrics = { totalLength, segmentStarts, samples };
+  const metrics = { totalLength, segmentStarts, samples, segments };
   metricsCache.set(track, metrics);
   return metrics;
 }
@@ -302,7 +328,7 @@ export function sampleTrack(track: TrackDef, rawProgress: number): TrackSample {
   const i = findSegmentIndex(metrics, progress);
   const a = metrics.samples[i];
   const b = metrics.samples[(i + 1) % metrics.samples.length];
-  const segmentLength = distance3D(a, b);
+  const segmentLength = metrics.segments[i].length;
   const start = metrics.segmentStarts[i];
   const t = segmentLength === 0 ? 0 : clamp((progress - start) / segmentLength, 0, 1);
   const x = lerp(a.x, b.x, t);
@@ -313,36 +339,50 @@ export function sampleTrack(track: TrackDef, rawProgress: number): TrackSample {
 
 export function nearestTrackPoint(track: TrackDef, point: Vec2): NearestTrackPoint {
   const metrics = trackMetrics(track);
-  let best: NearestTrackPoint | undefined;
+  let bestIndex = -1;
+  let bestT = 0;
   let bestSelectionDistance = Infinity;
   for (let i = 0; i < metrics.samples.length; i += 1) {
+    const segment = metrics.segments[i];
+    // Any one axis can prove this segment cannot beat the current winner.
+    // Keep the original scan order and strict comparison, including ties/layers.
+    if (
+      segment.minX - point.x > bestSelectionDistance || point.x - segment.maxX > bestSelectionDistance ||
+      segment.minZ - point.z > bestSelectionDistance || point.z - segment.maxZ > bestSelectionDistance ||
+      (point.y !== undefined && (segment.minY - point.y > bestSelectionDistance || point.y - segment.maxY > bestSelectionDistance))
+    ) continue;
     const a = metrics.samples[i];
     const b = metrics.samples[(i + 1) % metrics.samples.length];
-    const abx = b.x - a.x;
-    const abz = b.z - a.z;
-    const lenSq = abx * abx + abz * abz;
+    const abx = segment.dx;
+    const abz = segment.dz;
+    const lenSq = segment.lengthSquared;
     const t = lenSq === 0 ? 0 : clamp(((point.x - a.x) * abx + (point.z - a.z) * abz) / lenSq, 0, 1);
     const x = a.x + abx * t;
     const y = lerp(a.y, b.y, t);
     const z = a.z + abz * t;
-    const segmentLength = distance3D(a, b);
     const horizontalDistance = Math.hypot(point.x - x, point.z - z);
     const selectionDistance = point.y === undefined ? horizontalDistance : Math.hypot(horizontalDistance, point.y - y);
-    const candidate = {
-      x,
-      y,
-      z,
-      heading: angleLerp(a.heading, b.heading, t),
-      grade: lerp(a.grade, b.grade, t),
-      progress: metrics.segmentStarts[i] + segmentLength * t,
-      distance: horizontalDistance
-    };
     if (selectionDistance < bestSelectionDistance) {
-      best = candidate;
+      bestIndex = i;
+      bestT = t;
       bestSelectionDistance = selectionDistance;
     }
   }
-  return best ?? { ...sampleTrack(track, 0), progress: 0, distance: 0 };
+  if (bestIndex < 0) return { ...sampleTrack(track, 0), progress: 0, distance: 0 };
+  const a = metrics.samples[bestIndex];
+  const b = metrics.samples[(bestIndex + 1) % metrics.samples.length];
+  const segment = metrics.segments[bestIndex];
+  const x = a.x + segment.dx * bestT;
+  const z = a.z + segment.dz * bestT;
+  return {
+    x,
+    y: lerp(a.y, b.y, bestT),
+    z,
+    heading: angleLerp(a.heading, b.heading, bestT),
+    grade: lerp(a.grade, b.grade, bestT),
+    progress: metrics.segmentStarts[bestIndex] + segment.length * bestT,
+    distance: Math.hypot(point.x - x, point.z - z)
+  };
 }
 
 export function wrap(value: number, length: number) {
