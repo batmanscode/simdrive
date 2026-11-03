@@ -13,6 +13,8 @@ This file tracks the practical constraints that matter when changing Sim Drive. 
 - Full `room_state` messages are sent on lobby/results changes and less frequently during active races.
 - During active races, full race snapshots should go to display clients only. Phone controllers should not parse all cars every snapshot when they only need their own feedback.
 
+These rates protect game feel: [PR #3](https://github.com/batmanscode/simdrive/pull/3) raised display snapshots from 20 to 30 Hz to reduce visible stepping and separated phone feedback from the display stream. Performance work should remove repeated computation or reduce 3D pixel cost while retaining the 60 Hz physics, ~30 Hz inputs, 30 Hz snapshots and 20 Hz controller feedback.
+
 ## Lag Investigation Notes
 
 The multiplayer lag seen with two players was not primarily a server CPU problem. The strongest evidence was:
@@ -34,7 +36,7 @@ Main contributors found:
 
 - Rain, petals, roadside grass, and soft tire wakes use instancing. Surface detail/wet sheen and distant skybox ridges use inexpensive shaders rather than reflection passes or a longer prop draw distance.
 - Sun-shadow coverage follows the cockpit on long/elevated routes; split-screen retains the shadow-free tier with grade-aligned grounding blobs.
-- Adaptive resolution requests a lower 3D pixel ratio under sustained load, down to 0.6 in split-screen or 0.8 solo. The local profiling below found these reductions can be reset by live canvas updates; persistence needs a follow-up fix. DOM instruments stay crisp; mirrors remain lightweight.
+- Adaptive resolution lowers only 3D pixel density under sustained load, down to 0.6 in split-screen or 0.8 solo. The selected DPR is owned alongside the Canvas prop so live snapshots preserve the reduction; changing solo/split quality resets its sampling and choice. DOM instruments stay crisp; mirrors retain their separate fixed DPR. This does not lower rendering refresh, physics or network update rates.
 - Personal ghost recordings are bounded to 4,001 frames per stored best. The ephemeral display replay is capped at 150 frames / nine seconds. Neither changes server race truth.
 - A baseline/upgraded four-pane comparison in software-only headless Chromium was slow for both. It establishes render/error coverage, not real hardware FPS or phone steering feel. Shared-canvas/engine migration remains a separate profiling decision.
 
@@ -63,7 +65,7 @@ Route variants share the original scenery family and control points. Terrain pro
 
 ## Local production profiling — 2026-11-03
 
-Measured the production build on this workspace's four-vCPU AMD EPYC host (Node 22.23.4). Each server scenario used a fresh process, separate WebSocket driving clients, wet Cloudline, ghost cars and reset enabled, and legal groups of at most four drivers per display. Sampling followed eight seconds of warmup: ten seconds normally, twenty seconds with CPU sampling for the 64-driver stress case. Event-loop delay was sampled at 1 ms resolution. These short runs describe this machine and workload, not a production capacity guarantee.
+The baseline production build was measured on this workspace's four-vCPU AMD EPYC host (Node 22.23.4). Each server scenario used a fresh process, separate WebSocket driving clients, wet Cloudline, ghost cars and reset enabled, and legal groups of at most four drivers per display. Sampling followed eight seconds of warmup: ten seconds normally, twenty seconds with CPU sampling for the 64-driver stress case. Event-loop delay was sampled at 1 ms resolution. These short runs describe this machine and workload, not a production capacity guarantee.
 
 | Rooms × drivers | CPU, % of one core | Event-loop delay p95 | Display / phone updates per second | Server RSS |
 | --- | --- | --- | --- | --- |
@@ -73,13 +75,22 @@ Measured the production build on this workspace's four-vCPU AMD EPYC host (Node 
 | 2 × 8 | 46.9% | 7.40 ms | 29.7 / 19.6 | 101.5 MB |
 | 8 × 8 | 103.1% | 459 ms | 1.2 / 1.1 | 110.5 MB |
 
-The overloaded case spent about 93% of sampled time in `nearestTrackPoint`, `distance3D` and `angleLerp`, with another 4% in garbage collection. Nearest-road lookup scans every smoothed segment and calculates a complete candidate for each one. A measured follow-up should first reduce that search/calculation work while preserving height-layer selection, resets and wall behavior. The 64-driver case had all cars active but could no longer sustain the configured update rates; the CPU figure can exceed 100% because it includes process helper threads.
+The overloaded baseline spent about 93% of sampled time in `nearestTrackPoint`, `distance3D` and `angleLerp`, with another 4% in garbage collection. Lookup scanned every smoothed segment and calculated a complete candidate for each one. The 64-driver case had all cars active but could no longer sustain the configured update rates; the CPU figure can exceed 100% because it includes process helper threads.
 
 Application JSON traffic averaged 124 kB/s per display and 40 kB/s per phone in the four-driver room; the eight-driver room used 241 kB/s per display and 49 kB/s per phone. This includes full room updates and nearby audio descriptors, excludes WebSocket/TLS overhead, and uses uncompressed local connections. It does not measure internet latency or packet loss.
 
-Production browser probes used fresh contexts, fixed driving poses at 1280×800, five seconds of warmup and twelve-second frame samples. Solo Keys was dry; multiplayer views used rain, with mirrors enabled except for an explicit four-player comparison. These are rendering fixtures, not additional completed races. Chromium reported ANGLE/SwiftShader with no hardware GPU. Observed animation rates were only 1.4–2.9 Hz, so their frame times cannot establish laptop performance. Adaptive resolution changed one three-player pane during sampling; the four-player mirror comparison retained matching main-view pixel sizes.
+The follow-up caches each segment's length, horizontal projection terms and conservatively padded bounds in the existing track cache. Bounds reject only segments that cannot beat the current distance; the exact original projection, height-aware comparison, scan/tie order and winning result are retained. Heading/grade/progress are calculated only for the winner. No track samples or physics/network frequencies were reduced. Local reference checks matched 53,824 queries and 64,800 physics steps exactly; a warmed 6,000-query Cloudline sample improved 1.19 s→0.16 s (~7.3×).
 
-The sampled pane returned from 0.85 DPR to 1.0. Source inspection confirmed that `AdaptiveResolution` changes Fiber's internal DPR while `RaceCanvas` continues supplying its original DPR range on live updates; the installed Fiber canvas reconfiguration reapplies that range. Keeping the selected DPR consistent between the canvas prop and adaptive logic is a concrete follow-up, separate from the larger shared-renderer candidate.
+Fresh matched server runs used the same workload and profiler setup, including CPU sampling on both 64-driver runs:
+
+| Drivers | CPU, % of one core, before → after | Event-loop delay p95, before → after | Display / phone Hz, before → after |
+| --- | --- | --- | --- |
+| 4, one room | 15.4% → 4.8% | 2.58 → 1.26 ms | 30.2 / 19.9 → 30.2 / 19.9 |
+| 64, eight rooms | 103.3% → 22.4% | 403 → 2.07 ms | 1.3 / 1.3 → 30.0 / 20.0 |
+
+Initial browser probes used fresh contexts, fixed driving poses at 1280×800, five seconds of warmup and twelve-second frame samples. Solo Keys was dry; multiplayer views used rain, with mirrors enabled except for an explicit four-player comparison. These are rendering fixtures, not additional completed races. Chromium reported ANGLE/SwiftShader with no hardware GPU. Observed animation rates were only 1.4–2.9 Hz, so their frame times cannot establish laptop performance. Adaptive resolution changed one three-player pane during sampling; the four-player mirror comparison retained matching main-view pixel sizes.
+
+Those probes exposed a DPR reset: the sampled pane returned from 0.85 to 1.0 because Fiber canvas reconfiguration reapplied the original range after an internal reduction. The fix passes the selected numeric DPR to both the Canvas and sampler. It retains the four-second warmup, three-second/minimum-twelve-frame windows, 38 FPS threshold, 0.15 steps and existing floors. The only React updates added by adaptation happen on a reduction or quality-mode change.
 
 | Display fixture | WebGL contexts | Tracked geometry-buffer allocation | Observed JS heap |
 | --- | --- | --- | --- |
