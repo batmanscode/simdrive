@@ -110,3 +110,11 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Matched scenery captures and Gemini visual/UX reviews refined bridge cues, snow-verge contrast, village grounding and route controls. Combined draw submissions stayed approximately level with +0.46% triangles across the ten comparison views. External widgets were isolated as in the previous art checks.
 - Typecheck and the production client/server build passed. The home preview was refreshed from an actual driven lap, retaining the original joke podium.
 - Generated scripts, captures and audio clips remain ignored. Car artwork/liveries/drivers, the vehicle roster and handling tuning are unchanged; no new CI or application dependencies.
+
+## 2026-11-03 — Three-player layout and local profiling
+
+- The third pane is centered below the first two, with equal view sizes. At widths up to 800 px all three stack with equal heights. Native production-page checks covered 1280, 768, 800 and 801 px widths, six race/mirror canvases, pane clipping and unchanged 1/2/4-player layout dimensions; no page/console/shader errors occurred.
+- Matched before/after fixtures and Gemini visual/UX review supported the centered layout; HUDs and mirrors retain their anchors. Comparisons were sent privately. This CSS change did not require another full driving matrix.
+- Five fresh-process production-server workloads covered 1, 4, 8, 16 and 64 active drivers on wet Cloudline. The larger workload exposed a nearest-road-search CPU limit. Browser probes covered six solo/multiplayer/mirror configurations, plus a real controller page with audio unlocked and a targeted garbage-collection check. Measurements, methods and limits are in PERFORMANCE.md.
+- The probes also found that live canvas reconfiguration can undo adaptive DPR reductions. This existing issue is documented for follow-up; performance behavior was not changed in this layout PR.
+- Typecheck and the production build passed. Browser probes isolated external widgets as above; software WebGL and short localhost workloads do not establish hardware FPS, mobile battery use or production capacity. Generated captures, profiles and exploratory scripts remain ignored; no CI, dependencies or permanent profiling instrumentation were added.
