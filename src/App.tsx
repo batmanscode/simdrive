@@ -1,3 +1,4 @@
+import { CockpitGrip } from "./race/CockpitGrip";
 import { createBodyDynamics, stepBodyDynamics } from "./race/BodyDynamics";
 import { createEngineVoice, updateEngineVoice, silenceEngineVoice, type EngineVoice } from "./audio/EngineVoice";
 import { Earthworks, AlpineViaduct, FjordQuay, colorMountainGround } from "./race/Earthworks";
@@ -624,7 +625,7 @@ function ShowroomCockpitCard({ style }: { style: CockpitStyle }) {
       </div>
       <div className="showroom-card-copy">
         <strong>{cockpitStyleLabel(style)}</strong>
-        <span>{style === "none" ? "clean wheel" : style === "paws" ? "paw hands" : "driver hands"}</span>
+        <span>{style === "none" ? "clean wheel" : style === "paws" ? "cuffed paws" : "racing gloves"}</span>
       </div>
     </article>
   );
@@ -7053,14 +7054,8 @@ function FormulaCockpit({ car, color, cockpitStyle }: { car: CarState; color: st
 
 function FormulaSteeringWheel({ steer, style, speed, throttle }: { steer: number; style: CockpitStyle; speed: number; throttle: number }) {
   const turn = -clamp(steer, -1, 1) * 0.62;
-  const hands = useRef<THREE.Group>(null);
-  const handTurn = useRef(turn);
   const level = clamp(speed / 42 + throttle * 0.22, 0, 1);
   const lit = Math.round(level * 7);
-  useFrame((_, delta) => {
-    handTurn.current = THREE.MathUtils.lerp(handTurn.current, turn, smoothingAmount(delta, 10));
-    if (hands.current) hands.current.rotation.z = handTurn.current;
-  });
   return (
     <group position={[0, 0.5, 0.54]} scale={[0.78, 0.78, 0.78]}>
       <group rotation={[0, 0, turn]}>
@@ -7110,47 +7105,12 @@ function FormulaSteeringWheel({ steer, style, speed, throttle }: { steer: number
             </mesh>
           );
         })}
+        {style !== "none" && ([-1, 1] as const).map((side) => (
+          <group key={side} position={[side * 0.245, -0.01, -0.008]} rotation={[0, 0, side * 0.12]}>
+            <CockpitGrip side={side} style={style} grip="formula" />
+          </group>
+        ))}
       </group>
-      {style !== "none" && (
-        <group ref={hands} rotation={[0, 0, handTurn.current]}>
-          <FormulaWheelHand side={-1} style={style} />
-          <FormulaWheelHand side={1} style={style} />
-        </group>
-      )}
-    </group>
-  );
-}
-
-function FormulaWheelHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const isPaws = style === "paws";
-  const skin = isPaws ? "#f2c8a4" : "#d4a06f";
-  return (
-    <group position={[side * 0.255, -0.02, -0.055]} rotation={[0.08, side * -0.12, side * -0.1]}>
-      <mesh scale={isPaws ? [0.72, 0.5, 0.32] : [0.64, 0.38, 0.28]}>
-        <sphereGeometry args={[isPaws ? 0.11 : 0.095, 16, 10]} />
-        <meshStandardMaterial color={skin} roughness={0.76} />
-      </mesh>
-      {isPaws ? (
-        <>
-          {[-0.05, 0, 0.05].map((offset) => (
-            <mesh key={offset} position={[offset, 0.04, -0.035]} scale={[0.66, 0.42, 0.3]}>
-              <sphereGeometry args={[0.022, 9, 6]} />
-              <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
-            </mesh>
-          ))}
-          <mesh position={[0, -0.018, -0.036]} scale={[0.92, 0.55, 0.28]}>
-            <sphereGeometry args={[0.035, 10, 7]} />
-            <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
-          </mesh>
-        </>
-      ) : (
-        [-0.05, -0.017, 0.017, 0.05].map((offset) => (
-          <mesh key={offset} position={[offset * 0.8, 0.052, -0.03]} rotation={[0.56, 0, offset * -1.0]} scale={[1, 0.72, 0.54]}>
-            <capsuleGeometry args={[0.013, 0.074, 3, 8]} />
-            <meshStandardMaterial color={skin} roughness={0.72} />
-          </mesh>
-        ))
-      )}
     </group>
   );
 }
@@ -7573,40 +7533,11 @@ function TukTukHandlebar({ steer, cockpitStyle }: { steer: number; cockpitStyle:
         <boxGeometry args={[0.15, 0.038, 0.07]} />
         <meshStandardMaterial color="#181b21" roughness={0.5} metalness={0.08} />
       </mesh>
-      {cockpitStyle !== "none" && (
-        <>
-          <TukTukGripHand side={-1} style={cockpitStyle} />
-          <TukTukGripHand side={1} style={cockpitStyle} />
-        </>
-      )}
-    </group>
-  );
-}
-
-function TukTukGripHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const isPaws = style === "paws";
-  const skin = isPaws ? "#f2c8a4" : "#d4a06f";
-  return (
-    <group position={[side * 0.36, 0.078, 0.0]} rotation={[0.04, side * -0.08, side * -0.14]}>
-      <mesh scale={isPaws ? [0.9, 0.52, 0.46] : [0.78, 0.42, 0.32]}>
-        <sphereGeometry args={[isPaws ? 0.1 : 0.086, 16, 10]} />
-        <meshStandardMaterial color={skin} roughness={0.76} />
-      </mesh>
-      {isPaws ? (
-        [-0.055, 0, 0.055].map((offset) => (
-          <mesh key={offset} position={[offset * 0.78, 0.044, -0.038]} scale={[0.72, 0.4, 0.3]}>
-            <sphereGeometry args={[0.02, 9, 6]} />
-            <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
-          </mesh>
-        ))
-      ) : (
-        [-0.048, -0.016, 0.016, 0.048].map((offset) => (
-          <mesh key={offset} position={[offset * 0.78, 0.052, -0.038]} rotation={[0.7, 0, offset * -1.4]} scale={[1, 0.7, 0.5]}>
-            <capsuleGeometry args={[0.013, 0.068, 3, 8]} />
-            <meshStandardMaterial color={skin} roughness={0.72} />
-          </mesh>
-        ))
-      )}
+      {cockpitStyle !== "none" && ([-1, 1] as const).map((side) => (
+        <group key={side} position={[side * 0.36, 0.06, 0.02]}>
+          <CockpitGrip side={side} style={cockpitStyle} grip="bar" />
+        </group>
+      ))}
     </group>
   );
 }
@@ -7715,12 +7646,6 @@ function DriverWheelPreview({ cockpitStyle }: { cockpitStyle: Exclude<CockpitSty
 
 function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) {
   const turn = -clamp(steer, -1, 1) * 0.8;
-  const hands = useRef<THREE.Group>(null);
-  const handTurn = useRef(turn);
-  useFrame((_, delta) => {
-    handTurn.current = THREE.MathUtils.lerp(handTurn.current, turn, smoothingAmount(delta, 10));
-    if (hands.current) hands.current.rotation.z = handTurn.current;
-  });
   return (
     <group position={[0, 0.42, 0.48]} rotation={[Math.PI / 2, 0, 0]}>
       <group rotation={[0, 0, turn]}>
@@ -7734,81 +7659,12 @@ function CockpitWheel({ steer, style }: { steer: number; style: CockpitStyle }) 
             <meshStandardMaterial color="#9aaeb2" roughness={0.4} metalness={0.2} />
           </mesh>
         ))}
+        {style !== "none" && ([-1, 1] as const).map((side) => (
+          <group key={side} position={[side * 0.42, 0, 0]}>
+            <CockpitGrip side={side} style={style} grip="wheel" />
+          </group>
+        ))}
       </group>
-      {style !== "none" && (
-        <group ref={hands} rotation={[0, 0, handTurn.current]}>
-          <CockpitHand side={-1} style={style} />
-          <CockpitHand side={1} style={style} />
-        </group>
-      )}
-    </group>
-  );
-}
-
-function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyle, "none"> }) {
-  const isPaws = style === "paws";
-  const x = side * (isPaws ? 0.39 : 0.402);
-  const skin = style === "paws" ? "#f2c8a4" : "#d4a06f";
-  const fingerOffsets = [-0.066, -0.022, 0.022, 0.066];
-  return (
-    <group position={[x, isPaws ? -0.018 : -0.004, isPaws ? -0.012 : -0.006]} rotation={[isPaws ? 0.16 : 0.1, side * (isPaws ? 0 : 0.04), side * (isPaws ? -0.28 : -0.22)]}>
-      <mesh position={isPaws ? [0, 0, 0] : [0, -0.056, -0.08]} scale={isPaws ? [1.38, 0.86, 0.72] : [1.12, 0.56, 0.38]}>
-        <sphereGeometry args={[isPaws ? 0.158 : 0.116, 20, 12]} />
-        <meshStandardMaterial color={skin} roughness={0.76} />
-      </mesh>
-      {isPaws ? (
-        <>
-          {[-0.076, 0, 0.076].map((offset) => (
-            <mesh key={`paw-back-groove-${offset}`} position={[offset, 0.044, -0.115]} rotation={[-0.12, 0, offset * -1.45]} scale={[1, 1.06, 1]}>
-              <boxGeometry args={[0.02, 0.145, 0.018]} />
-              <meshStandardMaterial color="#9f6748" roughness={0.86} />
-            </mesh>
-          ))}
-          {[-0.11, -0.037, 0.037, 0.11].map((offset) => (
-            <mesh key={`paw-knuckle-${offset}`} position={[offset, 0.12 - Math.abs(offset) * 0.04, -0.106]} scale={[1.1, 0.52, 0.34]}>
-              <sphereGeometry args={[0.026, 10, 6]} />
-              <meshStandardMaterial color="#f7d7bd" roughness={0.78} />
-            </mesh>
-          ))}
-          {[-0.108, 0.108].map((offset) => (
-            <mesh key={`paw-side-${offset}`} position={[offset, -0.004, -0.034]} scale={[0.78, 0.58, 0.54]}>
-              <sphereGeometry args={[0.048, 10, 8]} />
-              <meshStandardMaterial color={skin} roughness={0.8} />
-            </mesh>
-          ))}
-        </>
-      ) : (
-        <>
-          {fingerOffsets.map((offset, index) => {
-            const length = [0.106, 0.134, 0.126, 0.096][index];
-            const width = [0.019, 0.023, 0.022, 0.018][index];
-            return (
-              <group key={offset} position={[offset, 0.018 - Math.abs(offset) * 0.02, -0.11]} rotation={[0.08, side * 0.03, offset * -0.95]}>
-                <mesh position={[0, length * 0.1, 0]} scale={[1, 1, 0.72]}>
-                  <capsuleGeometry args={[width, length, 3, 9]} />
-                  <meshStandardMaterial color={skin} roughness={0.72} />
-                </mesh>
-                <mesh position={[0, -length * 0.48, -0.004]} scale={[1.16, 0.5, 0.32]}>
-                  <sphereGeometry args={[width * 1.08, 9, 6]} />
-                  <meshStandardMaterial color={skin} roughness={0.76} />
-                </mesh>
-                <mesh position={[0, length * 0.63, 0.01]} rotation={[0.68, 0, 0]} scale={[1, 0.72, 0.56]}>
-                  <capsuleGeometry args={[width * 0.88, 0.034, 3, 8]} />
-                  <meshStandardMaterial color={skin} roughness={0.74} />
-                </mesh>
-              </group>
-            );
-          })}
-          <mesh position={[side * -0.096, -0.004, -0.092]} rotation={[0.46, side * 0.18, side * 0.78]} scale={[1.08, 0.86, 0.62]}>
-            <capsuleGeometry args={[0.026, 0.098, 3, 9]} />
-            <meshStandardMaterial color={skin} roughness={0.72} />
-          </mesh>
-          <mesh position={[side * -0.068, -0.05, -0.092]} rotation={[0.08, 0, side * 0.42]} scale={[1.05, 0.48, 0.34]}>
-            <sphereGeometry args={[0.038, 10, 6]} />
-            <meshStandardMaterial color={skin} roughness={0.78} />
-          </mesh>
-        </>
-      )}
     </group>
   );
 }

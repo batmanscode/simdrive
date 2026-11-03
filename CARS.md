@@ -43,6 +43,8 @@ Source links:
 | Colour choices | Same controller palette for every vehicle |
 | Cockpit cosmetics | None, Hands, or Paws; visual only; new players default to None |
 
+Hands uses compact cream racing gloves; Paws uses rounded toes, a dewclaw and underside pads. Both have short cuffs and share a single baked mesh per hand, fitted to the Formula grips, round wheel or Tuk handlebar. Thumbs wrap the upper/inner rim; round-wheel wrists have a separate lap-side fit for the flatter wheel angle. Hands rotate with the wheel/bar so their curled grip stays attached during steering. Camera positions and wheel angles are unchanged.
+
 ## Motorsports handling update
 
 Steering requires rolling contact and has vehicle-specific yaw response. Braking uses part of the available cornering grip. Body/cockpit pitch and roll visualize longitudinal/lateral load with vehicle-specific damped settling; road grade stays aligned and the tuk-tuk canopy has restrained secondary movement. Camera comfort/reduced-motion preferences suppress added cockpit movement. This remains a lightweight handling model, not a full suspension solver.
