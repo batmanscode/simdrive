@@ -109,6 +109,8 @@ An actual controller page joined a four-driver room, unlocked audio through Test
 
 Cockpit gloves and paws bake their details into one vertex-coloured mesh per hand. A pair uses two draws instead of 10 on the Formula, 30/20 for Hands/Paws on the round wheel, or 10/8 on the Tuk handlebar. Static geometry totals for a pair are 2,144–2,344 triangles (gloves, including the round-wheel wrist fit) and 1,116–2,312 (restored classic paws). The four-class classic-paw fixture changed 1,106→1,056 draws with 118,098 triangles retained; `None` retained its original counts. These are geometry/submission counts, not hardware FPS. Hands use the existing wheel rotation directly, without a separate per-frame hand smoothing callback.
 
+The completed Alpine viaduct bakes the arch, masonry, earth banks and both approach paths into one static vertex-coloured mesh: 928 triangles versus the original 420. It adds no draws, textures or per-frame callbacks. The race road, collision definitions and cameras are unchanged.
+
 The subsequent vehicle material/body polish keeps wheel dimensions, animation and cockpit cameras unchanged. Fixed details and livery colours are baked into one mesh per part; glass adds no reflection pass or texture. Matched focused previews with the same floor measured:
 
 | Vehicle | Draw calls before → after | Triangles before → after |
