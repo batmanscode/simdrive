@@ -13,6 +13,17 @@ Use automation to drive a real race through the server physics while the display
 - Browser console errors and blank WebGL canvases are caught.
 - Controller feedback/audio payloads can be smoke-tested without relying on display snapshots.
 
+## Codex lap board
+
+The in-app board is a dated set of observed automated runs, refreshed when handling changes. Keep historical results in `playtests/RESULTS.md`; do not treat laps from different handling versions as record comparisons. Publish only a completed native server run with no crash, reset or error, and label sampled curb/grass use honestly.
+
+For the current board: solo, dry, standing start, one lap, assists on, class pace, default vehicle setup and resets disabled. The race stays in memory and runs at its normal clock/tick rate. Example reproduction commands:
+
+```sh
+npm run playtest:lap -- --track sakura --vehicle formula --setup balanced --speed-scale 10 --no-reset --json
+npm run playtest:lap -- --track cloudline --vehicle tukTuk --setup balanced --speed-scale 3 --no-reset --timeout-ms 2400000 --json
+```
+
 ## Setup
 
 - Run `npm install` first if `node_modules` is missing.
@@ -31,6 +42,7 @@ Reusable playtest scripts live under `playtests/`.
 - Add `--vehicle formula`, `--vehicle kart`, `--vehicle stockTruck`, or `--vehicle tukTuk` to test a specific vehicle class. Add `--setup balanced`, `--setup highGrip`, or `--setup highSpeed` for vehicles that support multiple setups.
 - `npm run playtest:capture -- --track alpine --target 0.24:vista` runs one browser visual capture. It creates the display in Playwright, drives to the target progress, briefly brakes, saves a screenshot under `playtest-captures/`, and prints JSON. Target values are `0-1` fractions or `1-100` percents, optionally followed by `:label`.
 - Add `--speed-scale 1.55` when a very long track needs a faster automation pass. The default is `1`, so existing Sakura/Alpine behavior is unchanged.
+- `playtest:lap` accepts scales up to `10` for benchmark attempts. This changes the driver's target speed, not the simulation clock; the driver still brakes for rollover risk. Add `--no-reset` when recording a benchmark so a crash cannot become an assisted finish.
 - Add `--progress-log-ms 30000` to `playtest:lap` for long maps. It writes progress heartbeats to stderr so long runs do not sit silent for many minutes.
 - At startup, `playtest:capture` deletes and recreates its output folder. By default that is `playtest-captures/`, so the repo only keeps the latest visual capture run.
 - Local capture output folders are ignored by git so screenshots do not pollute the worktree.

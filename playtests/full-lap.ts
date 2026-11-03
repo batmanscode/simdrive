@@ -14,7 +14,7 @@ try {
   const setupId = readArg(args, "--setup") as CarSetupId | undefined;
   const timeoutMs = readNumberArg(args, "--timeout-ms", "120000", { integer: true, min: 1 });
   const lapCount = readNumberArg(args, "--laps", "1", { integer: true, min: 1, max: 9 });
-  const speedScale = readNumberArg(args, "--speed-scale", "1", { min: 0.2, max: 3 });
+  const speedScale = readNumberArg(args, "--speed-scale", "1", { min: 0.2, max: 10 });
   const progressLogMs = readNumberArg(args, "--progress-log-ms", "0", { integer: true, min: 0 });
   const jsonOnly = hasFlag(args, "--json");
 
@@ -28,6 +28,7 @@ try {
     carSetupId: setupId,
     lapCount,
     speedScale,
+    resetEnabled: !hasFlag(args, "--no-reset"),
     name: `${vehicleId} ${trackId} full-lap`,
     color: "#ff8f3d"
   });

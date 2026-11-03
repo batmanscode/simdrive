@@ -167,3 +167,22 @@ A production-build four-player wet Sakura race used Paws, mirrors on, steady cam
 - Manual geometry probes found no intersections in 34,017 samples across the full 27.2 m race road/runoff corridor from -0.3 to 3.5 m high. Another 3,672 upward probes across both approach paths cleared all 15 existing mountain meshes. These are local checks, not CI.
 - A production-build native four-player dry Alpine lap used Hands/Paws/None/Paws, mirrors on, steady cameras, ghost mode, assist/reset on and driver speed scale 1. All four finished: Formula 60.22s, Kart 61.6s, Truck 61.956s and Tuk 73.786s. Eight canvases; no application errors, crashes, resets or pose overrides. Final facade/material cleanup was checked with targeted solo/reverse and low-DPR four-pane captures rather than repeating the lap.
 - Build/typecheck passed. The model remains one static draw, now 928 triangles versus 420; shared physics, collisions, track definition, cameras and update rates are unchanged. Captures and exploratory helpers remain ignored; no dependencies or CI added.
+
+## 2026-11-03 — Codex lap board refresh
+
+Replayed all eight combinations on game commit `c7de9c8` after the motorsport handling update. The pre-update board remains archived above; these are new baselines, not claims of like-for-like record improvements. All published runs used the actual server physics and normal controller inputs: solo, dry, one standing-start lap, default vehicle setup, assists on, class pace, ghost mode and resets disabled.
+
+| Track | Vehicle / setup | Time | Avg km/h | Sampled surfaces | Driver speed scale |
+| --- | --- | ---: | ---: | --- | ---: |
+| Cloudline Ascent | Formula Prototype / Balanced | 8:28.656 | 225.7 | tiny curb | 3 |
+| Cloudline Ascent | Stock Truck / Balanced | 8:33.447 | 223.6 | road-only | 3 |
+| Cloudline Ascent | KZ Kart / Fixed | 15:00.471 | 127.5 | tiny curb | 3 |
+| Cloudline Ascent | Tuk-Tuk / Stock | 28:58.159 | 66.1 | road-only | 3 |
+| Sakura Sprint | Formula Prototype / Balanced | 7.763s | 223.2 | grass + curb | 10 |
+| Sakura Sprint | Stock Truck / Balanced | 9.989s | 173.5 | grass + curb | 10 |
+| Sakura Sprint | KZ Kart / Fixed | 15.407s | 112.5 | grass + curb | 10 |
+| Sakura Sprint | Tuk-Tuk / Stock | 28.170s | 61.5 | curb | 3 |
+
+All eight finished with no crashes, resets or server errors; each passed the checkpoint gates. Speeds use course length / official result time and the existing ×8 display conversion. Surface tags describe observed telemetry, including honestly labelled curb/grass use. The selected Formula Sakura attempt was 7.763s; a second native browser pass recorded the full lap at 7.764s. Its complete server trajectory was exported as a labelled smooth replay because software browser recording was choppy. Replay rendering never fed state or time back into the game server and supplied no leaderboard times.
+
+The manual lap runner now accepts the existing fast benchmark scales up to 10 and `--no-reset`; reproduction commands are in PLAYTEST_AUTOMATION.md. Build/typecheck and focused desktop/mobile board checks passed. Generated captures, replay frames, videos and exploratory helpers remain ignored; no gameplay changes, dependencies or CI were added.
