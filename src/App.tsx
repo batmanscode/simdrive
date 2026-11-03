@@ -12,6 +12,7 @@ import { RacingWheel as VehicleWheel } from "./race/RacingWheel";
 import { BodyPanel, FORMULA_HULL, FORMULA_SIDEPOD, FORMULA_COVER, FORMULA_COCKPIT_NOSE, KART_NOSE, TRUCK_HOOD, TRUCK_CAB, TRUCK_COCKPIT_HOOD, TUK_CANOPY, TUK_SIDE, TUK_REAR, TUK_SEAT, TUK_BACK } from "./race/Bodywork";
 import { TireCloud } from "./race/TireCloud";
 import { JourneyFinish } from "./race/JourneyFinish";
+import { SkidMarkBatch, type SkidMark } from "./race/SkidMarkBatch";
 import { AdaptiveResolution, useRaceDpr } from "./race/AdaptiveResolution";
 import { ReplayDialog } from "./race/ReplayDialog";
 import { readRaceReplay, recordRaceReplay } from "./race/replay";
@@ -6402,14 +6403,7 @@ function CarEffects({ car, rain, color }: { car: CarState; rain: boolean; color:
   </>;
 }
 
-type LiveSkidMark = {
-  id: string;
-  x: number;
-  y: number;
-  z: number;
-  heading: number;
-  opacity: number;
-};
+type LiveSkidMark = SkidMark & { id: string };
 
 function DynamicSkidMarks({ cars, rain, quality, track }: { cars: CarState[]; rain: boolean; quality: RaceRenderQuality; track: TrackDef }) {
   const [marks, setMarks] = useState<LiveSkidMark[]>([]);
@@ -6451,16 +6445,7 @@ function DynamicSkidMarks({ cars, rain, quality, track }: { cars: CarState[]; ra
   });
 
   if (marks.length === 0) return null;
-  return (
-    <group>
-      {marks.map((mark) => (
-        <mesh key={mark.id} position={[mark.x, mark.y, mark.z]} rotation={[-Math.PI / 2, 0, -mark.heading]}>
-          <planeGeometry args={[0.18, 1.35]} />
-          <meshBasicMaterial color="#050608" transparent opacity={mark.opacity} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-    </group>
-  );
+  return <SkidMarkBatch marks={marks} />;
 }
 
 function CarModel({ car, color, dimmed, translucent = false }: { car: CarState; color: string; dimmed?: boolean; translucent?: boolean }) {

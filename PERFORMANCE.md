@@ -266,6 +266,10 @@ Skid marks:
 - Split-screen uses a lower cap and slower spawn interval.
 - Avoid making skid marks permanent or unbounded during a race.
 
+Live marks share a fixed 140-slot geometry with per-mark vertex alpha, updated only when marks arrive. The existing 140/60 solo/split retention caps, 115/180 ms intervals, footprint, height and opacity rules are retained. One single-pass material replaces individual double-sided transparent plane submissions. Active bounds are conservative; the batch may submit a few offscreen quads, bounded to 280 triangles. Ground decals render before transparent cars/wakes, and the owned buffers are released when the scene unmounts.
+
+Matched 1280×800 fixed-pose probes at fixed DPR with populated marks measured combined color/shadow/mirror submissions of 1,132→853 in solo Keys and 2,504→2,260 in four-player wet Cloudline. Empty-scene and mirror draw counts were unchanged; restarting cleared the marks in all panes. An isolated fully visible 140-mark case reduced the skid contribution from 280 draws to one. These are render submissions, not hardware FPS.
+
 Dust/spray/impact:
 
 - Keep these conditional and short-lived.
