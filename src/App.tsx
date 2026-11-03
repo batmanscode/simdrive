@@ -625,7 +625,7 @@ function ShowroomCockpitCard({ style }: { style: CockpitStyle }) {
       </div>
       <div className="showroom-card-copy">
         <strong>{cockpitStyleLabel(style)}</strong>
-        <span>{style === "none" ? "clean wheel" : style === "paws" ? "cuffed paws" : "racing gloves"}</span>
+        <span>{style === "none" ? "clean wheel" : style === "paws" ? "plush paws" : "racing gloves"}</span>
       </div>
     </article>
   );

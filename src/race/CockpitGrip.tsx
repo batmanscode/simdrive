@@ -22,8 +22,8 @@ export function CockpitGrip({
     const width = grip === "wheel" ? 0.15 : 0.112;
     const size = width / 0.15;
     const parts: THREE.BufferGeometry[] = [];
-    const fur = "#dfa976",
-      toe = "#f2cca0",
+    const fur = "#8a88ad",
+      toe = "#f0e9df",
       glove = "#e7e2d2",
       trim = "#364a55";
     const add = (
@@ -51,65 +51,128 @@ export function CockpitGrip({
     const oval = (color: string, position: Triple, scale: Triple) =>
       add(new THREE.SphereGeometry(1, 10, 6), color, position, scale);
     const depth = radius + 0.017 * size;
-    oval(
-      paw ? fur : glove,
-      [0, -0.025 * size, -depth],
-      [width * (paw ? 0.57 : 0.52), 0.06 * size, (paw ? 0.038 : 0.03) * size],
-    );
-
-    // Finger arcs curl around the actual grip radius, with their ends behind it.
-    const digits = paw ? 3 : 4;
-    for (let i = 0; i < digits; i++) {
-      const x = (i - (digits - 1) / 2) * width * (paw ? 0.31 : 0.235);
-      const fingerRadius = width * (paw ? 0.17 : 0.11);
-      const reach = radius + fingerRadius * 0.7;
-      const curve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(x, -0.015 * size, -depth),
-        new THREE.Vector3(x, reach * 0.8, -depth),
-        new THREE.Vector3(x, reach + fingerRadius * 0.5, -0.004),
-        new THREE.Vector3(x, reach * 0.65, radius + fingerRadius),
-        new THREE.Vector3(x, -0.004, radius + fingerRadius * 0.7),
-      ]);
-      add(
-        new THREE.TubeGeometry(curve, 6, fingerRadius, 6, false),
-        paw ? toe : glove,
-      );
+    if (paw) {
+      const pink = "#ed8eaf";
+      const bean = (position: Triple, scale: Triple) =>
+        add(new THREE.SphereGeometry(1, 8, 4), pink, position, scale);
       oval(
-        paw ? "#a67151" : glove,
-        [x, -0.004, radius + fingerRadius * 0.7],
-        [fingerRadius * 0.9, fingerRadius * 0.9, fingerRadius * 0.8],
+        fur,
+        [0, -0.02 * size, -depth - 0.006 * size],
+        [width * 0.7, 0.072 * size, 0.049 * size],
       );
-      if (paw) {
+      // Costume mitts carry beans on both faces so the paw read survives a grip.
+      bean(
+        [0, -0.035 * size, -depth - 0.055 * size],
+        [width * 0.3, 0.029 * size, 0.01 * size],
+      );
+      for (const side of [-1, 1])
+        bean(
+          [side * width * 0.15, -0.014 * size, -depth - 0.055 * size],
+          [width * 0.19, 0.021 * size, 0.011 * size],
+        );
+      // Stuffed toe mitts, rather than long human finger segments.
+      for (let i = -1; i <= 1; i++) {
+        const x = i * width * 0.39,
+          r = width * 0.225;
+        const reach = radius + r * 0.65;
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(x, -0.005 * size, -depth),
+          new THREE.Vector3(x, reach * 0.85, -depth * 0.75),
+          new THREE.Vector3(x, reach, 0.01),
+          new THREE.Vector3(x, 0.005, radius + r * 0.8),
+        ]);
+        add(new THREE.TubeGeometry(curve, 5, r, 7, false), toe);
         oval(
           toe,
-          [x, 0.014 * size, -depth - 0.008 * size],
-          [fingerRadius * 1.08, 0.034 * size, 0.023 * size],
+          [x, 0.02 * size, -depth - r * 0.35],
+          [r * 1.12, 0.038 * size, r * 1.05],
+        );
+        bean([x, 0.005, radius + r * 1.65], [r * 0.72, r * 0.85, r * 0.28]);
+        bean(
+          [x, 0.035 * size, -depth - r * 1.45],
+          [r * 0.65, 0.023 * size, 0.008 * size],
         );
       }
-    }
+      const thumbX = -side * width * 0.63,
+        r = width * 0.185;
+      const reach = radius + r * 0.8;
+      const thumb = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(thumbX * 0.75, -0.04 * size, -depth * 0.65),
+        new THREE.Vector3(thumbX, -reach, 0),
+        new THREE.Vector3(thumbX, -0.01 * size, reach),
+      ]);
+      add(new THREE.TubeGeometry(thumb, 5, r, 7, false), toe);
+      oval(toe, [thumbX, -0.01 * size, reach], [r, r, r]);
+      oval(
+        pink,
+        [thumbX, -0.01 * size, reach + r * 0.85],
+        [r * 0.75, r * 0.82, r * 0.28],
+      );
+      // A soft central palm bean and low-poly fur tufts complete the costume cue.
+      oval(
+        pink,
+        [0, -0.058 * size, -depth + 0.043 * size],
+        [width * 0.32, 0.032 * size, 0.012 * size],
+      );
+      for (const edge of [-1, 1])
+        for (let i = 0; i < 3; i++) {
+          add(
+            new THREE.SphereGeometry(1, 6, 3),
+            fur,
+            [
+              edge * width * (0.6 + i * 0.035),
+              (-0.01 - i * 0.023) * size,
+              -depth,
+            ],
+            [0.018 * size, 0.025 * size, 0.016 * size],
+          );
+        }
+    } else {
+      oval(
+        glove,
+        [0, -0.025 * size, -depth],
+        [width * 0.52, 0.06 * size, 0.03 * size],
+      );
 
-    // A separate thumb/dewclaw closes the inner edge rather than sticking up.
-    const thumbX = -side * width * 0.5;
-    const thumbRadius = width * (paw ? 0.13 : 0.115);
-    const thumbReach = radius + thumbRadius * 0.8;
-    const thumbTip: Triple = [thumbX, -0.01 * size, thumbReach];
-    const thumb = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(thumbX * 0.85, -0.048 * size, -depth * 0.7),
-      new THREE.Vector3(thumbX, -thumbReach, -radius * 0.12),
-      new THREE.Vector3(thumbX, -thumbReach * 0.72, thumbReach * 0.72),
-      new THREE.Vector3(...thumbTip),
-    ]);
-    add(
-      new THREE.TubeGeometry(thumb, 6, thumbRadius, 7, false),
-      paw ? fur : glove,
-    );
-    oval(paw ? toe : glove, thumbTip, [
-      thumbRadius,
-      thumbRadius * 0.9,
-      thumbRadius * 0.9,
-    ]);
+      // Finger arcs curl around the actual grip radius, with their ends behind it.
+      const digits = 4;
+      for (let i = 0; i < digits; i++) {
+        const x = (i - (digits - 1) / 2) * width * 0.235;
+        const fingerRadius = width * 0.11;
+        const reach = radius + fingerRadius * 0.7;
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(x, -0.015 * size, -depth),
+          new THREE.Vector3(x, reach * 0.8, -depth),
+          new THREE.Vector3(x, reach + fingerRadius * 0.5, -0.004),
+          new THREE.Vector3(x, reach * 0.65, radius + fingerRadius),
+          new THREE.Vector3(x, -0.004, radius + fingerRadius * 0.7),
+        ]);
+        add(new THREE.TubeGeometry(curve, 6, fingerRadius, 6, false), glove);
+        oval(
+          glove,
+          [x, -0.004, radius + fingerRadius * 0.7],
+          [fingerRadius * 0.9, fingerRadius * 0.9, fingerRadius * 0.8],
+        );
+      }
 
-    if (!paw) {
+      // A separate thumb closes the inner edge rather than sticking up.
+      const thumbX = -side * width * 0.5;
+      const thumbRadius = width * 0.115;
+      const thumbReach = radius + thumbRadius * 0.8;
+      const thumbTip: Triple = [thumbX, -0.01 * size, thumbReach];
+      const thumb = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(thumbX * 0.85, -0.048 * size, -depth * 0.7),
+        new THREE.Vector3(thumbX, -thumbReach, -radius * 0.12),
+        new THREE.Vector3(thumbX, -thumbReach * 0.72, thumbReach * 0.72),
+        new THREE.Vector3(...thumbTip),
+      ]);
+      add(new THREE.TubeGeometry(thumb, 6, thumbRadius, 7, false), glove);
+      oval(glove, thumbTip, [
+        thumbRadius,
+        thumbRadius * 0.9,
+        thumbRadius * 0.9,
+      ]);
+
       const panel = new THREE.Shape();
       panel.moveTo(-width * 0.3, -0.025 * size);
       panel.lineTo(-width * 0.34, 0);
@@ -135,6 +198,26 @@ export function CockpitGrip({
         new THREE.Vector3(0, 1, 0),
         towardHand,
       );
+      if (paw) {
+        const puff = new THREE.SphereGeometry(1, 10, 6);
+        puff
+          .scale(width * 0.44, 0.033 * size, width * 0.29)
+          .applyQuaternion(turn);
+        add(puff, fur, center.toArray() as Triple);
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI) / 4;
+          const tuft = new THREE.SphereGeometry(1, 6, 3);
+          tuft.scale(0.019 * size, 0.025 * size, 0.017 * size);
+          tuft.translate(
+            Math.cos(angle) * width * 0.34,
+            -0.012 * size,
+            Math.sin(angle) * width * 0.2,
+          );
+          tuft.applyQuaternion(turn);
+          add(tuft, i % 3 === 0 ? "#a5a0bf" : fur, center.toArray() as Triple);
+        }
+        return;
+      }
       const shell = new THREE.CylinderGeometry(
         width * 0.3,
         width * 0.28,
@@ -152,7 +235,7 @@ export function CockpitGrip({
       hem.scale(1, 1, 0.5).applyQuaternion(turn);
       add(
         hem,
-        paw ? "#d1a66d" : "#d7ad65",
+        "#d7ad65",
         center
           .clone()
           .addScaledVector(towardHand, 0.01 * size)
@@ -202,7 +285,11 @@ export function CockpitGrip({
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry}>
-      <meshStandardMaterial vertexColors roughness={0.86} metalness={0} />
+      <meshStandardMaterial
+        vertexColors
+        roughness={style === "paws" ? 0.98 : 0.86}
+        metalness={0}
+      />
     </mesh>
   );
 }

@@ -107,7 +107,7 @@ An actual controller page joined a four-driver room, unlocked audio through Test
 
 ## Current Optimizations
 
-Cockpit gloves and paws bake palms, digits, pads and cuffs into one vertex-coloured mesh per hand. A pair uses two draws instead of 10 on the Formula, 30/20 for Hands/Paws on the round wheel, or 10/8 on the Tuk handlebar. Static geometry totals for a pair are 2,144–2,344 triangles (gloves) and 2,360–2,560 (paws), including the round-wheel wrist fit. The four-class paw fixture changed 1,106→1,056 draws and 118,098→120,842 triangles (+2.32%); `None` retained its original counts. These are geometry/submission counts, not hardware FPS. Hands use the existing wheel rotation directly, without a separate per-frame hand smoothing callback.
+Cockpit gloves and paws bake palms, digits, pads and cuffs into one vertex-coloured mesh per hand. A pair uses two draws instead of 10 on the Formula, 30/20 for Hands/Paws on the round wheel, or 10/8 on the Tuk handlebar. Static geometry totals for a pair are 2,144–2,344 triangles (gloves) and 3,696–3,896 (costume paws), including the round-wheel wrist fit. The four-class paw fixture changed 1,106→1,056 draws and 118,098→126,186 triangles (+6.85%); `None` retained its original counts. These are geometry/submission counts, not hardware FPS. Hands use the existing wheel rotation directly, without a separate per-frame hand smoothing callback.
 
 The subsequent vehicle material/body polish keeps wheel dimensions, animation and cockpit cameras unchanged. Fixed details and livery colours are baked into one mesh per part; glass adds no reflection pass or texture. Matched focused previews with the same floor measured:
 
