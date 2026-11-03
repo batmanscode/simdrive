@@ -1,3 +1,4 @@
+import { Vegetation, type Plant } from "./Vegetation";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -75,6 +76,7 @@ uniform vec3 zenith; uniform vec3 horizon; uniform vec3 sunlight; uniform float 
 varying vec3 vDirection;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p) { vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+float peak(float a,float frequency,float phase){return 1.0-abs(fract(a*frequency+phase)*2.0-1.0);}
 void main() {
   vec3 d = normalize(vDirection);
   float h = max(d.y, 0.0);
@@ -88,10 +90,20 @@ void main() {
   float cloud = smoothstep(0.63-wet*0.23, 0.84, n) * smoothstep(0.02,0.16,h) * (1.0-smoothstep(0.65,0.95,h));
   col = mix(col, mix(sunlight, vec3(0.62,0.68,0.72),wet), cloud * (0.38+wet*0.42));
   float azimuth=(atan(d.x,d.z)+3.14159265)/6.2831853;
-  float ridgeA=(0.035+abs(sin(azimuth*18.8496))*0.035+abs(sin(azimuth*43.9823))*0.018)*mountains;
-  float ridgeB=(0.012+abs(sin(azimuth*31.4159+0.8))*0.033+abs(sin(azimuth*69.1150))*0.012)*mountains;
-  if(d.y>0.0&&d.y<ridgeA)col=mix(horizon,ridgeTint,0.23+wet*0.03);
-  if(d.y>0.0&&d.y<ridgeB)col=mix(horizon,ridgeTint,0.38+wet*0.04);
+  float ridgeA=(0.025+peak(azimuth,7.0,.18)*.070+peak(azimuth,13.0,.43)*.032)*mountains;
+  float ridgeB=(0.012+peak(azimuth,9.0,.55)*.047+peak(azimuth,17.0,.12)*.021)*mountains;
+  if(d.y>0.0&&d.y<ridgeA){
+    float face=step(.5,fract(azimuth*13.0+.43));
+    vec3 stone=mix(horizon,ridgeTint,.31+face*.065);
+    float snowLine=(.073+sin(azimuth*94.25)*.006)*mountains;
+    if(mountains>1.0&&d.y>snowLine)stone=mix(horizon,vec3(.78,.86,.87),.46+face*.12);
+    col=stone;
+  }
+  if(d.y>0.0&&d.y<ridgeB){
+    float face=step(.5,fract(azimuth*17.0+.12));
+    col=mix(horizon,ridgeTint,.46+face*.07);
+    if(mountains>1.0&&d.y>(.060+sin(azimuth*75.4)*.005)*mountains)col=mix(horizon,vec3(.73,.82,.83),.55);
+  }
   gl_FragColor=vec4(col,1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -133,7 +145,18 @@ export function MotorsportSky({
       horizon: { value: new THREE.Color(palette.horizon) },
       sunlight: { value: new THREE.Color(palette.sun) },
       wet: { value: rain ? 1 : 0 },
-      mountains: { value: trackId === "causeway" ? 0.08 : trackId === "sakura" ? 0.6 : trackId === "cloudline" ? 1.5 : 1.25 },
+      mountains: {
+        value:
+          trackId === "causeway"
+            ? 0.08
+            : trackId === "sakura"
+              ? 0.6
+              : trackId === "cloudline"
+                ? 2.8
+                : trackId === "alpine"
+                  ? 1.8
+                  : 2.1,
+      },
       ridgeTint: { value: new THREE.Color(PALETTES[trackId].ground) },
     }),
     [trackId],
@@ -484,6 +507,15 @@ export function SakuraLandscape({
       }),
     [track],
   );
+  const plants = useMemo<Plant[]>(
+    () =>
+      groves.map((p, i) => ({
+        position: [p.x, p.y, p.z] as [number, number, number],
+        seed: 900 + i * 3,
+        scale: p.scale * 1.8,
+      })),
+    [groves],
+  );
   return (
     <group>
       {hills.map((h, i) => (
@@ -501,33 +533,13 @@ export function SakuraLandscape({
           />
         </mesh>
       ))}
-      {groves.map((p, i) => (
-        <group key={i} position={[p.x, p.y, p.z]} scale={p.scale}>
-          <mesh position={[0, 2.4, 0]}>
-            <cylinderGeometry args={[0.16, 0.27, 4.8, 6]} />
-            <meshStandardMaterial color="#584b43" roughness={1} />
-          </mesh>
-          {[-1, 0, 1].map((side, j) => (
-            <mesh
-              key={j}
-              position={[
-                side * 1.25,
-                4.9 + Math.cos(j * 2) * 0.4,
-                (j % 2) * 0.6,
-              ]}
-              scale={[2.5, 1.65, 2.1]}
-              rotation={[0, i * 0.8 + j, 0]}
-            >
-              <icosahedronGeometry args={[1, 1]} />
-              <meshStandardMaterial
-                color={rain ? "#ba929f" : j === 1 ? "#f3c3c4" : "#dc9fae"}
-                roughness={1}
-                flatShading
-              />
-            </mesh>
-          ))}
-        </group>
-      ))}
+      <Vegetation
+        kind="cherry"
+        plants={plants}
+        rain={rain}
+        castShadow={false}
+        distant
+      />
     </group>
   );
 }

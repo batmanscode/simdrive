@@ -1,3 +1,8 @@
+import { BridgeRailing, type RailSection } from "./race/BridgeRailing";
+import { MountainMassif, type MountainPeak } from "./race/MountainMassif";
+import { ScenicBuildings } from "./race/ScenicBuildings";
+import { ScenicWater } from "./race/ScenicWater";
+import { Vegetation, type Plant, type PlantKind } from "./race/Vegetation";
 import { RacingWheel as VehicleWheel } from "./race/RacingWheel";
 import { BodyPanel, FORMULA_HULL, FORMULA_SIDEPOD, FORMULA_COVER, FORMULA_COCKPIT_NOSE, KART_NOSE, TRUCK_HOOD, TRUCK_CAB, TRUCK_COCKPIT_HOOD, TUK_CANOPY, TUK_SIDE, TUK_REAR, TUK_SEAT, TUK_BACK } from "./race/Bodywork";
 import { TireCloud } from "./race/TireCloud";
@@ -3020,8 +3025,8 @@ const DEV_ASSETS: DevAsset[] = [
   { group: "Sakura", name: "SakuraLantern", render: (rain) => <SakuraLantern position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Sakura", name: "SakuraBanner", render: (rain) => <SakuraBanner position={[0, 1.24, 0]} heading={0} rain={rain} /> },
   { group: "Alpine", name: "AlpineNearPeak", zoom: 1.22, render: (rain) => <AlpineNearPeak rain={rain} /> },
-  { group: "Alpine", name: "AlpineBackdropPeak cone", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 28, r: 22, kind: "cone" }} seed={3} rain={rain} /> },
-  { group: "Alpine", name: "AlpineBackdropPeak jagged", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 26, r: 22, kind: "jagged" }} seed={4} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak tall massif", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 28, r: 22 }} seed={3} rain={rain} /> },
+  { group: "Alpine", name: "AlpineBackdropPeak ridge massif", render: (rain) => <AlpineBackdropPeak mountain={{ x: 0, z: 0, h: 26, r: 22 }} seed={4} rain={rain} /> },
   { group: "Alpine", name: "AlpineCliffRock", render: (rain) => <AlpineCliffRock position={[0, 0, 0]} heading={0} seed={2} rain={rain} /> },
   { group: "Alpine", name: "AlpineChalet", render: (rain) => <AlpineChalet position={[0, 0, 0]} heading={0} rain={rain} /> },
   { group: "Alpine", name: "AlpineCableCar", render: (rain) => <AlpineCableCar position={[0, 0, 0]} heading={0} rain={rain} /> },
@@ -4384,8 +4389,6 @@ function SakuraSignatureProps({ track, rain }: { track: TrackDef; rain: boolean 
   return (
     <group>
       <SakuraToriiGate track={track} rain={rain} />
-      <SakuraBlossomTunnel track={track} rain={rain} />
-      <SakuraFeatureGrove track={track} rain={rain} />
     </group>
   );
 }
@@ -4455,88 +4458,25 @@ function SakuraToriiGateModel({ track, rain }: { track: Pick<TrackDef, "width" |
   );
 }
 
-function SakuraBlossomTunnel({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const tunnel = useMemo(() => {
-    const metrics = trackMetrics(track);
-    const progresses = [0.23, 0.265, 0.3, 0.335, 0.37, 0.405, 0.44];
-    const trees = progresses.flatMap((progress, segment) => {
-      const sample = sampleTrack(track, metrics.totalLength * progress);
-      return [-1, 1].map((side) => {
-        const position = tracksidePropPosition(track, sample, side, 0.2 + seededUnit(segment * 17 + side) * 1.2, 1.5, 0.8);
-        return {
-          ...position,
-          side,
-          heading: sample.heading,
-          seed: 220 + segment * 9 + side
-        };
-      });
-    });
-    return { trees };
-  }, [track]);
 
-  return (
-    <group>
-      {tunnel.trees.map((tree) => (
-        <SakuraTunnelTree key={`sakura-tunnel-tree-${tree.seed}`} position={[tree.x, tree.y, tree.z]} side={tree.side} heading={tree.heading} seed={tree.seed} rain={rain} />
-      ))}
-    </group>
+function SakuraTunnelTree({
+  position,
+  side,
+  heading,
+  seed,
+  rain,
+}: {
+  position: [number, number, number];
+  side: number;
+  heading: number;
+  seed: number;
+  rain: boolean;
+}) {
+  const plants = useMemo<Plant[]>(
+    () => [{ position, seed, heading, scale: 1.08, lean: side * 0.06 }],
+    [position, seed, heading, side],
   );
-}
-
-function SakuraTunnelTree({ position, side, heading, seed, rain }: { position: [number, number, number]; side: number; heading: number; seed: number; rain: boolean }) {
-  const blossom = rain ? "#d98ea5" : "#f2a8bd";
-  const blossomShade = rain ? "#c77d96" : "#ffc1cf";
-  const height = 3.35 + seededUnit(seed * 13) * 0.75;
-  const inward = -side;
-  const leanAngle = 0.08;
-  const trunkCenterX = inward * (height / 2) * Math.sin(leanAngle);
-  const canopyX = inward * height * Math.sin(leanAngle);
-
-  return (
-    <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[trunkCenterX, height / 2, 0]} rotation={[0, 0, -inward * leanAngle]} castShadow>
-        <cylinderGeometry args={[0.15, 0.26, height, 7]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.78} />
-      </mesh>
-      <mesh position={[canopyX, height + 0.08, 0]} scale={[1.5, 0.9, 1.18]} castShadow>
-        <sphereGeometry args={[0.86, 14, 8]} />
-        <meshStandardMaterial color={blossom} roughness={0.86} />
-      </mesh>
-      <mesh position={[canopyX + inward * 0.36, height - 0.25, 0.38]} scale={[1.12, 0.72, 0.94]} castShadow>
-        <sphereGeometry args={[0.78, 12, 8]} />
-        <meshStandardMaterial color={blossomShade} roughness={0.86} />
-      </mesh>
-      <mesh position={[canopyX - inward * 0.3, height - 0.26, -0.42]} scale={[1.04, 0.68, 0.88]} castShadow>
-        <sphereGeometry args={[0.72, 12, 8]} />
-        <meshStandardMaterial color={blossom} roughness={0.86} />
-      </mesh>
-      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 23) * Math.PI]} scale={[1.75, 0.95, 1]} receiveShadow>
-        <circleGeometry args={[1, 18]} />
-        <meshBasicMaterial color={blossomShade} transparent opacity={rain ? 0.12 : 0.18} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
-function SakuraFeatureGrove({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const trees = useMemo(() => {
-    const metrics = trackMetrics(track);
-    const anchor = sampleTrack(track, metrics.totalLength * 0.42);
-    const main = tracksidePropPosition(track, anchor, 1, 4.2, 2.2, 1.2);
-    return [
-      { x: main.x, z: main.z, seed: 104 },
-      { x: main.x + Math.sin(anchor.heading + 0.55) * 3.1, z: main.z + Math.cos(anchor.heading + 0.55) * 3.1, seed: 117 },
-      { x: main.x - Math.sin(anchor.heading - 0.35) * 2.5, z: main.z - Math.cos(anchor.heading - 0.35) * 2.5, seed: 131 }
-    ].map((tree) => ({ ...tree, ...clearTrackPropPosition(track, tree, 2.1, 1.0) }));
-  }, [track]);
-
-  return (
-    <group>
-      {trees.map((tree) => (
-        <SakuraTree key={`feature-sakura-${tree.seed}`} position={[tree.x, tree.y, tree.z]} seed={tree.seed} rain={rain} />
-      ))}
-    </group>
-  );
+  return <Vegetation kind="cherry" plants={plants} rain={rain} />;
 }
 
 function AlpineSignatureProps({ track, rain }: { track: TrackDef; rain: boolean }) {
@@ -4566,39 +4506,15 @@ function AlpineVistaPeak({ track, rain }: { track: TrackDef; rain: boolean }) {
 }
 
 function AlpineNearPeak({ rain }: { rain: boolean }) {
-  const rock = rain ? "#7c8581" : "#858c7c";
-  const shadowRock = rain ? "#6d7672" : "#747d70";
-  const baseRock = rain ? "#5f6965" : "#66705f";
-  const snow = rain ? "#dce3e2" : "#f2f5f1";
-
-  return (
-    <group>
-      <mesh position={[0, 5.8, 0]} rotation={[0, 0.18, 0]} scale={[8.8, 11.6, 6.8]} castShadow receiveShadow>
-        <coneGeometry args={[1, 1, 9]} />
-        <meshStandardMaterial color={baseRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[-4.8, 3.0, 3.0]} rotation={[0, -0.2, 0]} scale={[3.9, 6.0, 3.2]} castShadow receiveShadow>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial color={shadowRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[4.2, 2.65, -2.85]} rotation={[0, 0.4, 0]} scale={[3.55, 5.3, 2.9]} castShadow receiveShadow>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial color={rain ? "#737c79" : "#7c8576"} roughness={0.99} />
-      </mesh>
-      <mesh position={[0.1, 0.42, 0.15]} rotation={[0.02, 0.28, 0]} scale={[8.8, 0.72, 6.4]} receiveShadow>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={baseRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[0.2, 10.25, -0.28]} rotation={[0, 0.18, 0]} scale={[2.9, 3.3, 2.15]} castShadow>
-        <coneGeometry args={[1, 1, 9]} />
-        <meshStandardMaterial color={snow} roughness={0.84} />
-      </mesh>
-      <mesh position={[-4.8, 5.35, 3.0]} rotation={[0, -0.2, 0]} scale={[1.28, 1.42, 1.02]} castShadow>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial color={snow} roughness={0.86} />
-      </mesh>
-    </group>
+  const peaks = useMemo<MountainPeak[]>(
+    () => [
+      { position: [0, 0, 0], size: [8.8, 11.6, 6.8], seed: 11 },
+      { position: [-4.8, 0, 3], size: [3.9, 6, 3.2], seed: 24 },
+      { position: [4.2, 0, -2.85], size: [3.55, 5.3, 2.9], seed: 36 },
+    ],
+    [],
   );
+  return <MountainMassif peaks={peaks} rain={rain} castShadow />;
 }
 
 function AlpineRockWall({ track, rain }: { track: TrackDef; rain: boolean }) {
@@ -4666,42 +4582,17 @@ function AlpineChaletFeature({ track, rain }: { track: TrackDef; rain: boolean }
   return <AlpineChalet position={[placement.x, placement.y, placement.z]} heading={placement.heading} rain={rain} />;
 }
 
-function AlpineChalet({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
-  const timber = rain ? "#6f4a37" : "#87583d";
-  const roof = rain ? "#31383f" : "#30343a";
-  const snow = rain ? "#dce3e2" : "#f2f5f1";
-
+function AlpineChalet({
+  position,
+  heading,
+  rain,
+}: {
+  position: [number, number, number];
+  heading: number;
+  rain: boolean;
+}) {
   return (
-    <group position={position} rotation={[0, heading, 0]} scale={[1.34, 1.34, 1.34]}>
-      <mesh position={[0, 0.72, 0]} castShadow>
-        <boxGeometry args={[3.5, 1.4, 2.35]} />
-        <meshStandardMaterial color={timber} roughness={0.78} />
-      </mesh>
-      <mesh position={[0, 1.63, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-        <coneGeometry args={[2.65, 1.25, 4]} />
-        <meshStandardMaterial color={roof} roughness={0.64} />
-      </mesh>
-      <mesh position={[0, 2.2, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1.0, 0.2, 0.7]} castShadow>
-        <coneGeometry args={[2.55, 0.45, 4]} />
-        <meshStandardMaterial color={snow} roughness={0.84} />
-      </mesh>
-      {[-1.0, 1.0].map((x) => (
-        <mesh key={`chalet-window-${x}`} position={[x, 0.88, -1.2]}>
-          <boxGeometry args={[0.62, 0.38, 0.05]} />
-          <meshStandardMaterial color={rain ? "#ffe0a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.58 : 0.3} roughness={0.48} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.28, -1.36]} castShadow>
-        <boxGeometry args={[4.2, 0.18, 0.34]} />
-        <meshStandardMaterial color={rain ? "#594032" : "#6b4a35"} roughness={0.76} />
-      </mesh>
-      {[-1.75, 0, 1.75].map((x) => (
-        <mesh key={`chalet-rail-${x}`} position={[x, 0.62, -1.42]} castShadow>
-          <boxGeometry args={[0.1, 0.68, 0.1]} />
-          <meshStandardMaterial color={rain ? "#4a362d" : "#54392d"} roughness={0.72} />
-        </mesh>
-      ))}
-    </group>
+    <ScenicBuildings position={position} heading={heading} rain={rain} alpine />
   );
 }
 
@@ -4791,11 +4682,11 @@ function SakuraGroundAccents({ track, rain }: { track: TrackDef; rain: boolean }
 
 function AlpineBackdrop({ rain }: { rain: boolean }) {
   const mountains: AlpineBackdropMountain[] = [
-    { x: -92, z: 128, h: 25, r: 19, kind: "jagged" },
-    { x: -46, z: 150, h: 32, r: 25, kind: "cone" },
-    { x: 18, z: 158, h: 22, r: 18, kind: "jagged" },
-    { x: 108, z: 152, h: 34, r: 28, kind: "cone" },
-    { x: 178, z: 70, h: 26, r: 22, kind: "cone" }
+    { x: -92, z: 128, h: 25, r: 19 },
+    { x: -46, z: 150, h: 32, r: 25 },
+    { x: 18, z: 158, h: 22, r: 18 },
+    { x: 108, z: 152, h: 34, r: 28 },
+    { x: 178, z: 70, h: 26, r: 22 }
   ];
   return (
     <group>
@@ -4806,93 +4697,315 @@ function AlpineBackdrop({ rain }: { rain: boolean }) {
   );
 }
 
-type AlpineBackdropMountain = { x: number; z: number; h: number; r: number; kind: "cone" | "jagged" };
+type AlpineBackdropMountain = { x: number; z: number; h: number; r: number };
 
-function AlpineBackdropPeak({ mountain, seed, rain }: { mountain: AlpineBackdropMountain; seed: number; rain: boolean }) {
-  const rock = rain ? "#707975" : "#7f8877";
-  const shadowRock = rain ? "#646d69" : "#737d6f";
-  const baseRock = rain ? "#59635f" : "#65705f";
-  const snow = rain ? "#e5e8e8" : "#f4f6f2";
+function AlpineBackdropPeak({
+  mountain,
+  seed,
+  rain,
+}: {
+  mountain: AlpineBackdropMountain;
+  seed: number;
+  rain: boolean;
+}) {
+  const peaks = useMemo<MountainPeak[]>(
+    () => [
+      {
+        position: [mountain.x, -0.2, mountain.z],
+        size: [mountain.r * 0.64, mountain.h * 0.96, mountain.r * 0.5],
+        seed: seed * 5,
+      },
+      {
+        position: [
+          mountain.x - mountain.r * 0.34,
+          -0.2,
+          mountain.z + mountain.r * 0.16,
+        ],
+        size: [mountain.r * 0.33, mountain.h * 0.56, mountain.r * 0.28],
+        seed: seed * 5 + 1,
+      },
+      {
+        position: [
+          mountain.x + mountain.r * 0.33,
+          -0.2,
+          mountain.z - mountain.r * 0.2,
+        ],
+        size: [mountain.r * 0.3, mountain.h * 0.48, mountain.r * 0.25],
+        seed: seed * 5 + 2,
+      },
+    ],
+    [mountain.x, mountain.z, mountain.r, mountain.h, seed],
+  );
+  return <MountainMassif peaks={peaks} rain={rain} />;
+}
 
-  if (mountain.kind === "cone") {
-    return (
-      <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
-        <mesh position={[0, mountain.h * 0.48, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.64, mountain.h * 0.96, mountain.r * 0.5]}>
-          <coneGeometry args={[1, 1, 9]} />
-          <meshStandardMaterial color={rock} roughness={0.98} />
-        </mesh>
-        <mesh position={[-mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.33, mountain.h * 0.56, mountain.r * 0.28]}>
-          <coneGeometry args={[1, 1, 8]} />
-          <meshStandardMaterial color={shadowRock} roughness={0.99} />
-        </mesh>
-        <mesh position={[mountain.r * 0.33, mountain.h * 0.24, -mountain.r * 0.2]} rotation={[0, 0.36, 0]} scale={[mountain.r * 0.3, mountain.h * 0.48, mountain.r * 0.25]}>
-          <coneGeometry args={[1, 1, 8]} />
-          <meshStandardMaterial color={baseRock} roughness={0.99} />
-        </mesh>
-        <mesh position={[0, 0.34, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.72, mountain.h * 0.055, mountain.r * 0.54]}>
-          <dodecahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial color={baseRock} roughness={0.99} />
-        </mesh>
-        <mesh position={[0, mountain.h * 0.82, 0]} rotation={[0, 0.1, 0]} scale={[mountain.r * 0.22, mountain.h * 0.24, mountain.r * 0.18]}>
-          <coneGeometry args={[1, 1, 9]} />
-          <meshStandardMaterial color={snow} roughness={0.86} />
-        </mesh>
-        <mesh position={[-mountain.r * 0.34, mountain.h * 0.51, mountain.r * 0.16]} rotation={[0, -0.28, 0]} scale={[mountain.r * 0.1, mountain.h * 0.1, mountain.r * 0.08]}>
-          <coneGeometry args={[1, 1, 8]} />
-          <meshStandardMaterial color={snow} roughness={0.86} />
-        </mesh>
-      </group>
-    );
-  }
-
+function TrackIdentityProps({
+  track,
+  rain,
+}: {
+  track: TrackDef;
+  rain: boolean;
+}) {
+  let scenery: ReactNode;
+  if (track.id === "sakura")
+    scenery = <SakuraProps track={track} rain={rain} />;
+  else if (track.id === "alpine")
+    scenery = <AlpineProps track={track} rain={rain} />;
+  else if (track.id === "fjord")
+    scenery = <FjordProps track={track} rain={rain} />;
+  else if (track.id === "causeway")
+    scenery = <CausewayProps track={track} rain={rain} />;
+  else scenery = <CloudlineProps track={track} rain={rain} />;
   return (
-    <group position={[mountain.x, -0.2, mountain.z]} rotation={[0, seededUnit(seed * 17) * 0.8, 0]}>
-      <mesh position={[0, mountain.h * 0.37, 0]} rotation={[0, 0.1 + seededUnit(seed * 13) * 0.28, 0]} scale={[mountain.r * 0.72, mountain.h * 0.74, mountain.r * 0.55]}>
-        <coneGeometry args={[1, 1, 7]} />
-        <meshStandardMaterial color={baseRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[0, 0.44, 0]} rotation={[0.02, -0.12, 0]} scale={[mountain.r * 0.74, mountain.h * 0.075, mountain.r * 0.55]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={baseRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[-mountain.r * 0.34, 0.36, mountain.r * 0.2]} rotation={[-0.02, 0.38, 0.03]} scale={[mountain.r * 0.42, mountain.h * 0.055, mountain.r * 0.3]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={shadowRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[mountain.r * 0.35, 0.34, -mountain.r * 0.24]} rotation={[0.03, -0.26, -0.02]} scale={[mountain.r * 0.38, mountain.h * 0.05, mountain.r * 0.28]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={baseRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[0, mountain.h * 0.45, 0]} rotation={[0.08, 0.22, -0.04]} scale={[mountain.r * 0.58, mountain.h * 0.45, mountain.r * 0.44]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={rock} roughness={0.98} />
-      </mesh>
-      <mesh position={[-mountain.r * 0.36, mountain.h * 0.33, mountain.r * 0.16]} rotation={[-0.06, -0.3, 0.08]} scale={[mountain.r * 0.38, mountain.h * 0.32, mountain.r * 0.33]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={shadowRock} roughness={0.99} />
-      </mesh>
-      <mesh position={[mountain.r * 0.32, mountain.h * 0.27, -mountain.r * 0.22]} rotation={[0.02, 0.4, 0.08]} scale={[mountain.r * 0.34, mountain.h * 0.28, mountain.r * 0.3]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={rain ? "#78817d" : "#858e7f"} roughness={0.99} />
-      </mesh>
-      <mesh position={[0, mountain.h * 0.86, 0]} rotation={[0.06, 0.2, 0]} scale={[mountain.r * 0.22, mountain.h * 0.08, mountain.r * 0.18]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={snow} roughness={0.86} />
-      </mesh>
-      <mesh position={[-mountain.r * 0.36, mountain.h * 0.61, mountain.r * 0.16]} rotation={[0.04, -0.22, 0]} scale={[mountain.r * 0.14, mountain.h * 0.06, mountain.r * 0.12]}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={snow} roughness={0.86} />
-      </mesh>
-    </group>
+    <>
+      <TrackWoodland track={track} rain={rain} />
+      {scenery}
+    </>
   );
 }
 
-function TrackIdentityProps({ track, rain }: { track: TrackDef; rain: boolean }) {
-  if (track.id === "sakura") return <SakuraProps track={track} rain={rain} />;
-  if (track.id === "alpine") return <AlpineProps track={track} rain={rain} />;
-  if (track.id === "fjord") return <FjordProps track={track} rain={rain} />;
-  if (track.id === "causeway") return <CausewayProps track={track} rain={rain} />;
-  return <CloudlineProps track={track} rain={rain} />;
+function TrackWoodland({ track, rain }: { track: TrackDef; rain: boolean }) {
+  const plants = useMemo(() => {
+    const result: Record<PlantKind, Plant[]> = {
+      cherry: [],
+      pine: [],
+      palm: [],
+      mangrove: [],
+    };
+    const add = (
+      kind: PlantKind,
+      p: { x: number; y: number; z: number },
+      seed: number,
+      heading?: number,
+      scale?: number,
+      lean?: number,
+    ) =>
+      result[kind].push({
+        position: [p.x, p.y, p.z],
+        seed,
+        heading,
+        scale,
+        lean,
+      });
+    if (track.id === "sakura") {
+      sampleTrackVisuals(track, 23).forEach((sample, index) => {
+        if (index % 3 === 1 || index % 4 === 2) return;
+        const side = index % 2 === 0 ? -1 : 1;
+        add(
+          "cherry",
+          tracksidePropPosition(
+            track,
+            sample,
+            side,
+            1.8 + seededUnit(index * 5) * 2.4,
+            2.1,
+            0.8,
+          ),
+          index,
+        );
+      });
+      [0.23, 0.265, 0.3, 0.335, 0.37, 0.405, 0.44].forEach(
+        (fraction, segment) => {
+          const sample = sampleTrack(
+            track,
+            trackMetrics(track).totalLength * fraction,
+          );
+          for (const side of [-1, 1])
+            add(
+              "cherry",
+              tracksidePropPosition(
+                track,
+                sample,
+                side,
+                0.2 + seededUnit(segment * 17 + side) * 1.2,
+                2.1,
+                0.8,
+              ),
+              220 + segment * 9 + side,
+              sample.heading,
+              1.08,
+              side * 0.06,
+            );
+        },
+      );
+      const anchor = sampleTrack(track, trackMetrics(track).totalLength * 0.42),
+        main = tracksidePropPosition(track, anchor, 1, 4.2, 2.2, 1.2);
+      [
+        { x: main.x, z: main.z },
+        {
+          x: main.x + Math.sin(anchor.heading + 0.55) * 3.1,
+          z: main.z + Math.cos(anchor.heading + 0.55) * 3.1,
+        },
+        {
+          x: main.x - Math.sin(anchor.heading - 0.35) * 2.5,
+          z: main.z - Math.cos(anchor.heading - 0.35) * 2.5,
+        },
+      ].forEach((p, i) =>
+        add(
+          "cherry",
+          clearTrackPropPosition(track, p, 2.1, 1),
+          [104, 117, 131][i],
+        ),
+      );
+    } else if (track.id === "alpine") {
+      sampleTrackVisuals(track, 31).forEach((sample, index) => {
+        if (index % 5 === 2)
+          add(
+            "pine",
+            tracksidePropPosition(
+              track,
+              sample,
+              index % 2 === 0 ? -1 : 1,
+              3.2 + seededUnit(index * 7) * 3.2,
+              1.8,
+              0.8,
+            ),
+            index,
+          );
+      });
+    } else if (track.id === "fjord") {
+      sampleTrackVisuals(track, 115).forEach((sample, index) => {
+        if (index % 4 === 0)
+          add(
+            "pine",
+            tracksidePropPosition(
+              track,
+              sample,
+              index % 2 === 0 ? -1 : 1,
+              5 + seededUnit(index * 5) * 7,
+              2.3,
+              1.2,
+            ),
+            index + 200,
+          );
+      });
+    } else if (track.id === "causeway") {
+      const samples = sampleTrackVisuals(track, 125);
+      samples.forEach((sample, index) => {
+        if (isCausewayBridgeProgress((index + 0.5) / samples.length)) return;
+        const side = index % 2 === 0 ? -1 : 1;
+        if (index % 3 === 0)
+          add(
+            "palm",
+            tracksidePropPosition(
+              track,
+              sample,
+              side,
+              5 + seededUnit(index * 5) * 9,
+              1.8,
+              1.2,
+            ),
+            index,
+            sample.heading,
+          );
+        else if (index % 3 === 1)
+          add(
+            "mangrove",
+            tracksidePropPosition(
+              track,
+              sample,
+              side,
+              3 + seededUnit(index * 7) * 7,
+              2.1,
+              1.2,
+            ),
+            index,
+          );
+      });
+    } else {
+      sampleTrackVisuals(track, 230).forEach((sample, index) => {
+        if (sample.y < 230 && index % 3 !== 1)
+          add(
+            "pine",
+            tracksidePropPosition(
+              track,
+              sample,
+              index % 2 === 0 ? -1 : 1,
+              5 + seededUnit(index * 7) * 8,
+              2.4,
+              1.2,
+            ),
+            index + 600,
+          );
+      });
+    }
+    // Fill treelines on the existing flat shoulder shelf, with the same road-clearance helper.
+    if (track.id !== "sakura") {
+      const spacing =
+        track.id === "alpine"
+          ? 70
+          : track.id === "causeway"
+            ? 82
+            : track.id === "cloudline"
+              ? 150
+              : 100;
+      const samples = sampleTrackVisuals(track, spacing);
+      samples.forEach((sample, index) => {
+        if (
+          track.id === "causeway" &&
+          isCausewayBridgeProgress((index + 0.5) / samples.length)
+        )
+          return;
+        if (track.id === "cloudline" && sample.y >= 230) return;
+        for (const side of [-1, 1]) {
+          if ((index + (side === 1 ? 1 : 0)) % 3 === 0) continue;
+          const kind = track.id === "causeway" ? "palm" : "pine";
+          const root = tracksidePropPosition(
+            track,
+            sample,
+            side,
+            0.5 + seededUnit(index * 41 + side) * 1.5,
+            1.8,
+            1,
+          );
+          add(
+            kind,
+            root,
+            5000 + index * 3 + side,
+            sample.heading,
+            0.85 + seededUnit(index * 43) * 0.3,
+          );
+          // Small, varied groves look more natural than an evenly spaced row of trees.
+          if (kind === "pine" && index % 2 === 0) {
+            for (const along of [-3.2, 3.2]) {
+              const neighbor = clearTrackPropPosition(
+                track,
+                {
+                  x: root.x + Math.sin(sample.heading) * along,
+                  y: root.y,
+                  z: root.z + Math.cos(sample.heading) * along,
+                },
+                1.8,
+                1,
+              );
+              add(
+                "pine",
+                neighbor,
+                7000 + index * 11 + along + side,
+                sample.heading + along * 0.16,
+                0.68 + seededUnit(index * 71 + along) * 0.24,
+              );
+            }
+          }
+        }
+      });
+    }
+    return result;
+  }, [track]);
+  return (
+    <>
+      {(Object.keys(plants) as PlantKind[]).map((kind) =>
+        plants[kind].length ? (
+          <Vegetation
+            key={kind}
+            kind={kind}
+            plants={plants[kind]}
+            rain={rain}
+          />
+        ) : null,
+      )}
+    </>
+  );
 }
 
 function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
@@ -4918,42 +5031,23 @@ function SakuraProps({ track, rain }: { track: TrackDef; rain: boolean }) {
             />
           );
         }
-        const position = tracksidePropPosition(track, sample, side, propOffset, 2.1, 0.8);
-        return <SakuraTree key={`sakura-tree-${index}`} position={[position.x, position.y, position.z]} seed={index} rain={rain} />;
+        return null;
       })}
     </group>
   );
 }
 
-function SakuraTree({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
-  const blossom = rain ? "#d98ea5" : "#f2a8bd";
-  const blossomShade = rain ? "#c77d96" : "#ffc1cf";
-  const height = 2.8 + seededUnit(seed * 11) * 0.9;
-  return (
-    <group position={position} rotation={[0, seededUnit(seed * 7) * Math.PI, 0]}>
-      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 3) * Math.PI]} scale={[1.8, 1.05, 1]} receiveShadow>
-        <circleGeometry args={[1, 18]} />
-        <meshBasicMaterial color={blossomShade} transparent opacity={rain ? 0.14 : 0.2} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[0, height * 0.46, 0]} castShadow>
-        <cylinderGeometry args={[0.14, 0.22, height, 7]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.78} />
-      </mesh>
-      {[-1, 1].map(side => <mesh key={`branch-${side}`} position={[side*0.36, height*0.7, 0]} rotation={[0.25,0,-side*0.6]} castShadow><cylinderGeometry args={[0.07,0.12,height*0.55,6]} /><meshStandardMaterial color="#5d4037" roughness={0.95} /></mesh>)}
-      {[
-        [0, height + 0.25, 0],
-        [0.42, height - 0.1, 0.08],
-        [-0.38, height - 0.18, -0.16],
-        [0.12, height + 0.05, -0.52],
-        [-0.1, height + 0.02, 0.5]
-      ].map(([x, y, z], index) => (
-        <mesh key={index} position={[x, y, z]} scale={[1.24 - index * 0.04, 0.78, 1.0 - index * 0.03]} castShadow>
-          <icosahedronGeometry args={[0.83, 1]} />
-          <meshStandardMaterial color={index % 2 === 0 ? blossom : blossomShade} roughness={0.86} />
-        </mesh>
-      ))}
-    </group>
-  );
+function SakuraTree({
+  position,
+  seed,
+  rain,
+}: {
+  position: [number, number, number];
+  seed: number;
+  rain: boolean;
+}) {
+  const plants = useMemo<Plant[]>(() => [{ position, seed }], [position, seed]);
+  return <Vegetation kind="cherry" plants={plants} rain={rain} />;
 }
 
 function SakuraLantern({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
@@ -5052,8 +5146,7 @@ function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (index % 5 === 2) {
-          const position = tracksidePropPosition(track, sample, side, 3.2 + seededUnit(index * 7) * 3.2, 1.8, 0.8);
-          return <AlpinePine key={`pine-${index}`} position={[position.x, position.y, position.z]} seed={index} rain={rain} />;
+          return null;
         }
         if (index % 3 === 0) {
           const position = tracksidePropPosition(track, sample, side, 2.5 + seededUnit(index * 9) * 2.8, 3.6, 0.8);
@@ -5067,26 +5160,17 @@ function AlpineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function AlpinePine({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
-  const height = 3.0 + seededUnit(seed * 13) * 1.1;
-  return (
-    <group position={position} rotation={[0, seededUnit(seed * 19) * Math.PI, 0]}>
-      <mesh position={[0, height * 0.32, 0]} castShadow>
-        <cylinderGeometry args={[0.1, 0.16, height * 0.64, 7]} />
-        <meshStandardMaterial color="#4b382b" roughness={0.78} />
-      </mesh>
-      {[0, 1, 2].map((layer) => (
-        <mesh key={layer} position={[0, height * (0.52 + layer * 0.16), 0]} castShadow>
-          <coneGeometry args={[1.25 - layer * 0.25, 1.45 - layer * 0.18, 7]} />
-          <meshStandardMaterial color={rain ? "#34433d" : "#2f5139"} roughness={0.9} />
-        </mesh>
-      ))}
-      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, seededUnit(seed * 23) * Math.PI]} scale={[1.4, 0.8, 1]} receiveShadow>
-        <circleGeometry args={[1, 16]} />
-        <meshBasicMaterial color={rain ? "#d7dedc" : "#edf1ec"} transparent opacity={rain ? 0.18 : 0.24} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
+function AlpinePine({
+  position,
+  seed,
+  rain,
+}: {
+  position: [number, number, number];
+  seed: number;
+  rain: boolean;
+}) {
+  const plants = useMemo<Plant[]>(() => [{ position, seed }], [position, seed]);
+  return <Vegetation kind="pine" plants={plants} rain={rain} />;
 }
 
 function AlpineRock({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
@@ -5154,8 +5238,7 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (index % 4 === 0) {
-          const position = tracksidePropPosition(track, sample, side, 5 + seededUnit(index * 5) * 7, 2.3, 1.2);
-          return <AlpinePine key={`fjord-pine-${index}`} position={[position.x, position.y, position.z]} seed={index + 200} rain={rain} />;
+          return null;
         }
         if (index % 4 === 1) {
           const position = tracksidePropPosition(track, sample, side, 4 + seededUnit(index * 7) * 6, 2.8, 1.2);
@@ -5169,39 +5252,42 @@ function FjordProps({ track, rain }: { track: TrackDef; rain: boolean }) {
 }
 
 function FjordWater({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
-  const width = bounds.maxX - bounds.minX + 420;
-  const depth = bounds.maxZ - bounds.minZ + 420;
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(bounds.minX + bounds.maxX) / 2, bounds.minY - 0.47, (bounds.minZ + bounds.maxZ) / 2]}>
-      <planeGeometry args={[width, depth]} />
-      <meshStandardMaterial color={rain ? "#496b78" : "#3c82a6"} roughness={0.38} metalness={0.12} transparent opacity={0.46} />
-    </mesh>
+    <ScenicWater
+      center={[
+        (bounds.minX + bounds.maxX) / 2,
+        bounds.minY - 0.47,
+        (bounds.minZ + bounds.maxZ) / 2,
+      ]}
+      size={[bounds.maxX - bounds.minX + 420, bounds.maxZ - bounds.minZ + 420]}
+      rain={rain}
+    />
   );
 }
 
-function FjordBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
+function FjordBackdrop({
+  bounds,
+  rain,
+}: {
+  bounds: TrackBounds;
+  rain: boolean;
+}) {
   const peaks = [
     { x: bounds.minX - 120, z: bounds.maxZ + 80, h: 68, r: 52 },
     { x: bounds.maxX + 150, z: bounds.maxZ - 60, h: 82, r: 70 },
     { x: bounds.minX + 180, z: bounds.minZ - 130, h: 62, r: 58 },
-    { x: bounds.maxX + 110, z: bounds.minZ + 100, h: 76, r: 64 }
+    { x: bounds.maxX + 110, z: bounds.minZ + 100, h: 76, r: 64 },
   ];
-  return (
-    <group>
-      {peaks.map((peak, index) => (
-        <group key={`fjord-peak-${index}`} position={[peak.x, bounds.minY - 0.3 + peak.h / 2, peak.z]} rotation={[0, seededUnit(index * 19) * 0.8, 0]}>
-          <mesh>
-            <coneGeometry args={[peak.r, peak.h, 9]} />
-            <meshStandardMaterial color={rain ? "#6f7774" : "#77846f"} roughness={0.98} />
-          </mesh>
-          <mesh position={[0, peak.h * 0.31, 0]}>
-            <coneGeometry args={[peak.r * 0.34, peak.h * 0.22, 9]} />
-            <meshStandardMaterial color={rain ? "#dfe5e4" : "#eef2f0"} roughness={0.82} />
-          </mesh>
-        </group>
-      ))}
-    </group>
+  const shapes = useMemo<MountainPeak[]>(
+    () =>
+      peaks.map((peak, index) => ({
+        position: [peak.x, bounds.minY - 0.3, peak.z],
+        size: [peak.r, peak.h, peak.r],
+        seed: 100 + index * 7,
+      })),
+    [bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ, bounds.minY],
   );
+  return <MountainMassif peaks={shapes} rain={rain} />;
 }
 
 function FjordWaterfall({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
@@ -5299,45 +5385,16 @@ function FjordCliffRail({ position, heading, length, rain }: { position: [number
   );
 }
 
-function FjordVillage({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
-  return (
-    <group position={position} rotation={[0, heading, 0]} scale={[1.5, 1.5, 1.5]}>
-      {[-3.8, -1.25, 1.35, 3.9].map((x, index) => (
-        <group key={`fjord-cabin-${index}`} position={[x, 0, index % 2 === 0 ? 0.85 : -0.78]} rotation={[0, (index - 1.5) * 0.13, 0]}>
-          <mesh position={[0, 0.68, 0]} castShadow>
-            <boxGeometry args={[1.8, 1.28, 1.44]} />
-            <meshStandardMaterial color={rain ? "#8d4c42" : "#a4473e"} roughness={0.72} />
-          </mesh>
-          <mesh position={[0, 1.5, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <coneGeometry args={[1.48, 0.95, 4]} />
-            <meshStandardMaterial color={rain ? "#303941" : "#2d3339"} roughness={0.62} />
-          </mesh>
-          <mesh position={[0, 0.86, -0.74]}>
-            <boxGeometry args={[0.7, 0.38, 0.04]} />
-            <meshStandardMaterial color={rain ? "#ffe1a0" : "#ffd166"} emissive="#5f300a" emissiveIntensity={rain ? 0.55 : 0.28} roughness={0.48} />
-          </mesh>
-        </group>
-      ))}
-      <mesh position={[0.1, 0.06, -2.35]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[9.2, 0.82]} />
-        <meshStandardMaterial color={rain ? "#463a2e" : "#5b4936"} roughness={0.78} />
-      </mesh>
-      {[-3.2, -1.05, 1.1, 3.25].map((x) => (
-        <mesh key={`fjord-dock-post-${x}`} position={[x, 0.46, -3.08]} castShadow>
-          <boxGeometry args={[0.14, 0.86, 0.14]} />
-          <meshStandardMaterial color={rain ? "#3d342c" : "#5b4936"} roughness={0.74} />
-        </mesh>
-      ))}
-      <mesh position={[4.95, 0.74, -1.65]} rotation={[0, -0.25, 0]} castShadow>
-        <boxGeometry args={[0.14, 1.24, 0.14]} />
-        <meshStandardMaterial color="#2f3438" roughness={0.6} />
-      </mesh>
-      <mesh position={[4.95, 1.22, -1.65]} rotation={[0, -0.25, 0]}>
-        <boxGeometry args={[1.0, 0.42, 0.06]} />
-        <meshStandardMaterial color={rain ? "#fff4d7" : "#fff7df"} roughness={0.56} />
-      </mesh>
-    </group>
-  );
+function FjordVillage({
+  position,
+  heading,
+  rain,
+}: {
+  position: [number, number, number];
+  heading: number;
+  rain: boolean;
+}) {
+  return <ScenicBuildings position={position} heading={heading} rain={rain} />;
 }
 
 function FjordLookout({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
@@ -5472,12 +5529,10 @@ function CausewayProps({ track, rain }: { track: TrackDef; rain: boolean }) {
           return null;
         }
         if (index % 3 === 0) {
-          const position = tracksidePropPosition(track, sample, side, 5 + seededUnit(index * 5) * 9, 1.8, 1.2);
-          return <CausewayPalm key={`causeway-palm-${index}`} position={[position.x, position.y, position.z]} heading={sample.heading} seed={index} rain={rain} />;
+          return null;
         }
         if (index % 3 === 1) {
-          const position = tracksidePropPosition(track, sample, side, 3 + seededUnit(index * 7) * 7, 2.1, 1.2);
-          return <CausewayMangrove key={`causeway-mangrove-${index}`} position={[position.x, position.y, position.z]} seed={index} rain={rain} />;
+          return null;
         }
         const position = causewayWaterMarkerPosition(sample, side, 21 + seededUnit(index * 19) * 14);
         return <CausewayBuoy key={`causeway-open-buoy-${index}`} position={[position.x, -0.2, position.z]} seed={index} rain={rain} />;
@@ -5486,34 +5541,24 @@ function CausewayProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function CausewayWater({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
-  const width = bounds.maxX - bounds.minX + 520;
-  const depth = bounds.maxZ - bounds.minZ + 520;
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-  const waves = useMemo(() => {
-    return Array.from({ length: 42 }).map((_, index) => ({
-      x: bounds.minX - 210 + seededUnit(index * 11) * width,
-      z: bounds.minZ - 210 + seededUnit(index * 17) * depth,
-      rotation: seededUnit(index * 23) * Math.PI,
-      length: 16 + seededUnit(index * 29) * 34,
-      opacity: 0.08 + seededUnit(index * 31) * 0.1
-    }));
-  }, [bounds.minX, bounds.minZ, depth, width]);
-
+function CausewayWater({
+  bounds,
+  rain,
+}: {
+  bounds: TrackBounds;
+  rain: boolean;
+}) {
   return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[centerX, -0.48, centerZ]}>
-        <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color={rain ? "#4f7d8b" : "#47b8cf"} roughness={0.36} metalness={0.08} transparent opacity={rain ? 0.76 : 0.82} depthWrite={false} />
-      </mesh>
-      {waves.map((wave, index) => (
-        <mesh key={`causeway-wave-${index}`} position={[wave.x, -0.43, wave.z]} rotation={[-Math.PI / 2, 0, wave.rotation]} scale={[wave.length, 0.34, 1]}>
-          <planeGeometry args={[1, 1]} />
-          <meshBasicMaterial color={rain ? "#d7eef0" : "#e6feff"} transparent opacity={rain ? wave.opacity * 0.58 : wave.opacity} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-    </group>
+    <ScenicWater
+      center={[
+        (bounds.minX + bounds.maxX) / 2,
+        -0.48,
+        (bounds.minZ + bounds.maxZ) / 2,
+      ]}
+      size={[bounds.maxX - bounds.minX + 520, bounds.maxZ - bounds.minZ + 520]}
+      rain={rain}
+      coastal
+    />
   );
 }
 
@@ -5542,55 +5587,45 @@ function CausewayDistantKeys({ bounds, rain }: { bounds: TrackBounds; rain: bool
   );
 }
 
-function CausewayBridgeRails({ track, rain }: { track: TrackDef; rain: boolean }) {
-  const samples = useMemo(() => sampleTrackVisuals(track, 30), [track]);
-  return (
-    <group>
-      {samples.flatMap((sample, index) => {
-        const progress = (index + 0.5) / samples.length;
-        if (!isCausewayBridgeProgress(progress)) return [];
-        return [-1, 1].map((side) => {
-          const rightX = Math.sin(sample.heading + Math.PI / 2);
-          const rightZ = Math.cos(sample.heading + Math.PI / 2);
-          const offset = side * (track.width / 2 + track.curbWidth + 1.2);
-          return (
-            <CausewayBridgeRail
-              key={`causeway-bridge-rail-${index}-${side}`}
-              position={[sample.x + rightX * offset, sample.y, sample.z + rightZ * offset]}
-              heading={sample.heading}
-              length={sample.length * 0.7}
-              rain={rain}
-            />
-          );
-        });
-      })}
-    </group>
-  );
+function CausewayBridgeRails({
+  track,
+  rain,
+}: {
+  track: TrackDef;
+  rain: boolean;
+}) {
+  const sections = useMemo<RailSection[]>(() => {
+    const samples = sampleTrackVisuals(track, 30);
+    return samples.flatMap((sample, index) => {
+      if (!isCausewayBridgeProgress((index + 0.5) / samples.length)) return [];
+      return [-1, 1].map((side) => {
+        const offset = side * (track.width / 2 + track.curbWidth + 1.2);
+        return {
+          position: [
+            sample.x + Math.cos(sample.heading) * offset,
+            sample.y,
+            sample.z - Math.sin(sample.heading) * offset,
+          ] as [number, number, number],
+          heading: sample.heading,
+          length: sample.length * 0.7,
+        };
+      });
+    });
+  }, [track]);
+  return <BridgeRailing sections={sections} rain={rain} />;
 }
 
-function CausewayBridgeRail({ position, heading, length, rain }: { position: [number, number, number]; heading: number; length: number; rain: boolean }) {
-  const postCount = Math.max(3, Math.min(9, Math.round(length / 9)));
-  return (
-    <group position={position} rotation={[0, heading, 0]}>
-      <mesh position={[0, 0.28, 0]} castShadow>
-        <boxGeometry args={[0.34, 0.56, length]} />
-        <meshStandardMaterial color={rain ? "#aab2ad" : "#d4d2c5"} roughness={0.74} />
-      </mesh>
-      <mesh position={[0, 0.6, 0]}>
-        <boxGeometry args={[0.4, 0.08, length]} />
-        <meshStandardMaterial color={rain ? "#dbe4e2" : "#fff8e4"} roughness={0.62} />
-      </mesh>
-      {Array.from({ length: postCount }).map((_, index) => {
-        const z = -length / 2 + (length / Math.max(1, postCount - 1)) * index;
-        return (
-          <mesh key={`causeway-rail-post-${index}`} position={[0, 0.88, z]} castShadow>
-            <boxGeometry args={[0.12, 0.54, 0.12]} />
-            <meshStandardMaterial color={rain ? "#48545a" : "#4d565b"} roughness={0.58} metalness={0.08} />
-          </mesh>
-        );
-      })}
-    </group>
+function CausewayBridgeRail({
+  position,
+  heading,
+  length,
+  rain,
+}: RailSection & { rain: boolean }) {
+  const sections = useMemo(
+    () => [{ position, heading, length }],
+    [position, heading, length],
   );
+  return <BridgeRailing sections={sections} rain={rain} />;
 }
 
 function CausewayHeritageBridge({ track, rain }: { track: TrackDef; rain: boolean }) {
@@ -5652,67 +5687,35 @@ function CausewayOldBridgeSegment({ position, heading, length, rain }: { positio
   );
 }
 
-function CausewayPalm({ position, heading, seed, rain }: { position: [number, number, number]; heading: number; seed: number; rain: boolean }) {
-  const height = 3.1 + seededUnit(seed * 13) * 1.15;
-  const lean = (seededUnit(seed * 17) - 0.5) * 0.38;
-  const trunk = rain ? "#71543c" : "#8b6545";
-  const leaf = rain ? "#345f45" : "#28724a";
-  const leafLight = rain ? "#3f7653" : "#39935d";
-  return (
-    <group position={position} rotation={[0, heading + seededUnit(seed * 19) * Math.PI, 0]}>
-      <mesh position={[0, height * 0.46, 0]} rotation={[0, 0, lean]} castShadow>
-        <cylinderGeometry args={[0.12, 0.22, height, 8]} />
-        <meshStandardMaterial color={trunk} roughness={0.8} />
-      </mesh>
-      {Array.from({ length: 8 }).map((_, index) => {
-        const angle = (Math.PI * 2 * index) / 8 + seededUnit(seed * 23) * 0.25;
-        return (
-          <mesh
-            key={`palm-frond-${index}`}
-            position={[Math.sin(angle) * 0.54 + lean * 0.42, height + 0.04, Math.cos(angle) * 0.54]}
-            rotation={[0.34, angle, index % 2 === 0 ? 0.58 : -0.58]}
-            castShadow
-          >
-            <boxGeometry args={[0.18, 0.065, 1.65]} />
-            <meshStandardMaterial color={index % 2 === 0 ? leaf : leafLight} roughness={0.84} />
-          </mesh>
-        );
-      })}
-      <mesh position={[lean * 0.42, height + 0.02, 0]} castShadow>
-        <sphereGeometry args={[0.28, 10, 8]} />
-        <meshStandardMaterial color={leaf} roughness={0.84} />
-      </mesh>
-    </group>
+function CausewayPalm({
+  position,
+  heading,
+  seed,
+  rain,
+}: {
+  position: [number, number, number];
+  heading: number;
+  seed: number;
+  rain: boolean;
+}) {
+  const plants = useMemo<Plant[]>(
+    () => [{ position, heading, seed }],
+    [position, heading, seed],
   );
+  return <Vegetation kind="palm" plants={plants} rain={rain} />;
 }
 
-function CausewayMangrove({ position, seed, rain }: { position: [number, number, number]; seed: number; rain: boolean }) {
-  const foliage = rain ? "#3d604d" : "#47764d";
-  const darkFoliage = rain ? "#345443" : "#3e6545";
-  return (
-    <group position={position} rotation={[0, seededUnit(seed * 31) * Math.PI, 0]}>
-      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0.15]} scale={[2.2, 1.0, 1]}>
-        <circleGeometry args={[1, 16]} />
-        <meshStandardMaterial color={rain ? "#b8ad8a" : "#d8c88f"} roughness={0.95} />
-      </mesh>
-      {[
-        [-0.82, 0.62, 0.18, 0.92],
-        [0.3, 0.82, -0.16, 1.12],
-        [0.88, 0.52, 0.32, 0.82]
-      ].map(([x, y, z, scale], index) => (
-        <mesh key={`mangrove-crown-${index}`} position={[x, y, z]} scale={[scale, scale * 0.64, scale * 0.82]} castShadow>
-          <sphereGeometry args={[0.8, 12, 8]} />
-          <meshStandardMaterial color={index % 2 === 0 ? darkFoliage : foliage} roughness={0.9} />
-        </mesh>
-      ))}
-      {[-0.48, 0.18, 0.58].map((x, index) => (
-        <mesh key={`mangrove-root-${index}`} position={[x, 0.34, index * 0.18 - 0.15]} rotation={[0.14, 0, (index - 1) * 0.28]}>
-          <cylinderGeometry args={[0.055, 0.08, 0.8, 6]} />
-          <meshStandardMaterial color={rain ? "#4c3e32" : "#634b35"} roughness={0.82} />
-        </mesh>
-      ))}
-    </group>
-  );
+function CausewayMangrove({
+  position,
+  seed,
+  rain,
+}: {
+  position: [number, number, number];
+  seed: number;
+  rain: boolean;
+}) {
+  const plants = useMemo<Plant[]>(() => [{ position, seed }], [position, seed]);
+  return <Vegetation kind="mangrove" plants={plants} rain={rain} />;
 }
 
 function CausewayLighthouse({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
@@ -5947,8 +5950,7 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
       {samples.map((sample, index) => {
         const side = index % 2 === 0 ? -1 : 1;
         if (sample.y < 230 && index % 3 !== 1) {
-          const position = tracksidePropPosition(track, sample, side, 5 + seededUnit(index * 7) * 8, 2.4, 1.2);
-          return <AlpinePine key={`cloud-pine-${index}`} position={[position.x, position.y, position.z]} seed={index + 600} rain={rain} />;
+          return null;
         }
         if (index % 4 === 0) {
           const position = tracksidePropPosition(track, sample, side, 4 + seededUnit(index * 11) * 5, 3.4, 1.2);
@@ -5961,29 +5963,29 @@ function CloudlineProps({ track, rain }: { track: TrackDef; rain: boolean }) {
   );
 }
 
-function CloudlineBackdrop({ bounds, rain }: { bounds: TrackBounds; rain: boolean }) {
+function CloudlineBackdrop({
+  bounds,
+  rain,
+}: {
+  bounds: TrackBounds;
+  rain: boolean;
+}) {
   const peaks = [
     { x: bounds.minX - 260, z: bounds.minZ + 120, h: 210, r: 150 },
     { x: bounds.maxX + 280, z: bounds.minZ + 260, h: 260, r: 190 },
     { x: bounds.minX + 120, z: bounds.maxZ + 240, h: 230, r: 170 },
-    { x: bounds.maxX - 80, z: bounds.maxZ + 290, h: 280, r: 210 }
+    { x: bounds.maxX - 80, z: bounds.maxZ + 290, h: 280, r: 210 },
   ];
-  return (
-    <group>
-      {peaks.map((peak, index) => (
-        <group key={`cloudline-peak-${index}`} position={[peak.x, bounds.minY - 0.4 + peak.h / 2, peak.z]} rotation={[0, seededUnit(index * 23) * 0.7, 0]}>
-          <mesh>
-            <coneGeometry args={[peak.r, peak.h, 9]} />
-            <meshStandardMaterial color={rain ? "#6b7273" : "#778179"} roughness={0.98} />
-          </mesh>
-          <mesh position={[0, peak.h * 0.31, 0]}>
-            <coneGeometry args={[peak.r * 0.42, peak.h * 0.24, 9]} />
-            <meshStandardMaterial color={rain ? "#dce3e4" : "#f2f5f4"} roughness={0.82} />
-          </mesh>
-        </group>
-      ))}
-    </group>
+  const shapes = useMemo<MountainPeak[]>(
+    () =>
+      peaks.map((peak, index) => ({
+        position: [peak.x, bounds.minY - 0.4, peak.z],
+        size: [peak.r, peak.h, peak.r],
+        seed: 100 + index * 7,
+      })),
+    [bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ, bounds.minY],
   );
+  return <MountainMassif peaks={shapes} rain={rain} />;
 }
 
 function CloudlineSummit({ position, heading, rain }: { position: [number, number, number]; heading: number; rain: boolean }) {
