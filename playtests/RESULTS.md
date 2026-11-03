@@ -144,3 +144,13 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Gemini reviewed exterior art and live cockpit visual/UX readability. Refinements included the truck cage, darker glass gradient, seat insert and housed Tuk headlight; final sightlines and mirrors remained clear. Before/afters were shared privately. The racing-miniatures redesign remains a future idea in IMPROVEMENTS.md.
 - A separate dry native driving capture refreshed the actual gameplay home preview. Physics, collisions, controls, camera positions, race rules and update rates are unchanged. Generated captures/helpers remain ignored; no new dependencies, tests or CI were added.
 - All eight player colours rendered across all four classes. A 390 px controller page joined and switched through the four vehicle previews in pink without application errors; the desktop home retained the original joke podium.
+
+
+## 2026-11-03 — Cockpit gloves and paws
+
+- All four cockpits were inspected with Hands/Paws at centre and both full steering locks, driven by parked native inputs. Checks covered left/right handedness, palm/thumb direction, cuff approach, rim contact and instrument/sightline clearance. Numeric thumb-arc probes covered all six grip/style combinations; round-wheel wrists fit toward the lap separately from the upright Formula grips. Paws use a deliberately cute costume-handpaw silhouette with lavender fur, cream toe mitts, fur ruffs and double-sided pink bean motifs.
+- The final production-page wet Sakura race with costume Paws on all four classes finished with Formula 25.862 s, Kart 27.194 s, Truck 28.290 s and Tuk-Tuk 40.094 s. All eight driving/mirror canvases and ghost rivals rendered without crashes, resets, pose overrides or application errors. An earlier mixed glove/paw run also finished cleanly. Finish replay/pause/close also passed during the pass.
+- Showroom previews, 390 px controller style switching, fresh default None and saved-driver reload passed. A dry native driving capture refreshed the home preview. The original joke podium, vehicle dimensions, cameras, controls, physics and update rates are unchanged.
+- Each pair is two draws. Matched four-class paw submissions changed 1,106→1,056 draws with +6.85% triangles; None retained identical counts in all four views. PERFORMANCE.md records the geometry budget and measurement limits.
+- Gemini reviewed visual/UX readability and explicitly rechecked orientations; final thumbs, wrist approaches and sightlines passed the visual review. Before/afters and experiments were shared privately.
+- Typecheck and production client/server build passed. Generated captures/helpers remain ignored; no new dependencies or CI.
