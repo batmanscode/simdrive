@@ -1,6 +1,8 @@
 export type Phase = "lobby" | "tutorial" | "countdown" | "racing" | "results";
 
-export type TrackId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline" | "passage";
+export type SceneryId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline";
+
+export type TrackId = SceneryId | "passage" | "fjordSprint" | "causewaySprint" | "cloudlineSprint";
 
 export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
@@ -20,6 +22,7 @@ export type Vec2 = {
 
 export type TrackDef = {
   id: TrackId;
+  sceneryId: SceneryId;
   name: string;
   description: string;
   inspiration?: string;

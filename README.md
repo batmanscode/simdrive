@@ -45,7 +45,7 @@ In GitHub Codespaces, open the forwarded `5173` port URL. The app proxies WebSoc
 ### Race display
 
 - Display landing/lobby/tutorial/results screens support System, Light, and Dark themes.
-- Five circuits plus Fjord Passage, a one-way run through the existing fjord landscape. The run uses a grid start and one finish; circuit lap/flying-start preferences are retained.
+- Five circuits, Fjord Passage, and short waterfall/island/foothill sprints through the Fjord, Keys and Cloudline landscapes. One-way runs use a grid start and one finish; circuit lap/flying-start preferences are retained.
 - Stylized motorsport presentation: layered skies and distant ridges, track-specific light, textured road/terrain, wet-road sheen, batched rain/spray/petals, sculpted bodywork, and load/grade-aware cockpit motion.
 - Race view includes a minimap, leaderboard (compact global position in split-screen), mirror, lap/run timing, nearby overlap indicators, and auto-spectate after finishing. Personal corner hints, best-lap ghosts, and camera movement are optional.
 - Results include placement, total/best time, driving awards, an optional local first-finish replay, and championship standings/voting when enabled.

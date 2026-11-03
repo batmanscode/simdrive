@@ -3695,3 +3695,9 @@ input {
 .driver-finish > strong { font-size: 24px; color: #c3e9d4; font-variant-numeric: tabular-nums; }
 .driver-finish p, .driver-finish small { max-width: 420px; line-height: 1.5; }
 .driver-finish small { color: #b1c1b8; }
+
+.track-route-options { display: flex; gap: .45rem; flex-wrap: wrap; margin: .55rem 0 .3rem; }
+.track-route-options button { flex: 1; min-height: 42px; padding: .55rem .6rem; font: inherit; font-size: .85rem; border-radius: 10px; border: 1px solid #41494b; background: #242a2c; color: #e6e9e5; }
+.track-route-options button[aria-pressed="true"] { background: #b8dbcf; color: #172c26; border-color: #b8dbcf; font-weight: 750; }
+.track-route-options button:focus-visible { outline: 2px solid #ffd166; outline-offset: 3px; }
+.track-picker > .phone-note { display: block; text-align: center; }

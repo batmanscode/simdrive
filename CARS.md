@@ -45,7 +45,7 @@ Source links:
 
 ## Motorsports handling update
 
-Steering requires rolling contact and has vehicle-specific yaw response. Braking uses part of the available cornering grip. Body/cockpit pitch and roll visualize longitudinal/lateral load and road grade; this remains a lightweight handling model, not a full suspension solver.
+Steering requires rolling contact and has vehicle-specific yaw response. Braking uses part of the available cornering grip. Body/cockpit pitch and roll visualize longitudinal/lateral load with vehicle-specific damped settling; road grade stays aligned and the tuk-tuk canopy has restrained secondary movement. Camera comfort/reduced-motion preferences suppress added cockpit movement. This remains a lightweight handling model, not a full suspension solver.
 
 Contacts use gameplay masses (Formula 800, Kart 175, Truck 1540, Tuk-Tuk 360) and ignore cars on separate road elevations. Wall scrapes resolve the normal velocity instead of snapping the heading and removing all forward speed. Slow off-track recovery has a deliberate hold-to-reverse control capped at 2.2 internal units (~18 km/h); brake behavior is unchanged.
 
