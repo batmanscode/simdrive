@@ -30,6 +30,14 @@ Main contributors found:
 - Curbs were many separate stripe meshes per canvas, multiplying draw calls.
 - Some static visual calculations were being re-run or reconciled during frequent race state updates.
 
+## Motorsports presentation
+
+- Rain, petals, roadside grass, and soft tire wakes use instancing. Surface detail/wet sheen and distant skybox ridges use inexpensive shaders rather than reflection passes or a longer prop draw distance.
+- Sun-shadow coverage follows the cockpit on long/elevated routes; split-screen retains the shadow-free tier with grade-aligned grounding blobs.
+- Sustained low frame rate can lower 3D pixel ratio to 0.6 in split-screen or 0.8 solo. DOM instruments stay crisp; mirrors remain lightweight.
+- Personal ghost recordings are bounded to 4,001 frames per stored best. The ephemeral display replay is capped at 150 frames / nine seconds. Neither changes server race truth.
+- A baseline/upgraded four-pane comparison in software-only headless Chromium was slow for both. It establishes render/error coverage, not real hardware FPS or phone steering feel. Shared-canvas/engine migration remains a separate profiling decision.
+
 ## Current Optimizations
 
 Networking:

@@ -15,21 +15,21 @@ This document is intended to be usable by an AI coding agent or engineering team
 - Vite + React + TypeScript browser app.
 - React Three Fiber and Three.js cockpit race renderer.
 - Node + Express + `ws` WebSocket room server.
-- In-memory rooms only; no accounts, matchmaking, persistent storage, or persistent leaderboard.
+- In-memory rooms only; no accounts, matchmaking, or server-persistent leaderboard. Personal best ghosts use bounded local display-browser storage.
 - Display flow: landing with how-to-play modal, create room, join room as another display, QR lobby with exit room action, optional pre-race tutorial display, race view, and results.
 - Display landing, lobby, tutorial, and results support System, Light, and Dark theme modes. System follows the display device color-scheme preference.
 - Display landing shows a live active-player count only when at least one driver is online.
 - Display lobby shows the QR code, current track, lap count, pre-race tutorial setting, rain, warm-up/flying start, collision/ghost mode, gentle stability assist, reset mode, connected driver lineup, each player's vehicle, setup, and cockpit style.
 - Display lobby has a mobile-display guidance overlay for small screens so players know a larger shared display is recommended before continuing.
 - Display refresh resumes the same display group. If every display leaves and none reconnects within the 20-second grace window, the room closes and controllers are notified.
-- Display results can return the room to lobby without requiring the VIP controller.
-- Controller flow: room-code join, name/color setup, per-player vehicle selection, per-player setup selection where available, rear-view mirror mode, cockpit style, VIP settings, optional pre-race phone tutorial, and race controller.
+- Display results can return the room to lobby without requiring the VIP controller. Finished/crashed-out/DNF phones show a clear waiting screen and quiet terminal feedback; display panes auto-follow remaining racers after a short pause. Reset-enabled temporary crashes keep their recovery flow.
+- Controller flow: room-code/name/color join, personal car/control setup, a separate VIP Race settings tab, original pre-race tutorial, race controller, and dedicated results/voting. Device preferences, view/coaching choices and optional race extras are collapsible.
 - Controller sessions store the last room token locally and auto-resume the saved driver after phone refreshes or QR rescans when the room still exists.
 - One-player practice works with one display and one phone/browser controller.
 - Up to 8 players per room are represented in server state.
 - Display groups support split-screen panes for up to 4 local players. New controller joins are capped at 4 players per display group so a shared-screen QR cannot overflow visible panes.
 - First joined controller becomes VIP.
-- Current tracks: `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
+- Current tracks: `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, `Cloudline Ascent`, and the one-way `Fjord Passage`.
 - Current vehicles: `Formula Prototype`, `KZ Kart`, `Stock Truck`, and `Tuk-Tuk`.
 - `Formula Prototype` and `Stock Truck` support Balanced, High Grip, and High Speed setups. `KZ Kart` and `Tuk-Tuk` use a fixed setup.
 - Personal cockpit styles: None, Hands, and Paws. New players default to None.
@@ -235,6 +235,20 @@ When tutorial mode is enabled, race start moves the room into `tutorial` before 
 - Every racer exists in the same race world regardless of display assignment.
 - Final ranking is global across all players.
 
+### Optional Race Extras
+
+Manual settings remain the default. VIP can independently enable Equal pace (180 km/h base before setup/weather, with distinct handling), Changing weather (rain arrives or clears progressively), and a three-race championship. These do not introduce mandatory Club/Party categories or override the existing safety choices.
+
+Championship points for finishers are 12/9/7/5/4/3/2/1, with race wins breaking tied points. Equal points/wins share a displayed place; names give deterministic row order. Connected controllers vote once each for the next track; votes can change, and equal/no votes follow picker order. VIP/display advances to the next lobby so drivers can tune before starting. Aborting an unfinished round retains prior points for a retry; ending from results clears the series. The third round cannot advance further.
+
+### Practice And Results
+
+Personal corner hints and ghosts default off. Camera movement defaults on but added camera shake/pitch/roll respects the display's reduced-motion setting and the player's preference. Live lap/run timing, overlap indicators and compact split-screen position badges leave the road visible.
+
+Display-local ghosts match driver name/color, track, vehicle/setup, weather, assist and equal-pace settings. Only uninterrupted checkpoint-complete laps/runs record; crashes, resets and changing weather exclude recording. Sampling decimates to a 4,001-frame bound; unavailable/full browser storage falls back to memory. Fresh bests can be chased on the next lap or a later race.
+
+Results add fastest lap/run, smooth-driving and comeback awards when eligible. An optional first-finish replay uses a bounded local display snapshot buffer and a third-person camera; it never sends controls or changes race truth. First across the line and final elapsed-time winner can differ with flying starts.
+
 ### Vehicles
 
 Current vehicle roster:
@@ -274,6 +288,7 @@ Current track set:
 - `Alpine Grand Prix`: longer high-speed circuit inspired by elevation, fast sweepers, high-speed directional changes, and heavy-braking chicanes.
 - `Fjord Loop`: long endurance loop inspired by fjord/mountain scenery, ridge climbs, downhill braking zones, waterfalls, and village scenery.
 - `Keys Causeway`: flat coastal endurance loop inspired by the Florida Keys Overseas Highway, long bridge straights, open water, old parallel bridge sections, palms, mangroves, lighthouse, and marina scenery.
+- `Fjord Passage`: one-way run through the existing Fjord landscape, ending beyond the village at 73.5% of the underlying route. It always uses one grid-start run while preserving stored circuit lap/flying-start preferences. Its finish gate, map endpoint and ordered checkpoints use the course length; the established terrain/centerline stay unchanged.
 - `Cloudline Ascent`: very long mountain-pass endurance route inspired by race-to-the-clouds climbs, stacked switchbacks, exposed ridge straights, long downhill return, snowbanks, summit observatory, and high-altitude cloud wisps.
 
 Track design may draw from real circuit and road archetypes. Do not use protected names, logos, official signage, or branded assets unless licensing/clearance is explicit.
@@ -291,10 +306,12 @@ Track data supports:
 - Centerline points.
 - Sampled elevation and grade so uphill/downhill sections affect physics, camera height, car visuals, effects, reset/spawn, prop placement, and track geometry together.
 - Road width, curb width, wall margin, start/finish line, checkpoints, spawn grid, wall/runoff behavior, and surface classification.
-- Generated terrain support for elevated tracks.
+- Generated terrain support for elevated tracks, plus an optional `finishFraction` defining a one-way course over the same centerline.
 - Height-aware nearest-track checks to avoid wrong-layer selection on stacked/overlapping routes.
 
 ### Track Visuals
+
+The motorsport renderer adds track-specific layered skies and distant ridges, following sun-shadow coverage, procedural asphalt/terrain variation, wet sheen, batched rain/petals/grass/tire wakes, softened vehicle forms, and grade/load-based car/cockpit movement. Split-screen uses lightweight mirrors, compact positions and adaptive 3D resolution; see `PERFORMANCE.md` for the budget.
 
 Race visuals include:
 
@@ -319,7 +336,7 @@ Elevated-track rendering uses centerline-derived road/curb/runoff ribbons plus g
 
 ## 10. Physics And Race Rules
 
-The game should feel like a low-definition racing sim:
+The game should feel like a stylized sim-lite racer:
 
 - Steering has inertia, speed scaling, lateral damping, and grip limits.
 - Braking shifts grip and creates stronger feedback.
@@ -331,7 +348,8 @@ The game should feel like a low-definition racing sim:
 
 Current server-authoritative simplified racing physics includes:
 
-- Throttle, brake, and steering input.
+- Throttle, brake, steering and deliberate low-speed reverse input.
+- Rolling-contact yaw inertia, signed longitudinal/lateral load, and shared braking/cornering grip.
 - Per-vehicle tuning.
 - Per-driver setup multipliers where available.
 - Optional warm-up/flying start timing.
@@ -343,8 +361,8 @@ Current server-authoritative simplified racing physics includes:
 - Tuned road/curb/grass grip and drag.
 - Rain grip reduction and top-speed changes.
 - Tuk-tuk rollover risk.
-- Wall slowdown.
-- Directional car contact/crash handling.
+- Wall-normal response with forward momentum retained during scrapes, without heading snaps.
+- Mass-weighted, height-aware directional car contacts, including coincident contact handling. Crash effects are emitted per actual pair.
 - Optional crash/off-track reset.
 - Checkpoint-gated lap finish.
 - DNF handling.
@@ -352,9 +370,13 @@ Current server-authoritative simplified racing physics includes:
 
 ### Collision And Ghost Mode
 
-- Ghost cars on: player cars do not collide with each other.
+- Ghost cars on: player cars do not collide with each other; nearby rivals fade so overlap does not block the road.
 - Ghost cars off: directional car contact can push cars and trigger crashes.
 - Walls/off-track behavior still matters in both modes.
+
+### Reverse Recovery
+
+Hold to reverse is available on the phone when slow/off-track and remains available while held. Release, pointer cancellation, refresh, crash or finish clears the request. Reverse engages below 3 internal speed units, is capped at 2.2 units (~18 km/h), and reverses steering direction with actual backward motion. Brake does not automatically become reverse.
 
 ### Reset Mode
 
@@ -498,12 +520,15 @@ The game is server-authoritative:
 - `set_car_setup`
 - `set_cockpit_style`
 - `set_rear_view_mode`
+- `set_view_options`
 - `set_ready`
 - `set_tutorial_done`
 - `input_frame`
 - `request_reset`
 - `vip_set_settings`
 - `vip_start_race`
+- `vote_track`
+- `advance_championship`
 - `vip_skip_tutorial`
 - `vip_return_lobby`
 - `display_return_lobby`
@@ -531,6 +556,7 @@ Each controller sends compact input frames:
 - `steer`: `-1` to `1`.
 - `throttle`: `0` to `1`.
 - `brake`: `0` to `1`.
+- `reverse`: optional boolean request, validated and speed-limited by the server.
 
 ### Reconnection
 
@@ -557,7 +583,7 @@ Room state:
 - `raceStartedAt`
 - `cars`
 - `crashEvents`
-- `results`
+- `results`, optional `championship` standings/votes, and `awards`
 
 Player state:
 
@@ -570,6 +596,7 @@ Player state:
 - `carSetupId`
 - `cockpitStyle`
 - `rearViewMode`
+- `cornerGuide`, `practiceGhost`, `cameraMotion`
 - `isReady`
 - `tutorialDone`
 - `isVIP`
@@ -587,13 +614,15 @@ Race settings:
 - `rain`
 - `stabilityAssist`
 - `resetEnabled`
+- Optional `equalPace`, `championship`, `changingWeather`
+- Server-derived `wetness` for gradual grip/pace changes
 
 Car state:
 
 - Player/vehicle/setup identifiers.
 - Position, velocity, heading, speed, steering, throttle, and brake.
 - Lap, progress, checkpoint, warm-up/timed-lap timing, last lap, best lap, and finish time.
-- Surface, impact, slip, rollover risk, crash, DNF, reset availability, and reset invulnerability.
+- Surface, impact, slip, grip usage, yaw rate, signed load, road grade, reverse state, rollover risk, crash, DNF, reset availability, and reset invulnerability.
 
 Race result:
 
@@ -640,7 +669,7 @@ Race result:
 - Up to 8 players can join one room.
 - A display can render 1 to 4 local players in split-screen.
 - VIP can select track, lap count, tutorial, warm-up/flying start, ghost cars, rain, assist, and reset mode.
-- The current track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, and `Cloudline Ascent`.
+- The current track set is `Sakura Sprint`, `Alpine Grand Prix`, `Fjord Loop`, `Keys Causeway`, `Cloudline Ascent`, and the one-way `Fjord Passage`.
 - Race starts, runs, finishes, and shows podium/results.
 - Phone steering, brake, and throttle control the car.
 - Audio feedback works on phones after user gesture.
@@ -668,9 +697,9 @@ Race result:
 - Run the real-phone checks in `HUMAN_CHECKS.md`, then adjust numeric tuning if steering feels too loose, too assisted, or too punishing in rain.
 - Add display-group reassignment only if multi-display sessions become common.
 - Add proper generated or authored car/track assets.
-- Add automated Playwright smoke tests as checked-in tests instead of ad hoc verification scripts.
+- Continue local browser/gameplay checks and real-phone feel testing; no new CI suite is required for the motorsport update.
 - Add a headless load test for server capacity estimates.
-- Improve wet-road effects and spray.
+- Profile the current wet sheen and batched spray on real display hardware before adding more expensive reflections.
 - Consider richer audio samples and broader spatial mixing.
 
 ## 18. Open Questions

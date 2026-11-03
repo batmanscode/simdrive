@@ -47,3 +47,9 @@ Speed thresholds below use the same km/h scale shown on the in-game speedometer.
 - Clean cornering g-force is not a separate continuous haptic layer.
 - Cornering feedback currently comes through tire sound and high-slip vibration when the car starts to slide.
 - Full scene-wide spatial audio is not implemented. Current relative audio is intentionally limited to nearby rival cars and nearby crash cues; earphones still make the layered feedback clearer.
+
+## Grip-limit cue
+
+Road cornering near the combined grip limit (`gripUsage > 0.78`, slip below 0.5, speed above 35 km/h) can request a light 8 ms pulse at most every 400 ms. Impact, tip-risk, hard-braking and surface cues retain priority; stronger slip feedback follows actual sliding. Hardware feel still needs supported real-phone testing.
+
+Finished/DNF drivers are quiet. Crashes retain their single event cue while suppressing repeated impact pulses and engine/tire noise until recovery.

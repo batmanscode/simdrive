@@ -36,6 +36,8 @@ Reusable playtest scripts live under `playtests/`.
 - Local capture output folders are ignored by git so screenshots do not pollute the worktree.
 - `npm run typecheck:playtests` checks the playtest scripts only; the main `npm run typecheck` includes this.
 
+The visual capture script stubs the external competition/analytics scripts so third-party failures do not masquerade as game rendering errors. The shared `driverInput` helper is exported for local multi-car scenarios and brakes when the existing tuk-tuk tip warning appears; it does not relax the rollover physics. `passage` targets use the one-way course length.
+
 Both scripts expect the app server to already be running:
 
 ```bash

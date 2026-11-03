@@ -1,5 +1,5 @@
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getVehicle, getVehicleSetup, kmhToInternalSpeed, resolveCarSetupId } from "./cars.js";
-import { clamp, isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, trackMetrics, wrap } from "./tracks.js";
+import { clamp, isCausewayBridgeProgress, nearestTrackPoint, raceCourseLength, sampleTrack, trackMetrics, wrap } from "./tracks.js";
 import type { CarState, InputFrame, Player, RaceSettings, SurfaceType, TrackDef } from "./types.js";
 
 export const SPEEDOMETER_KMH_PER_UNIT = 8;
@@ -9,6 +9,7 @@ export function speedToKmh(speed: number) {
 }
 
 export function createCar(player: Player, track: TrackDef, gridIndex: number, warmupStart = true): CarState {
+  warmupStart = warmupStart && !track.finishFraction;
   const spawn = sampleTrack(track, 5 - gridIndex * 4);
   const side = gridIndex % 2 === 0 ? -1 : 1;
   const row = Math.floor(gridIndex / 2);
@@ -47,6 +48,13 @@ export function createCar(player: Player, track: TrackDef, gridIndex: number, wa
     resetAvailable: false,
     impact: 0,
     slip: 0,
+    yawRate: 0,
+    longitudinalLoad: 0,
+    lateralLoad: 0,
+    gripUsage: 0,
+    wallImpactSpeed: 0,
+    reversing: false,
+    roadGrade: spawnNearest.grade,
     rolloverRisk: 0
   };
 }
@@ -56,6 +64,7 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     car.resetInvulnerableUntil = undefined;
   }
 
+  car.wallImpactSpeed = 0;
   if (car.finished || car.crashed || car.dnf) {
     car.throttle = 0;
     car.brake = 0;
@@ -66,6 +75,11 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     car.speed = Math.hypot(car.velocityX, car.velocityZ);
     car.wheelDistance += car.speed * dt;
     car.rolloverRisk = 0;
+    car.yawRate = 0;
+    car.reversing = false;
+    car.longitudinalLoad = 0;
+    car.lateralLoad = 0;
+    car.gripUsage = 0;
     return;
   }
 
@@ -82,16 +96,20 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   car.vehicleId = vehicle.id;
   car.carSetupId = setup.id;
   const driveSurface = driveSurfaceFor(surface);
-  const rainGrip = settings.rain ? physics.rainGrip : 1;
+  const wetness = clamp(settings.wetness ?? (settings.rain ? 1 : 0), 0, 1);
+  const paceScale = settings.equalPace ? 180 / physics.dryTopSpeedKmh : 1;
+  const rainGrip = 1 - wetness * (1 - physics.rainGrip);
   const surfaceGrip = physics.surfaceGrip[driveSurface] * setup.multipliers.grip;
   const surfaceDrag = physics.surfaceDrag[driveSurface] * setup.multipliers.drag;
   const grip = surfaceGrip * rainGrip;
   const trackGrade = surface === "wall" ? 0 : clamp(nearestBefore.grade, -0.18, 0.18);
   const downhillSpeedBonus = Math.max(0, -trackGrade) * physics.downhillSpeedBonus;
-  const maxSpeed = kmhToInternalSpeed(settings.rain ? physics.rainTopSpeedKmh : physics.dryTopSpeedKmh)
+  car.reversing = Boolean(input.reverse && (car.reversing || car.speed < 3));
+  const forwardCap = kmhToInternalSpeed(physics.dryTopSpeedKmh + wetness * (physics.rainTopSpeedKmh - physics.dryTopSpeedKmh)) * paceScale
     * setup.multipliers.maxSpeed
     * (surface === "grass" ? physics.grassMaxSpeedMultiplier : 1)
     * (1 + downhillSpeedBonus);
+  const maxSpeed = car.reversing ? Math.min(2.2, forwardCap) : forwardCap;
 
   car.steer = smooth(car.steer, clamp(input.steer, -1, 1), 1 - Math.pow(0.02, dt));
   car.throttle = clamp(input.throttle, 0, 1);
@@ -101,9 +119,10 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   const forwardX = Math.sin(car.heading);
   const forwardZ = Math.cos(car.heading);
   const forwardSpeed = car.velocityX * forwardX + car.velocityZ * forwardZ;
-  const accel = physics.acceleration * setup.multipliers.acceleration * car.throttle * clamp(1 - Math.max(0, speed - maxSpeed) / Math.max(1, maxSpeed), 0, 1);
-  car.velocityX += forwardX * accel * dt;
-  car.velocityZ += forwardZ * accel * dt;
+  const accel = physics.acceleration * paceScale * setup.multipliers.acceleration * car.throttle * clamp(1 - Math.max(0, speed - maxSpeed) / Math.max(1, maxSpeed), 0, 1);
+  const driveDirection = car.reversing ? -1 : 1;
+  car.velocityX += forwardX * accel * driveDirection * dt;
+  car.velocityZ += forwardZ * accel * driveDirection * dt;
 
   if (trackGrade !== 0) {
     const trackForwardX = Math.sin(nearestBefore.heading);
@@ -117,8 +136,8 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   speed = Math.hypot(car.velocityX, car.velocityZ);
   if (speed > 0.001) {
     const brakeBias = clamp(Math.abs(forwardSpeed) / Math.max(speed, 1), 0.55, 1);
-    const braking = physics.braking * setup.multipliers.braking * car.brake * brakeBias;
-    const drag = speed * speed * physics.aeroDrag * setup.multipliers.drag + speed * surfaceDrag;
+    const braking = physics.braking * paceScale * setup.multipliers.braking * car.brake * brakeBias;
+    const drag = speed * speed * physics.aeroDrag / paceScale * setup.multipliers.drag + speed * surfaceDrag;
     const nextSpeed = Math.max(0, speed - (braking + drag) * dt);
     const ratio = nextSpeed / speed;
     car.velocityX *= ratio;
@@ -126,7 +145,7 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     speed = nextSpeed;
   }
 
-  const speedFactor = clamp(speed / physics.steering.speedDivisor, 0, physics.steering.maxSpeedFactor);
+  const speedFactor = clamp(speed / (physics.steering.speedDivisor * paceScale), 0, physics.steering.maxSpeedFactor);
   const downforceGrip = downforceGripForSpeed(speed, driveSurface, physics.downforce);
   const drivingGrip = grip * downforceGrip;
   const rightX = Math.sin(car.heading + Math.PI / 2);
@@ -134,17 +153,25 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   const lateralBefore = car.velocityX * rightX + car.velocityZ * rightZ;
   const slipRatioBefore = clamp(Math.abs(lateralBefore) / Math.max(speed, 1), 0, 1);
   const steeringAuthority = (physics.steering.base + speedFactor * physics.steering.speedGain) * drivingGrip * (1 - slipRatioBefore * physics.steering.slipReduction);
-  car.heading += car.steer * steeringAuthority * dt;
+  // Steering needs rolling tire contact. Yaw inertia differentiates a kart from a truck.
+  const rolling = clamp(Math.abs(forwardSpeed) / 3.2, 0, 1);
+  const combinedGrip = Math.sqrt(Math.max(0.46, 1 - Math.pow(car.brake * 0.64, 2)));
+  const targetYaw = car.steer * steeringAuthority * rolling * combinedGrip * (forwardSpeed < -0.05 ? -1 : 1);
+  car.yawRate = smooth(car.yawRate ?? 0, targetYaw, 1 - Math.exp(-physics.yawResponse * dt));
+  if (speed < 0.025) car.yawRate = 0;
+  car.heading += car.yawRate * dt;
+  car.lateralLoad = smooth(car.lateralLoad ?? 0, clamp(car.yawRate * speed / 22, -1, 1), 1 - Math.exp(-9 * dt));
 
   const targetHeading = nearestBefore.heading;
   const headingError = angleDelta(car.heading, targetHeading);
   const stabilityAssist = settings.stabilityAssist ? physics.stabilityAssist[driveSurface] : 0;
-  car.heading -= headingError * stabilityAssist * drivingGrip * dt;
+  car.heading -= headingError * stabilityAssist * drivingGrip * rolling * dt;
 
   const correctedRightX = Math.sin(car.heading + Math.PI / 2);
   const correctedRightZ = Math.cos(car.heading + Math.PI / 2);
   const lateralSpeed = car.velocityX * correctedRightX + car.velocityZ * correctedRightZ;
-  const lateralGripRate = physics.lateralGripRate[driveSurface] * setup.multipliers.grip * rainGrip * downforceGrip * (1 - car.brake * physics.brakeLateralGripReduction);
+  const lateralGripRate = physics.lateralGripRate[driveSurface] * setup.multipliers.grip * rainGrip * downforceGrip * (1 - car.brake * physics.brakeLateralGripReduction) * combinedGrip;
+  car.gripUsage = clamp(Math.hypot(Math.abs(car.yawRate) * speed / Math.max(12, lateralGripRate * 3), car.brake * 0.7), 0, 1);
   const lateralDamping = 1 - Math.exp(-lateralGripRate * dt);
   car.velocityX -= correctedRightX * lateralSpeed * lateralDamping;
   car.velocityZ -= correctedRightZ * lateralSpeed * lateralDamping;
@@ -157,26 +184,32 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     speed = maxSpeed;
   }
 
+  const forwardAfter = car.velocityX * forwardX + car.velocityZ * forwardZ;
+  const accelLoad = clamp((forwardAfter - forwardSpeed) / Math.max(dt, 0.001) / (physics.acceleration * paceScale), -1, 1);
+  car.longitudinalLoad = smooth(car.longitudinalLoad ?? 0, accelLoad, 1 - Math.exp(-8 * dt));
   car.x += car.velocityX * dt;
   car.z += car.velocityZ * dt;
   car.speed = speed;
-  car.wheelDistance += Math.max(0, car.velocityX * Math.sin(car.heading) + car.velocityZ * Math.cos(car.heading)) * dt;
+  car.wheelDistance += (car.velocityX * Math.sin(car.heading) + car.velocityZ * Math.cos(car.heading)) * dt;
 
   const nearestAfter = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
   car.y = nearestAfter.y;
+  car.roadGrade = nearestAfter.grade;
   const totalLength = trackMetrics(track).totalLength;
+  const courseLength = raceCourseLength(track);
   const previousProgress = car.progress;
   let progressDelta = nearestAfter.progress - car.progress;
   if (progressDelta < -totalLength / 2) progressDelta += totalLength;
   if (progressDelta > totalLength / 2) progressDelta -= totalLength;
   if (progressDelta > 0 && progressDelta < 50) {
     car.distanceThisLap += progressDelta;
-    car.nextCheckpoint = advanceCheckpoints(car.nextCheckpoint, previousProgress, nearestAfter.progress, totalLength);
+    car.nextCheckpoint = advanceCheckpoints(car.nextCheckpoint, previousProgress, nearestAfter.progress, courseLength);
   }
   if (
-    car.progress > totalLength * 0.82
-    && nearestAfter.progress < totalLength * 0.18
-    && car.distanceThisLap > totalLength * 0.82
+    (track.finishFraction
+      ? car.progress < courseLength && nearestAfter.progress >= courseLength
+      : car.progress > totalLength * 0.82 && nearestAfter.progress < totalLength * 0.18)
+    && car.distanceThisLap > courseLength * 0.82
     && car.nextCheckpoint >= CHECKPOINTS.length
   ) {
     if (car.timedLapStarted) {
@@ -192,7 +225,7 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     car.distanceThisLap = 0;
     car.nextCheckpoint = 0;
     car.currentLapStartedAt = raceTime;
-    if (car.lap > settings.lapCount) {
+    if (track.finishFraction || car.lap > settings.lapCount) {
       car.finished = true;
       car.finishTime = Math.max(0, raceTime - car.timedRaceStartedAt);
       car.velocityX *= 0.35;
@@ -218,14 +251,17 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
     car.y = snap.y;
     car.z = snap.z + normalZ * settledDistance;
     if (outwardSpeed > 0) {
-      car.velocityX -= normalX * outwardSpeed * 0.65;
-      car.velocityZ -= normalZ * outwardSpeed * 0.65;
+      // Resolve only the wall-normal velocity; a scrape keeps forward momentum.
+      car.velocityX -= normalX * outwardSpeed * 1.12;
+      car.velocityZ -= normalZ * outwardSpeed * 1.12;
+      const friction = 1 - clamp(outwardSpeed / Math.max(speed, 1), 0, 1) * 0.22;
+      car.velocityX *= friction;
+      car.velocityZ *= friction;
     }
-    car.velocityX *= 0.24;
-    car.velocityZ *= 0.24;
     car.speed = Math.hypot(car.velocityX, car.velocityZ);
-    car.heading = snap.heading;
-    car.impact = 1;
+    car.wallImpactSpeed = Math.max(0, outwardSpeed);
+    car.impact = clamp(outwardSpeed / 18, 0.08, 1);
+    car.yawRate = (car.yawRate ?? 0) * 0.4;
   }
 
   car.surface = newSurface === "wall" ? "grass" : newSurface;
@@ -235,11 +271,11 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   const finalRightX = Math.sin(car.heading + Math.PI / 2);
   const finalRightZ = Math.cos(car.heading + Math.PI / 2);
   const finalLateralSpeed = Math.abs(car.velocityX * finalRightX + car.velocityZ * finalRightZ);
-  car.slip = clamp(finalLateralSpeed / Math.max(car.speed, 1) * 1.8 + Math.abs(headingError) * speedFactor * 0.22 * (settings.rain ? 1.3 : 1), 0, 1);
-  const instantRolloverRisk = rolloverRiskFor(car, physics.rollover, driveSurface);
+  car.slip = clamp(finalLateralSpeed / Math.max(car.speed, 1) * 1.8 + Math.max(0, (car.gripUsage ?? 0) - 0.65) * 0.4, 0, 1);
+  const instantRolloverRisk = rolloverRiskFor(car, physics.rollover, driveSurface, paceScale);
   const rolloverRiskResponse = instantRolloverRisk > car.rolloverRisk ? 1 - Math.pow(0.08, dt) : 1 - Math.pow(0.0015, dt);
   car.rolloverRisk = smooth(car.rolloverRisk, instantRolloverRisk, rolloverRiskResponse);
-  if (shouldRollover(car, physics.rollover, driveSurface, car.rolloverRisk)) {
+  if (shouldRollover(car, physics.rollover, driveSurface, car.rolloverRisk, paceScale)) {
     car.crashed = true;
     car.impact = 1;
     car.rolloverRisk = 0;
@@ -249,59 +285,55 @@ export function stepCar(car: CarState, input: InputFrame, track: TrackDef, setti
   }
 }
 
-export function resolveCarContacts(cars: CarState[], settings: RaceSettings) {
-  if (settings.ghostMode) return;
+export type ContactCrash = { x: number; y: number; z: number; playerIds: string[]; severity: number };
 
-  for (let i = 0; i < cars.length; i += 1) {
-    for (let j = i + 1; j < cars.length; j += 1) {
-      const a = cars[i];
-      const b = cars[j];
+export function resolveCarContacts(cars: CarState[], settings: RaceSettings): ContactCrash[] {
+  const crashes: ContactCrash[] = [];
+  if (settings.ghostMode) return crashes;
+  for (let i = 0; i < cars.length; i++) {
+    for (let j = i + 1; j < cars.length; j++) {
+      const a = cars[i], b = cars[j];
       if (a.finished || b.finished || a.crashed || b.crashed || a.dnf || b.dnf) continue;
-      if (isResetInvulnerable(a) || isResetInvulnerable(b)) continue;
-      const dx = b.x - a.x;
-      const dz = b.z - a.z;
+      if (isResetInvulnerable(a) || isResetInvulnerable(b) || Math.abs(a.y - b.y) > 2.4) continue;
+      const dx = b.x - a.x, dz = b.z - a.z;
       const dist = Math.hypot(dx, dz);
-      const aPhysics = getVehicle(a.vehicleId).physics;
-      const bPhysics = getVehicle(b.vehicleId).physics;
-      const contactDistance = (aPhysics.collisionRadius + bPhysics.collisionRadius) / 2;
-      if (dist > contactDistance || dist === 0) continue;
-      const nx = dx / dist;
-      const nz = dz / dist;
-      const avx = a.velocityX;
-      const avz = a.velocityZ;
-      const bvx = b.velocityX;
-      const bvz = b.velocityZ;
-      const rvx = avx - bvx;
-      const rvz = avz - bvz;
-      const closingSpeed = Math.max(0, rvx * nx + rvz * nz);
-      const tangentialSpeed = Math.abs(rvx * -nz + rvz * nx);
-      const impact = closingSpeed + tangentialSpeed * 0.22;
-      const warmupContact = settings.warmupStart && (!a.timedLapStarted || !b.timedLapStarted);
-      const crashImpactThreshold = (aPhysics.crashImpactThreshold + bPhysics.crashImpactThreshold) / 2;
-      if (impact > crashImpactThreshold && !warmupContact) {
-        a.crashed = true;
-        b.crashed = true;
-        a.impact = 1;
-        b.impact = 1;
-        continue;
+      const ap = getVehicle(a.vehicleId).physics, bp = getVehicle(b.vehicleId).physics;
+      const contactDistance = (ap.collisionRadius + bp.collisionRadius) / 2;
+      if (dist > contactDistance) continue;
+      const rvx = a.velocityX - b.velocityX, rvz = a.velocityZ - b.velocityZ;
+      const relativeSpeed = Math.hypot(rvx, rvz);
+      const nx = dist > 0.0001 ? dx / dist : relativeSpeed > 0.0001 ? rvx / relativeSpeed : 1;
+      const nz = dist > 0.0001 ? dz / dist : relativeSpeed > 0.0001 ? rvz / relativeSpeed : 0;
+      const invA = 1 / ap.mass, invB = 1 / bp.mass, invTotal = invA + invB;
+      const penetration = contactDistance - dist + 0.005;
+      a.x -= nx * penetration * invA / invTotal;
+      a.z -= nz * penetration * invA / invTotal;
+      b.x += nx * penetration * invB / invTotal;
+      b.z += nz * penetration * invB / invTotal;
+      const closing = Math.max(0, rvx * nx + rvz * nz);
+      if (closing <= 0) continue;
+      const tangent = rvx * -nz + rvz * nx;
+      const impact = closing + Math.abs(tangent) * 0.08;
+      const warmup = settings.warmupStart && (!a.timedLapStarted || !b.timedLapStarted);
+      const threshold = (ap.crashImpactThreshold + bp.crashImpactThreshold) / 2;
+      const impulse = closing * 1.12 / invTotal;
+      const friction = clamp(tangent / invTotal, -impulse * 0.12, impulse * 0.12);
+      a.velocityX -= (nx * impulse - nz * friction) * invA;
+      a.velocityZ -= (nz * impulse + nx * friction) * invA;
+      b.velocityX += (nx * impulse - nz * friction) * invB;
+      b.velocityZ += (nz * impulse + nx * friction) * invB;
+      for (const car of [a, b]) {
+        car.speed = Math.hypot(car.velocityX, car.velocityZ);
+        car.impact = Math.max(car.impact, clamp(impact / 18, 0.1, 1));
       }
-      const push = (contactDistance - dist) / 2;
-      a.x -= (dx / dist) * push;
-      a.z -= (dz / dist) * push;
-      b.x += (dx / dist) * push;
-      b.z += (dz / dist) * push;
-      const damping = impact > 4.5 ? 0.8 : 0.92;
-      a.velocityX *= damping;
-      a.velocityZ *= damping;
-      b.velocityX *= damping;
-      b.velocityZ *= damping;
-      a.speed = Math.hypot(a.velocityX, a.velocityZ);
-      b.speed = Math.hypot(b.velocityX, b.velocityZ);
-      const contactPulse = clamp(0.18 + impact / 20, 0.22, 0.78);
-      a.impact = Math.max(a.impact, contactPulse);
-      b.impact = Math.max(b.impact, contactPulse);
+      if (impact > threshold && !warmup) {
+        a.crashed = b.crashed = true;
+        a.impact = b.impact = 1;
+        crashes.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2, playerIds: [a.playerId, b.playerId], severity: clamp(impact / 24, 0.65, 1) });
+      }
     }
   }
+  return crashes;
 }
 
 export function resetCarToTrack(car: CarState, track: TrackDef, raceTime: number) {
@@ -328,6 +360,13 @@ export function resetCarToTrack(car: CarState, track: TrackDef, raceTime: number
   car.impact = 0.45;
   car.slip = 0;
   car.rolloverRisk = 0;
+  car.yawRate = 0;
+  car.longitudinalLoad = 0;
+  car.lateralLoad = 0;
+  car.gripUsage = 0;
+  car.wallImpactSpeed = 0;
+  car.reversing = false;
+  car.roadGrade = resetPoint.grade;
 }
 
 const CHECKPOINTS = [0.25, 0.5, 0.75];
@@ -377,24 +416,24 @@ function downforceGripForSpeed(speed: number, surface: Exclude<SurfaceType, "wal
   return 1 + speedRamp * maxBonus;
 }
 
-function shouldRollover(car: CarState, rollover: ReturnType<typeof getVehicle>["physics"]["rollover"], surface: Exclude<SurfaceType, "wall">, accumulatedRisk: number) {
+function shouldRollover(car: CarState, rollover: ReturnType<typeof getVehicle>["physics"]["rollover"], surface: Exclude<SurfaceType, "wall">, accumulatedRisk: number, paceScale = 1) {
   if (!rollover || car.crashed || car.finished || car.dnf || surface === "grass") return false;
-  const speedKmh = speedToKmh(car.speed);
+  const speedKmh = speedToKmh(car.speed) / paceScale;
   if (speedKmh < rollover.speedKmh || Math.abs(car.steer) < rollover.steer) return false;
-  return rolloverLoad(car, rollover, surface) > 1.38 && accumulatedRisk > 0.86;
+  return rolloverLoad(car, rollover, surface, paceScale) > 1.38 && accumulatedRisk > 0.86;
 }
 
-function rolloverRiskFor(car: CarState, rollover: ReturnType<typeof getVehicle>["physics"]["rollover"], surface: Exclude<SurfaceType, "wall">) {
+function rolloverRiskFor(car: CarState, rollover: ReturnType<typeof getVehicle>["physics"]["rollover"], surface: Exclude<SurfaceType, "wall">, paceScale = 1) {
   if (!rollover || car.crashed || car.finished || car.dnf || surface === "grass") return 0;
-  const speedKmh = speedToKmh(car.speed);
+  const speedKmh = speedToKmh(car.speed) / paceScale;
   const speedArm = clamp((speedKmh - rollover.speedKmh * 0.72) / (rollover.speedKmh * 0.34), 0, 1);
   const steerArm = clamp((Math.abs(car.steer) - rollover.steer * 0.62) / (rollover.steer * 0.45), 0, 1);
-  const loadRisk = clamp((rolloverLoad(car, rollover, surface) - 1.03) / 0.35, 0, 1);
+  const loadRisk = clamp((rolloverLoad(car, rollover, surface, paceScale) - 1.03) / 0.35, 0, 1);
   return clamp(loadRisk * speedArm * steerArm, 0, 1);
 }
 
-function rolloverLoad(car: CarState, rollover: NonNullable<ReturnType<typeof getVehicle>["physics"]["rollover"]>, surface: Exclude<SurfaceType, "wall">) {
-  const speedKmh = speedToKmh(car.speed);
+function rolloverLoad(car: CarState, rollover: NonNullable<ReturnType<typeof getVehicle>["physics"]["rollover"]>, surface: Exclude<SurfaceType, "wall">, paceScale = 1) {
+  const speedKmh = speedToKmh(car.speed) / paceScale;
   const surfaceBonus = surface === "curb" ? rollover.curbBonus : 0;
   return speedKmh / rollover.speedKmh
     + Math.max(0, Math.abs(car.steer) - rollover.steer) * 0.95

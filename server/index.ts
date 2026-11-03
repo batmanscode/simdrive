@@ -1,11 +1,12 @@
+import { nextSeriesTrack, scoreRound } from "../src/shared/series.js";
 import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getDefaultSetupIdForVehicle, getVehicle, hasVehicleSetup, kmhToInternalSpeed, resolveCarSetupId, VEHICLES } from "../src/shared/cars.js";
 import { createCar, resetCarToTrack, resolveCarContacts, stepCar } from "../src/shared/physics.js";
-import { TRACKS, trackMetrics } from "../src/shared/tracks.js";
-import type { CarState, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, NearbyAudioCar, Player, RaceResult, RaceSettings, RearViewMode, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
+import { TRACKS, raceCourseLength, trackMetrics } from "../src/shared/tracks.js";
+import type { CarState, Championship, RaceAward, ClientMessage, CockpitStyle, CrashEvent, DisplayGroup, InputFrame, LiveStats, NearbyAudioCar, Player, RaceResult, RaceSettings, RearViewMode, RoomState, RaceSnapshot, ServerMessage, VehicleId } from "../src/shared/types.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 60;
@@ -61,6 +62,11 @@ type Room = {
   results: RaceResult[];
   crashEvents: CrashEvent[];
   crashEventCooldowns: Map<string, number>;
+  championship?: Championship;
+  awards: RaceAward[];
+  raceStats: Map<string, { offroad: number; contact: number; resets: number; grid: number }>;
+  weatherStartedWet: boolean;
+  weatherTransitionAt?: number;
 };
 
 const rooms = new Map<string, Room>();
@@ -218,7 +224,7 @@ function handleMessage(client: Client, message: ClientMessage) {
 
   if (message.type === "set_ready") {
     const player = getClientPlayer(client, room);
-    if (!player) return;
+    if (!player || room.phase !== "lobby") return;
     player.isReady = message.ready;
     broadcastRoom(room);
     return;
@@ -258,6 +264,16 @@ function handleMessage(client: Client, message: ClientMessage) {
     return;
   }
 
+  if (message.type === "set_view_options") {
+    const player = getClientPlayer(client, room);
+    if (!player) return;
+    if (typeof message.cornerGuide === "boolean") player.cornerGuide = message.cornerGuide;
+    if (typeof message.cameraMotion === "boolean") player.cameraMotion = message.cameraMotion;
+    if (typeof message.practiceGhost === "boolean") player.practiceGhost = message.practiceGhost;
+    broadcastRoom(room);
+    return;
+  }
+
   if (message.type === "set_rear_view_mode") {
     const player = getClientPlayer(client, room);
     if (!player || !REAR_VIEW_MODES.has(message.rearViewMode)) return;
@@ -271,6 +287,7 @@ function handleMessage(client: Client, message: ClientMessage) {
     if (!player) return;
     room.inputs.set(player.id, {
       seq: message.input.seq,
+      reverse: message.input.reverse === true,
       steer: clamp(message.input.steer, -1, 1),
       throttle: clamp(message.input.throttle, 0, 1),
       brake: clamp(message.input.brake, 0, 1)
@@ -282,16 +299,20 @@ function handleMessage(client: Client, message: ClientMessage) {
     if (!isVip(client, room) || room.phase !== "lobby") return;
     room.settings = {
       ...room.settings,
-      ...message.settings,
       lapCount: clamp(Math.round(message.settings.lapCount ?? room.settings.lapCount), 1, 9),
-      trackId: message.settings.trackId && TRACKS[message.settings.trackId] ? message.settings.trackId : room.settings.trackId,
+      trackId: message.settings.trackId && Object.hasOwn(TRACKS, message.settings.trackId) ? message.settings.trackId : room.settings.trackId,
       tutorialEnabled: typeof message.settings.tutorialEnabled === "boolean" ? message.settings.tutorialEnabled : room.settings.tutorialEnabled,
       warmupStart: typeof message.settings.warmupStart === "boolean" ? message.settings.warmupStart : room.settings.warmupStart,
       ghostMode: typeof message.settings.ghostMode === "boolean" ? message.settings.ghostMode : room.settings.ghostMode,
       rain: typeof message.settings.rain === "boolean" ? message.settings.rain : room.settings.rain,
       stabilityAssist: typeof message.settings.stabilityAssist === "boolean" ? message.settings.stabilityAssist : room.settings.stabilityAssist,
-      resetEnabled: typeof message.settings.resetEnabled === "boolean" ? message.settings.resetEnabled : room.settings.resetEnabled
+      resetEnabled: typeof message.settings.resetEnabled === "boolean" ? message.settings.resetEnabled : room.settings.resetEnabled,
+      equalPace: typeof message.settings.equalPace === "boolean" ? message.settings.equalPace : room.settings.equalPace,
+      championship: typeof message.settings.championship === "boolean" ? message.settings.championship : room.settings.championship,
+      changingWeather: typeof message.settings.changingWeather === "boolean" ? message.settings.changingWeather : room.settings.changingWeather
     };
+    if (!room.settings.championship) room.championship = undefined;
+    room.settings.wetness = room.settings.rain ? 1 : 0;
     broadcastRoom(room);
     return;
   }
@@ -302,7 +323,29 @@ function handleMessage(client: Client, message: ClientMessage) {
     if (!player || !car || !room.raceStartedAt || room.phase !== "racing") return;
     if (!car.resetAvailable || car.finished || car.crashed || car.dnf) return;
     resetCarToTrack(car, TRACKS[room.settings.trackId], (Date.now() - room.raceStartedAt) / 1000);
+    const stats = room.raceStats.get(car.playerId);
+    if (stats) stats.resets++;
     broadcastRealtime(room);
+    return;
+  }
+
+  if (message.type === "vote_track") {
+    const player = getClientPlayer(client, room);
+    if (!player || room.phase !== "results" || !room.championship || room.championship.round >= 3 || !Object.hasOwn(TRACKS, message.trackId)) return;
+    room.championship.votes[player.id] = message.trackId;
+    broadcastRoom(room);
+    return;
+  }
+
+  if (message.type === "advance_championship") {
+    if ((client.role !== "display" && !isVip(client, room)) || room.phase !== "results" || !room.championship || room.championship.round >= 3) return;
+    const series = room.championship;
+    const track = nextSeriesTrack(series, room.settings.trackId, Object.keys(TRACKS) as RaceSettings["trackId"][], [...room.players.values()].filter(p => p.connected).map(p => p.id));
+    series.round++;
+    series.votes = {};
+    returnToLobby(room, true);
+    room.settings.trackId = track;
+    broadcastRoom(room);
     return;
   }
 
@@ -338,9 +381,11 @@ function handleMessage(client: Client, message: ClientMessage) {
   }
 }
 
-function returnToLobby(room: Room) {
+function returnToLobby(room: Room, keepSeries = Boolean(room.championship) && room.phase !== "results") {
+  if (!keepSeries) room.championship = undefined;
   room.phase = "lobby";
   room.results = [];
+  room.awards = [];
   room.cars.clear();
   room.inputs.clear();
   room.countdownEndsAt = undefined;
@@ -380,7 +425,10 @@ function createRoom(): Room {
     },
     results: [],
     crashEvents: [],
-    crashEventCooldowns: new Map()
+    crashEventCooldowns: new Map(),
+    awards: [],
+    raceStats: new Map(),
+    weatherStartedWet: false
   };
   rooms.set(code, room);
   return room;
@@ -425,6 +473,7 @@ function playerCountInDisplayGroup(room: Room, displayGroupId: string) {
 }
 
 function startRaceFlow(room: Room) {
+  if (room.settings.championship && !room.championship) room.championship = { round: 1, scoredRounds: 0, standings: [], votes: {} };
   if (!room.settings.tutorialEnabled) return startCountdown(room);
   return startTutorial(room);
 }
@@ -462,7 +511,17 @@ function tickRoom(room: Room, dt: number) {
   const track = TRACKS[room.settings.trackId];
   const raceTime = (Date.now() - room.raceStartedAt) / 1000;
   const raceTimeLimit = raceLimitSeconds(track, room.settings.lapCount);
-  const crashedBeforeContacts = new Map<string, boolean>();
+  if (room.settings.changingWeather) {
+    const length = raceCourseLength(track);
+    const laps = track.finishFraction ? 1 : room.settings.lapCount;
+    const progress = Math.max(0, ...[...room.cars.values()].filter(c => c.timedLapStarted).map(c => ((c.lap - 1) * length + c.progress) / (length * laps)));
+    if (progress > 0.35) room.weatherTransitionAt ??= Date.now();
+    if (room.weatherTransitionAt) {
+      const transition = clamp((Date.now() - room.weatherTransitionAt) / 18000, 0, 1);
+      room.settings.wetness = room.weatherStartedWet ? 1 - transition : transition;
+      room.settings.rain = room.settings.wetness >= 0.5;
+    }
+  }
   for (const car of room.cars.values()) {
     const player = room.players.get(car.playerId);
     const wasCrashed = car.crashed;
@@ -472,6 +531,8 @@ function tickRoom(room: Room, dt: number) {
       car.resetAvailable = false;
       if (raceTime - car.crashedAt >= 2.5) {
         resetCarToTrack(car, track, raceTime);
+        const stats = room.raceStats.get(car.playerId);
+        if (stats) stats.resets++;
       }
     }
     if (player && !player.connected && player.disconnectedAt && Date.now() - player.disconnectedAt > RACE_DNF_GRACE_MS) {
@@ -489,24 +550,19 @@ function tickRoom(room: Room, dt: number) {
     stepCar(car, input, track, room.settings, dt, raceTime);
     if (!wasCrashed && car.crashed && !car.finished && !car.dnf) {
       addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 28, 0.65, 1), [car.playerId], car.y);
-    } else if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && speedBeforeStep >= wallExplosionSpeedThreshold(car)) {
+    } else if (!wasCrashed && !car.crashed && !car.finished && !car.dnf && car.impact >= 0.95 && (car.wallImpactSpeed ?? 0) >= wallExplosionSpeedThreshold(car)) {
       addCrashEvent(room, "wall", car.x, car.z, clamp(speedBeforeStep / 38, 0.7, 1), [car.playerId], car.y);
     }
-    crashedBeforeContacts.set(car.playerId, car.crashed);
     updateResetAvailability(car, raceTime);
+    const stats = room.raceStats.get(car.playerId);
+    if (stats && !car.finished && !car.crashed && !car.dnf) {
+      if (car.surface === "grass") stats.offroad += dt;
+      stats.contact += car.impact * dt;
+    }
   }
-  resolveCarContacts([...room.cars.values()], room.settings);
-  const newlyCrashed = [...room.cars.values()].filter((car) => car.crashed && !crashedBeforeContacts.get(car.playerId));
-  if (newlyCrashed.length > 0) {
-    addCrashEvent(
-      room,
-      "car",
-      newlyCrashed.reduce((sum, car) => sum + car.x, 0) / newlyCrashed.length,
-      newlyCrashed.reduce((sum, car) => sum + car.z, 0) / newlyCrashed.length,
-      1,
-      newlyCrashed.map((car) => car.playerId),
-      newlyCrashed.reduce((sum, car) => sum + car.y, 0) / newlyCrashed.length
-    );
+  const contactCrashes = resolveCarContacts([...room.cars.values()], room.settings);
+  for (const crash of contactCrashes) {
+    addCrashEvent(room, "car", crash.x, crash.z, crash.severity, crash.playerIds, crash.y);
   }
   if (room.settings.resetEnabled) {
     for (const car of room.cars.values()) {
@@ -523,6 +579,11 @@ function startCountdown(room: Room) {
   const players = [...room.players.values()].filter((player) => player.connected);
   if (players.length === 0) return false;
   const track = TRACKS[room.settings.trackId];
+  room.awards = [];
+  room.raceStats.clear();
+  room.weatherTransitionAt = undefined;
+  room.weatherStartedWet = room.settings.rain;
+  room.settings.wetness = room.settings.rain ? 1 : 0;
   room.phase = "countdown";
   room.countdownEndsAt = Date.now() + COUNTDOWN_MS;
   room.raceStartedAt = undefined;
@@ -534,6 +595,7 @@ function startCountdown(room: Room) {
   room.inputs.clear();
   players.forEach((player, index) => {
     room.cars.set(player.id, createCar(player, track, index, room.settings.warmupStart));
+    room.raceStats.set(player.id, { offroad: 0, contact: 0, resets: 0, grid: index });
   });
   return true;
 }
@@ -574,9 +636,28 @@ function collectResults(room: Room) {
   sortResults(room);
   if (cars.length > 0 && room.results.length === cars.length) {
     room.phase = "results";
+    if (room.championship) scoreRound(room.championship, room.results);
+    room.awards = raceAwards(room);
     return true;
   }
   return false;
+}
+
+function raceAwards(room: Room): RaceAward[] {
+  const finishers = room.results.filter(r => r.status === "finished");
+  const awards: RaceAward[] = [];
+  const fastest = finishers.filter(r => r.bestLapTime !== undefined).sort((a,b) => a.bestLapTime! - b.bestLapTime!)[0];
+  if (fastest) awards.push({ title: TRACKS[room.settings.trackId].finishFraction ? "Fastest run" : "Fastest lap", playerId: fastest.playerId, detail: fastest.bestLapTime!.toFixed(3) + "s" });
+  if (finishers.length > 1) {
+    const clean = [...finishers].sort((a,b) => {
+      const score = (id: string) => { const s = room.raceStats.get(id); return s ? s.offroad + s.contact * 5 + s.resets * 20 : Infinity; };
+      return score(a.playerId)-score(b.playerId);
+    })[0];
+    awards.push({ title: "Smooth operator", playerId: clean.playerId, detail: "Least off-track time and contact" });
+    const comeback = finishers.map((r, place) => ({ r, gain: (room.raceStats.get(r.playerId)?.grid ?? place) - place })).sort((a,b) => b.gain-a.gain)[0];
+    if (comeback.gain > 0) awards.push({ title: "Best comeback", playerId: comeback.r.playerId, detail: "+" + comeback.gain + " places from the grid" });
+  }
+  return awards;
 }
 
 function sortResults(room: Room) {
@@ -613,8 +694,8 @@ function updateResetAvailability(car: CarState, raceTime: number) {
 }
 
 function raceLimitSeconds(track: (typeof TRACKS)[keyof typeof TRACKS], lapCount: number) {
-  const measuredLap = trackMetrics(track).totalLength / 4.2;
-  return Math.max(240, measuredLap * lapCount * 2 + 60);
+  const measuredLap = raceCourseLength(track) / 4.2;
+  return Math.max(240, measuredLap * (track.finishFraction ? 1 : lapCount) * 2 + 60);
 }
 
 function wallExplosionSpeedThreshold(car: CarState) {
@@ -633,7 +714,9 @@ function roomState(room: Room): RoomState {
     raceStartedAt: room.raceStartedAt,
     cars: [...room.cars.values()],
     crashEvents: activeCrashEvents(room),
-    results: room.results
+    results: room.results,
+    championship: room.championship,
+    awards: room.awards
   };
 }
 

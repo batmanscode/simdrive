@@ -1,6 +1,6 @@
 export type Phase = "lobby" | "tutorial" | "countdown" | "racing" | "results";
 
-export type TrackId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline";
+export type TrackId = "sakura" | "alpine" | "fjord" | "causeway" | "cloudline" | "passage";
 
 export type SurfaceType = "road" | "curb" | "grass" | "wall";
 
@@ -28,6 +28,7 @@ export type TrackDef = {
   curbWidth: number;
   wallMargin: number;
   points: Vec2[];
+  finishFraction?: number;
 };
 
 export type RaceSettings = {
@@ -39,6 +40,10 @@ export type RaceSettings = {
   rain: boolean;
   stabilityAssist: boolean;
   resetEnabled: boolean;
+  equalPace?: boolean;
+  championship?: boolean;
+  changingWeather?: boolean;
+  wetness?: number;
 };
 
 export type DisplayGroup = {
@@ -57,6 +62,9 @@ export type Player = {
   carSetupId: CarSetupId;
   cockpitStyle: CockpitStyle;
   rearViewMode: RearViewMode;
+  cornerGuide?: boolean;
+  cameraMotion?: boolean;
+  practiceGhost?: boolean;
   isReady: boolean;
   tutorialDone: boolean;
   isVIP: boolean;
@@ -66,6 +74,7 @@ export type Player = {
 };
 
 export type InputFrame = {
+  reverse?: boolean;
   seq: number;
   steer: number;
   throttle: number;
@@ -109,6 +118,13 @@ export type CarState = {
   impact: number;
   slip: number;
   rolloverRisk: number;
+  yawRate?: number;
+  longitudinalLoad?: number;
+  lateralLoad?: number;
+  gripUsage?: number;
+  wallImpactSpeed?: number;
+  reversing?: boolean;
+  roadGrade?: number;
 };
 
 export type CrashEvent = {
@@ -143,6 +159,15 @@ export type RaceResult = {
   status: "finished" | "crashed" | "dnf";
 };
 
+export type Championship = {
+  round: number;
+  scoredRounds: number;
+  standings: { playerId: string; name: string; color: string; points: number; wins: number }[];
+  votes: Record<string, TrackId>;
+};
+
+export type RaceAward = { title: string; playerId: string; detail: string };
+
 export type RoomState = {
   roomCode: string;
   phase: Phase;
@@ -154,6 +179,8 @@ export type RoomState = {
   cars: CarState[];
   crashEvents: CrashEvent[];
   results: RaceResult[];
+  championship?: Championship;
+  awards?: RaceAward[];
 };
 
 export type LiveStats = {
@@ -178,12 +205,15 @@ export type ClientMessage =
   | { type: "set_car_setup"; carSetupId: CarSetupId }
   | { type: "set_cockpit_style"; cockpitStyle: CockpitStyle }
   | { type: "set_rear_view_mode"; rearViewMode: RearViewMode }
+  | { type: "set_view_options"; cornerGuide?: boolean; cameraMotion?: boolean; practiceGhost?: boolean }
   | { type: "set_ready"; ready: boolean }
   | { type: "set_tutorial_done"; done: boolean }
   | { type: "input_frame"; input: InputFrame }
   | { type: "request_reset" }
   | { type: "vip_set_settings"; settings: Partial<RaceSettings> }
   | { type: "vip_start_race" }
+  | { type: "vote_track"; trackId: TrackId }
+  | { type: "advance_championship" }
   | { type: "vip_skip_tutorial" }
   | { type: "vip_return_lobby" }
   | { type: "display_return_lobby" }

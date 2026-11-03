@@ -1,8 +1,8 @@
 # Potential Improvements
 
-- First-person camera: later, test a lower and more believable cockpit placement with stronger nose/front-wheel framing. Keep the current camera for now because it is readable and comfortable.
-- Track art: replace procedural track/car primitives with authored or generated GLB assets once the gameplay loop stabilizes.
-- Weather: add spray from other cars and stronger wet reflections after performance is measured on phones.
+- Cockpit camera: evaluate a lower seat option on real phones. Load/grade-aware motion and a steadier camera option are now available; preserve road visibility when tuning further.
+- Track art: keep the stylized motorsport direction. Consider selective authored GLB hero assets when their visual benefit fits the split-screen draw budget.
+- Weather: profile the current batched rain/tire wakes and stylized wet sheen on real display hardware before considering heavier reflections.
 - Cockpit cosmetics: later, consider optional forearms/wrists for Hands/Paws if the cockpit needs more physicality, but keep them off for now to avoid cluttering the first-person view.
 - Cockpit cosmetic materials: later, consider racing-glove styling, tiny cuff bands, or paw glove bands if the bare hand/paw materials feel too toy-like against the formula cockpit.
 - Reconnect escape hatch: add a deliberate "Join as new driver" action for cases where the same phone should stop reusing its saved driver token.
@@ -11,7 +11,7 @@
 - Crash audio: phone-side nearby-player crash booms are in place. Later, consider display-side crash audio if a single shared speaker mix can be made clear in split-screen sessions.
 - Lobby polish: the lobby already has the data for same-screen player count, total room players, and ready players. Later, consider tightening the stat labels or adding clearer per-screen context if multi-screen sessions confuse users.
 - Multi-screen identity: later, consider showing subtle per-display context in the lobby/player list so players can understand which drivers are attached to this screen without adding a heavy reassignment UI.
-- Home page visual: later, replace the mock race illustration with a stronger generated or captured gameplay-style image once the racing visuals are representative enough.
+- Home page visual: keep the gameplay preview current when the art changes.
 - Trackside boards: later, vary the roadside board artwork/copy so the new `simdrive.xyz` signs are not identical on every route placement.
 - Lower-priority room management: display reassignment UI, admin controls for moving players, complex multi-device account recovery, and choosing from a list of disconnected players. These are not needed until multi-display or larger casual sessions become common.
 - Scaling: add a headless load test that creates rooms, fake displays, and fake controllers, sends 30 Hz inputs, and measures tick delay, memory, CPU, and network throughput before estimating production capacity.

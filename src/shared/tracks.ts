@@ -1,6 +1,6 @@
 import type { TrackDef, TrackId, Vec2 } from "./types.js";
 
-export const TRACKS: Record<TrackId, TrackDef> = {
+const CIRCUITS: Record<Exclude<TrackId, "passage">, TrackDef> = {
   sakura: {
     id: "sakura",
     name: "Sakura Sprint",
@@ -178,6 +178,22 @@ export const TRACKS: Record<TrackId, TrackDef> = {
     ], 0.6, 0.24)
   }
 };
+
+export const TRACKS: Record<TrackId, TrackDef> = {
+  ...CIRCUITS,
+  passage: {
+    ...CIRCUITS.fjord,
+    id: "passage",
+    name: "Fjord Passage",
+    description: "A one-way journey past waterfalls, cliffside lookouts and the coastal village. Grid start, one run to the finish.",
+    targetLap: "Point-to-point",
+    finishFraction: 0.735
+  }
+};
+
+export function raceCourseLength(track: TrackDef) {
+  return trackMetrics(track).totalLength * (track.finishFraction ?? 1);
+}
 
 export type TrackMetrics = {
   totalLength: number;

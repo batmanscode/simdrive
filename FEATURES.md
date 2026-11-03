@@ -4,6 +4,12 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed.
 
 ## Current Features
 
+- Stylized motorsport art: layered skies/ridges, track palettes, moving sun-shadow coverage, procedural road/ground detail, wet sheen, batched rain/tire wakes/petals, softer vehicle bodywork, and load/grade-aware car/cockpit motion.
+- Rolling-contact steering with yaw inertia and shared brake/corner grip; mass- and height-aware contacts; glancing wall hits retain momentum; deliberate slow reverse for off-track recovery.
+- Manual settings remain the default. Optional extras add equal straight-line pace, gradual changing weather, and three-race championships with track voting, points, and between-round tuning.
+- Personal corner hints, camera-motion preference, local profile-matched best-lap/run ghosts, live timing, overlap indicators, compact split-screen position badges, results awards, and an optional first-finish replay.
+- Phone lobby separates personal setup from VIP race settings, uses compact setup choices/switches, and keeps the original pre-race tutorial.
+
 - Phone-controlled browser racing with no app install.
 - One display creates a room and shows a QR code for controllers.
 - Lobby display can close/reset the room, return everyone to the start, show race settings, and show drivers in the current lineup.
@@ -20,7 +26,7 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed.
 - Each driver can choose a personal cockpit style: None, Hands, or Paws; new players default to None.
 - Each driver can choose a personal rear-view mirror mode: Auto, On, or Off; new players default to Auto, which shows the mirror only when other active cars exist.
 - Non-VIP players can see the chosen race settings, vehicles, and driver setups in the lobby.
-- Five tracks: Sakura Sprint, Alpine Grand Prix, Fjord Loop, Keys Causeway, and Cloudline Ascent.
+- Five circuits plus Fjord Passage: a checkpoint-gated one-way run ending beyond the fjord village, with its own finish gate/map marker and preserved circuit preferences.
 - Cockpit-style 3D race view with procedural smooth track ribbons, raised curbs, rubbered-in road detail, generated terrain support for elevated tracks, dynamic skid marks, barriers, finish line, racing line, a light `#[oss]vibejam` sponsor board, weather visuals, dust/spray effects, vehicle-specific cockpit silhouettes, and per-driver cockpit Hands/Paws/None display cosmetics.
 - Phone controller supports tilt steering with iOS/WebKit permission prompts, Chrome-friendly `devicemotion` and Generic Sensor fallbacks, countdown-time steering centering, 1-10 motion sensitivity, saved motion-steering inversion, touch steering fallback, brake/throttle touch zones, calibration, motion test, audio/haptic test pulse preview, quick countdown control hints, and landscape race mode.
 - Controller setup/lobby screens warn when the phone is not on the recommended Android Chromium-style browser path for best motion and haptic support.
@@ -43,8 +49,6 @@ Product-facing summary of what the game currently supports. Keep `SPEC_detailed.
 ## Planned Or Experimental
 
 - Stronger authored or generated car and track assets.
-- Better wet-road effects and spray.
 - Lower, more believable cockpit camera option.
 - Display reassignment UI and larger-session admin controls.
-- Automated browser smoke tests.
 - Headless load test for server capacity estimates.

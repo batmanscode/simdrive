@@ -43,6 +43,14 @@ Source links:
 | Colour choices | Same controller palette for every vehicle |
 | Cockpit cosmetics | None, Hands, or Paws; visual only; new players default to None |
 
+## Motorsports handling update
+
+Steering requires rolling contact and has vehicle-specific yaw response. Braking uses part of the available cornering grip. Body/cockpit pitch and roll visualize longitudinal/lateral load and road grade; this remains a lightweight handling model, not a full suspension solver.
+
+Contacts use gameplay masses (Formula 800, Kart 175, Truck 1540, Tuk-Tuk 360) and ignore cars on separate road elevations. Wall scrapes resolve the normal velocity instead of snapping the heading and removing all forward speed. Slow off-track recovery has a deliberate hold-to-reverse control capped at 2.2 internal units (~18 km/h); brake behavior is unchanged.
+
+Optional Equal pace uses a 180 km/h dry baseline before setups/weather, scaling acceleration/braking/drag while retaining steering, grip and mass differences. Tuk-tuk tip thresholds scale with that pace. Standard class speeds below are unchanged.
+
 ## Physics Notes
 
 | Area | Behavior |
