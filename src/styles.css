@@ -3623,11 +3623,12 @@ input {
 .lap-telemetry span { display: grid; gap: 4px; color: #bed0cb; font-size: 9px; font-weight: 750; letter-spacing: .12em; }
 .lap-telemetry strong { font-size: 17px; color: #fffaf0; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
 .corner-advice { position: absolute; z-index: 3; left: 50%; top: 25%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; border: 1px solid #b7e4cf80; background: #183a2de8; color: #def6e7; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 850; letter-spacing: .06em; pointer-events: none; }
-.corner-advice.braking { background: #853e22e8; border-color: #ffc18f; color: #ffe6cd; }
+.corner-advice.braking { min-width: 108px; justify-content: center; background: #7d2d1ff2; border-color: #ffd0a3; color: #fff7ed; padding: 10px 16px; font-size: 14px; box-shadow: 0 2px 8px #0003; }
 .race-pane-split .lap-telemetry { left: 8px; bottom: 10px; padding: 7px 9px; gap: 10px; }
 .race-pane-split .lap-telemetry strong { font-size: 13px; }
 .race-pane-split .lap-telemetry span { font-size: 8px; }
 .race-pane-split .corner-advice { top: 29%; font-size: 10px; padding: 6px 9px; }
+.race-pane-split .corner-advice.braking { min-width: 94px; font-size: 12px; padding: 7px 12px; }
 .overlap-indicator { position: absolute; top: 47%; z-index: 4; display: grid; gap: 7px; justify-items: center; color: #ffda96; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-shadow: 0 1px 4px #000; pointer-events: none; }
 .overlap-indicator.left { left: 10px; }
 .overlap-indicator.right { right: 10px; }

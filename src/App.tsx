@@ -56,6 +56,7 @@ const MOTION_NEUTRAL_MAX_SAMPLE_MS = 900;
 const MOTION_NEUTRAL_MIN_SAMPLES = 5;
 const MOTION_NEUTRAL_MAX_SPREAD = 3.5;
 const MOTION_STEERING_DEADZONE = 0.06;
+const MOTION_STEERING_RESPONSE = -60 * Math.log(1 - 0.42); // Preserve the old 60 Hz response.
 const MOTION_CALIBRATION_MAX_AGE_MS = 5 * 60 * 1000;
 const CRASH_EXPLOSION_VISUAL_MS = 1400;
 const TIP_RISK_TOAST_THRESHOLD = 0.22;
@@ -165,6 +166,8 @@ type MotionDebugState = {
 };
 
 let latestMotionCalibration: MotionCalibration | undefined;
+// Centers share one holding frame and are cleared on rotation or recalibration.
+const motionCalibrations = new Map<string, MotionCalibration>();
 let latestServerClockOffsetMs = 0;
 
 type DisplayThemeMode = "system" | "light" | "dark";
@@ -1188,8 +1191,8 @@ function DrivingCoach({ room, focusPlayerId }: { room: RoomState; focusPlayerId:
       {player?.practiceGhost && !room.settings.changingWeather && <span className="practice-label">{personal ? "PB GHOST" : "GHOST"}<strong>{personal ? "Ready" : "Set a lap"}</strong></span>}
     </div>
     {advice && <div className={advice.braking ? "corner-advice braking" : "corner-advice"}>
-      {advice.direction === "LEFT" ? <ArrowLeft size={18} /> : <ArrowRight size={18} />}
-      <span>{advice.braking ? "BRAKE" : advice.sharp ? "TIGHT" : "TURN"} · {advice.direction}</span>
+      {!advice.braking && (advice.direction === "LEFT" ? <ArrowLeft size={18} /> : <ArrowRight size={18} />)}
+      <span>{advice.braking ? "BRAKE" : `${advice.sharp ? "TIGHT " : ""}${advice.direction} BEND`}</span>
     </div>}
   </>;
 }
@@ -1438,15 +1441,16 @@ function ControllerApp() {
   const autoResumeAttemptedRef = useRef(false);
   const token = localStorage.getItem(controllerTokenKey(roomCode)) ?? (savedSession?.roomCode === roomCode ? savedSession.token : null);
   const player = game.room?.players.find((item) => item.id === game.playerId);
-  const selectedVehicleId = player?.vehicleId ?? DEFAULT_VEHICLE_ID;
-  const [steeringLevel, setSteeringLevel] = useState(() => defaultSteeringSensitivityLevel(selectedVehicleId));
-  const steeringVehicleRef = useRef(selectedVehicleId);
+  const selectedVehicleId = player?.vehicleId;
+  const [steeringLevel, setSteeringLevel] = useState(() => defaultSteeringSensitivityLevel(selectedVehicleId ?? DEFAULT_VEHICLE_ID));
+  const steeringVehicleRef = useRef(selectedVehicleId ?? DEFAULT_VEHICLE_ID);
   const setSteeringLevelClamped = useCallback((value: number) => {
     setSteeringLevel(Math.round(clamp(value, STEERING_SENSITIVITY_MIN, STEERING_SENSITIVITY_MAX)));
   }, []);
 
   useLayoutEffect(() => {
-    if (steeringVehicleRef.current === selectedVehicleId) return;
+    // Missing player data during reconnect is not an actual vehicle change.
+    if (!selectedVehicleId || steeringVehicleRef.current === selectedVehicleId) return;
     steeringVehicleRef.current = selectedVehicleId;
     setSteeringLevel(defaultSteeringSensitivityLevel(selectedVehicleId));
   }, [selectedVehicleId]);
@@ -1670,7 +1674,7 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
       )}
       <div className="motion-test">
         <span>Motion test</span>
-        <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
+        <div className="tilt-meter"><span style={{ transform: `translateX(${-motionLevel * 42}px)` }} /></div>
       </div>
       <BrowserRecommendationNotice notice={browserNotice} />
       <details className="driving-options controller-device-options"><summary>Controller setup <span>Audio, haptics, sensitivity &amp; pedal preferences</span></summary>
@@ -1930,6 +1934,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
     }
     neutralRef.current = lastRawSteerRef.current;
     rangeNeutralReadyRef.current = true;
+    clearMotionCalibrations();
     writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
     setMotionLevel(0);
     setCalibrationLabel("Straight set");
@@ -2009,7 +2014,7 @@ function ControllerTutorial({ room, player, send, steeringLevel }: { room: RoomS
             <p className="eyebrow lobby-eyebrow">tilt steering</p>
             <h1>Use it like a spirit level.</h1>
             <div className="tutorial-range-meter" ref={rangeMeterRef} aria-label="Motion steering level">
-              <span ref={rangeMarkerRef} style={{ transform: `translateX(${motionLevel * rangeTravel}px)` }} />
+              <span ref={rangeMarkerRef} style={{ transform: `translateX(${-motionLevel * rangeTravel}px)` }} />
             </div>
             <div className="tutorial-range-labels">
               <span>Left</span>
@@ -2454,6 +2459,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   const touchSteerRef = useRef(touchSteer);
   const touchSteerOverrideUntilRef = useRef(0);
   const neutralRef = useRef<number | undefined>(initialMotionCalibrationRef.current?.neutral);
+  const lastSteeringSampleAtRef = useRef<number | undefined>(undefined);
   const audioRef = useRef<ControllerAudio | null>(sharedControllerAudio);
   const motionCheckRef = useRef<number | undefined>(undefined);
   const motionRequestInFlightRef = useRef(false);
@@ -2515,6 +2521,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       if (!phoneIsLandscape()) {
         neutralRef.current = undefined;
         neutralCaptureRef.current = undefined;
+        lastSteeringSampleAtRef.current = undefined;
         steerRef.current = 0;
         setSteerUi(0);
         setMotionStatus("Turn phone sideways");
@@ -2522,10 +2529,21 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       }
       const orientationFrame = motionOrientationFrameKey(angle, source);
       if (orientationFrame !== lastOrientationFrameRef.current) {
-        neutralRef.current = readMotionCalibration(orientationFrame)?.neutral;
+        const previousFrame = lastOrientationFrameRef.current;
+        const samePose = previousFrame.slice(previousFrame.indexOf(":") + 1) === motionScreenFrameKey(angle);
+        if (samePose && neutralRef.current !== undefined) {
+          // A sensor fallback is not a new holding position. Preserve the tilt
+          // already applied, then reuse each source's center when it returns.
+          neutralRef.current = readMotionCalibration(orientationFrame)?.neutral ?? raw - (lastRawSteerRef.current - neutralRef.current);
+          writeMotionCalibration({ frame: orientationFrame, neutral: neutralRef.current, capturedAt: Date.now() });
+        } else {
+          neutralRef.current = undefined;
+          clearMotionCalibrations();
+          steerRef.current = 0;
+          setSteerUi(0);
+          lastSteeringSampleAtRef.current = undefined;
+        }
         neutralCaptureRef.current = undefined;
-        steerRef.current = 0;
-        setSteerUi(0);
         lastOrientationFrameRef.current = orientationFrame;
       }
       lastRawSteerRef.current = raw;
@@ -2541,6 +2559,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
         const stable = motionSamplesStable(capture.samples);
         if ((capture.samples.length >= MOTION_NEUTRAL_MIN_SAMPLES && elapsed >= MOTION_NEUTRAL_SAMPLE_MS && stable) || elapsed >= MOTION_NEUTRAL_MAX_SAMPLE_MS) {
           neutralRef.current = median(capture.samples);
+          clearMotionCalibrations();
           writeMotionCalibration({ frame: orientationFrame, neutral: neutralRef.current, capturedAt: Date.now() });
           neutralCaptureRef.current = undefined;
           setMotionStatus(motionRaceStatus(source));
@@ -2548,7 +2567,10 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
         return;
       }
       const targetSteer = steeringFromTilt(raw, neutralRef.current, steeringSensitivity, motionSteeringDirection);
-      steerRef.current = THREE.MathUtils.lerp(steerRef.current, targetSteer, 0.42);
+      const now = performance.now();
+      const elapsed = lastSteeringSampleAtRef.current === undefined ? 1 / 60 : Math.min(0.1, (now - lastSteeringSampleAtRef.current) / 1000);
+      lastSteeringSampleAtRef.current = now;
+      steerRef.current = THREE.MathUtils.lerp(steerRef.current, targetSteer, smoothingAmount(elapsed, MOTION_STEERING_RESPONSE));
       if (Math.abs(steerRef.current) < 0.01) steerRef.current = 0;
       setMotionStatus(motionRaceStatus(source));
     }, noteMotionDebug);
@@ -2624,8 +2646,10 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
 
   const calibrate = () => {
     neutralRef.current = lastRawSteerRef.current;
+    clearMotionCalibrations();
     writeMotionCalibration({ frame: lastOrientationFrameRef.current, neutral: neutralRef.current, capturedAt: Date.now() });
     neutralCaptureRef.current = undefined;
+    lastSteeringSampleAtRef.current = undefined;
     steerRef.current = 0;
     setSteerUi(0);
     setCalibrationLabel("Straight set");
@@ -2633,6 +2657,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   };
 
   const setTouchSteering = (value: number) => {
+    // Positive simulation steer turns left in the forward driving view.
     touchSteerOverrideUntilRef.current = performance.now() + (value === 0 ? 140 : 1200);
     setTouchSteer(value);
   };
@@ -2740,9 +2765,9 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
         <strong>R</strong><span>{reversing ? "Reversing" : "Hold to reverse"}</span>
       </button>}
       <div className="steer-touch">
-        <button type="button" aria-label="Steer left" onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
-        <div className="tilt-meter"><span style={{ transform: `translateX(${(touchSteer || steerUi) * 42}px)` }} /></div>
-        <button type="button" aria-label="Steer right" onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
+        <button type="button" aria-label="Steer left" onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
+        <div className="tilt-meter"><span style={{ transform: `translateX(${-(touchSteer || steerUi) * 42}px)` }} /></div>
+        <button type="button" aria-label="Steer right" onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -8573,20 +8598,30 @@ function screenAngleIsLandscape(angle: number) {
   return normalizedAngle === 90 || normalizedAngle === 270;
 }
 
-function motionOrientationFrameKey(angle = getScreenAngle(), source: MotionSource = "orientation") {
+function motionScreenFrameKey(angle = getScreenAngle()) {
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  return `${source}:${normalizedAngle}:${phoneIsLandscape(angle) ? "landscape" : "portrait"}`;
+  return `${normalizedAngle}:${phoneIsLandscape(angle) ? "landscape" : "portrait"}`;
 }
 
-function readMotionCalibration(frame = motionOrientationFrameKey()) {
-  if (!latestMotionCalibration) return undefined;
-  if (latestMotionCalibration.frame !== frame) return undefined;
-  if (Date.now() - latestMotionCalibration.capturedAt > MOTION_CALIBRATION_MAX_AGE_MS) return undefined;
-  return latestMotionCalibration;
+function motionOrientationFrameKey(angle = getScreenAngle(), source: MotionSource = "orientation") {
+  return `${source}:${motionScreenFrameKey(angle)}`;
+}
+
+function readMotionCalibration(frame?: string) {
+  const calibration = frame ? motionCalibrations.get(frame) : latestMotionCalibration;
+  if (!calibration || !calibration.frame.endsWith(`:${motionScreenFrameKey()}`)) return undefined;
+  if (Date.now() - calibration.capturedAt > MOTION_CALIBRATION_MAX_AGE_MS) return undefined;
+  return calibration;
+}
+
+function clearMotionCalibrations() {
+  latestMotionCalibration = undefined;
+  motionCalibrations.clear();
 }
 
 function writeMotionCalibration(calibration: MotionCalibration) {
   latestMotionCalibration = calibration;
+  motionCalibrations.set(calibration.frame, calibration);
 }
 
 function listenToSteeringMotion(onSample: (sample: MotionSample) => void, onDebug?: (event: MotionDebugEvent) => void) {
@@ -8596,9 +8631,11 @@ function listenToSteeringMotion(onSample: (sample: MotionSample) => void, onDebu
   const sensors: MotionSensorInstance[] = [];
 
   const onOrientation = (event: DeviceOrientationEvent) => {
-    onDebug?.({ kind: "event", source: event.beta === null && event.gamma === null ? "orientation-null" : "orientation" });
-    if (event.beta === null && event.gamma === null) return;
     const angle = getScreenAngle();
+    const axis = phoneIsLandscape(angle) || screenAngleIsLandscape(angle) ? event.beta : event.gamma;
+    const usable = axis !== null && Number.isFinite(axis);
+    onDebug?.({ kind: "event", source: usable ? "orientation" : "orientation-null" });
+    if (!usable) return;
     lastOrientationAt = performance.now();
     const sample = { raw: readSteeringTilt(event, angle), angle, source: "orientation" as const };
     onDebug?.({ kind: "sample", ...sample });

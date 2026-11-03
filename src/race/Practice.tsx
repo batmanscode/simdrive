@@ -303,7 +303,8 @@ export function cornerAdvice(track: TrackDef, car: CarState) {
     Math.max(4, Math.min(16, 6.5 / Math.max(0.35, Math.abs(turn)))) *
     Math.sqrt(profile.surfaceGrip.road);
   return {
-    direction: turn > 0 ? "RIGHT" : "LEFT",
+    // The driving camera faces +Z at heading zero: increasing heading bends left.
+    direction: turn > 0 ? "LEFT" : "RIGHT",
     braking: car.speed > safeSpeed * 1.12,
     sharp: Math.abs(turn) > 0.65,
   };
