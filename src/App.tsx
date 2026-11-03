@@ -1,7 +1,8 @@
 import { CockpitGrip } from "./race/CockpitGrip";
 import { createBodyDynamics, stepBodyDynamics } from "./race/BodyDynamics";
 import { createEngineVoice, updateEngineVoice, silenceEngineVoice, type EngineVoice } from "./audio/EngineVoice";
-import { Earthworks, AlpineViaduct, FjordQuay, colorMountainGround } from "./race/Earthworks";
+import { Earthworks, FjordQuay, colorMountainGround } from "./race/Earthworks";
+import { AlpineViaduct } from "./race/AlpineViaduct";
 import { CoastFeatures, coastPropHeight } from "./race/CoastFeatures";
 import { Coastline, COAST_SEA_LEVEL } from "./race/Coastline";
 import { BridgeRailing, type RailSection } from "./race/BridgeRailing";
