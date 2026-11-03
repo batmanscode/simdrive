@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { DEFAULT_VEHICLE_ID, resolveCarSetupId, VEHICLES } from "../../src/shared/cars.js";
-import { nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "../../src/shared/tracks.js";
+import { nearestTrackPoint, raceCourseLength, sampleTrack, TRACKS, trackMetrics } from "../../src/shared/tracks.js";
 import type { CarSetupId, CarState, ClientMessage, CockpitStyle, RaceResult, RaceSettings, ServerMessage, TrackDef, TrackId, VehicleId } from "../../src/shared/types.js";
 
 type Input = {
@@ -216,7 +216,7 @@ export class RaceDriver {
     this.displayGroupId = options.displayGroupId;
     this.trackId = options.trackId;
     this.track = TRACKS[options.trackId];
-    this.totalLength = trackMetrics(this.track).totalLength;
+    this.totalLength = raceCourseLength(this.track);
     this.options = {
       name: options.name ?? `${this.track.name} Automation`,
       color: options.color ?? "#ff8f3d",
@@ -385,7 +385,7 @@ export class RaceDriver {
   }
 }
 
-function driverInput(track: TrackDef, car: CarState, speedScale = 1): Input {
+export function driverInput(track: TrackDef, car: CarState, speedScale = 1): Input {
   const nearest = nearestTrackPoint(track, { x: car.x, y: car.y, z: car.z });
   const speed = car.speed;
   const lookahead = clamp(10 + speed * 0.68, 9, 25);
@@ -404,7 +404,10 @@ function driverInput(track: TrackDef, car: CarState, speedScale = 1): Input {
   );
   const baseDesiredSpeed = curve > 1.08 ? 4.6 : curve > 0.82 ? 5.8 : curve > 0.58 ? 7.2 : curve > 0.36 ? 9.2 : curve > 0.22 ? 11.5 : 14.5;
   const desiredSpeed = clamp(baseDesiredSpeed * speedScale, 3.8, 28);
-  const brake = speed > desiredSpeed + 0.55 ? clamp((speed - desiredSpeed) / 5.4, 0, 0.95) : 0;
+  const cornerBrake = speed > desiredSpeed + 0.55 ? clamp((speed - desiredSpeed) / 5.4, 0, 0.95) : 0;
+  // React to the same tip warning a phone driver sees; preserve the vehicle rollover limit.
+  const tipBrake = car.rolloverRisk > 0.25 ? clamp((speed - 3.5) / 2, 0, 0.95) : 0;
+  const brake = Math.max(cornerBrake, tipBrake);
   return {
     steer: clamp(headingError * 2.75 - lateral * 0.14, -1, 1),
     throttle: brake > 0.08 ? 0.02 : speed < desiredSpeed ? 0.58 : 0.08,

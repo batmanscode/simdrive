@@ -1,3 +1,9 @@
+import { TireCloud } from "./race/TireCloud";
+import { JourneyFinish } from "./race/JourneyFinish";
+import { AdaptiveResolution } from "./race/AdaptiveResolution";
+import { ReplayDialog } from "./race/ReplayDialog";
+import { readRaceReplay, recordRaceReplay } from "./race/replay";
+import { cornerAdvice, formatLapTime, PersonalGhost, practiceKey, readPersonalLap, useDisplayPracticeRecorders } from "./race/Practice";
 import { SculptedBox } from "./race/SculptedBox";
 import { bodyMotion, cameraRoadLook } from "./race/camera";
 import { AsphaltMaterial, LandscapeMaterial, RoadsideGrass, CarGroundShadows, MotorsportLight, MotorsportSky, racePalette, RainStreaks, SakuraLandscape, SakuraPetals } from "./race/Atmosphere";
@@ -8,7 +14,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import * as THREE from "three";
 import { DEFAULT_CAR_SETUP_ID, DEFAULT_VEHICLE_ID, getVehicle, getVehicleSetup, getVehicleSetups, VEHICLE_ORDER, VEHICLE_STAT_TOP_SPEED_MAX_KMH, VEHICLES, type CarSetup, type VehicleDefinition } from "./shared/cars";
 import { speedToKmh } from "./shared/physics";
-import { isCausewayBridgeProgress, nearestTrackPoint, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
+import { isCausewayBridgeProgress, nearestTrackPoint, raceCourseLength, sampleTrack, TRACKS, trackMetrics } from "./shared/tracks";
 import type { CarSetupId, CarState, CockpitStyle, CrashEvent, InputFrame, LiveStats, NearbyAudioCar, Player, RaceSettings, RearViewMode, RoomState, ServerMessage, TrackDef, TrackId, VehicleId } from "./shared/types";
 
 const COLORS = ["#ff3b5c", "#16c784", "#35a7ff", "#ffd166", "#c77dff", "#ff8f3d", "#5eead4", "#f472b6"];
@@ -60,7 +66,8 @@ const CODEX_BENCHMARK_LAPS: CodexBenchmarkLap[] = [
   { trackId: "sakura", vehicleId: "tukTuk", setupId: "balanced", lapTime: "60.935s", avgSpeedKmh: 28.4, surface: "road", surfaceLabel: "road-only" }
 ];
 
-const SHOWROOM_TRACK_IDS: TrackId[] = ["sakura", "alpine", "fjord", "causeway", "cloudline"];
+const SHOWROOM_TRACK_IDS: TrackId[] = ["sakura", "alpine", "fjord", "causeway", "cloudline", "passage"];
+const PASSAGE_SCENERY_TRACK: TrackDef = { ...TRACKS.passage, id: "fjord" };
 const SHOWROOM_COCKPIT_STYLES: CockpitStyle[] = ["none", "hands", "paws"];
 const SHOWROOM_VEHICLE_COLORS: Record<VehicleId, string> = {
   formula: "#ff8f3d",
@@ -160,6 +167,7 @@ export function App() {
 
 function DisplayApp() {
   const game = useGameSocket();
+  useDisplayPracticeRecorders(game.room, game.displayGroupId, currentServerTimeMs);
   const [joinCode, setJoinCode] = useState("");
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isBenchmarksOpen, setIsBenchmarksOpen] = useState(false);
@@ -713,7 +721,7 @@ function CodexBenchmarks() {
         </div>
       </div>
       <p className="codex-benchmarks-copy">
-        Automated benchmark laps driven by Codex. Sometimes it hit curbs or grass too. It's only a robot, so don't judge too hard.
+        Historical automated laps, recorded before the motorsport handling update. They are kept for reference and are not directly comparable to current personal bests.
       </p>
       <div className="codex-benchmark-list">
         {CODEX_BENCHMARK_LAPS.map((lap) => {
@@ -744,23 +752,8 @@ function HeroShowcase() {
   return (
     <div className="hero-showcase" aria-hidden>
       <div className="mock-race">
-        <div className="mock-sky" />
-        <div className="mock-track">
-          <span className="mock-line" />
-          <i className="mock-curb left" />
-          <i className="mock-curb right" />
-        </div>
-        <div className="mock-cockpit">
-          <span />
-          <strong>128</strong>
-          <em>km/h</em>
-        </div>
-        <div className="mock-leaderboard">
-          <span>1 YOU</span>
-          <span>2 LOSER</span>
-          <span>3 OTHER LOSER</span>
-        </div>
-        <div className="mock-minimap" />
+        <img className="gameplay-preview" src="/race-preview.jpg" alt="" width={1440} height={900} />
+        <span className="gameplay-preview-label">IN-GAME · SAKURA SPRINT</span>
       </div>
       <div className="mock-phone">
         <div className="mock-phone-top">
@@ -820,7 +813,7 @@ function LobbyDisplay({
       <section className="lobby-main">
         <div className="topline">
           <div>
-            <p className="eyebrow lobby-eyebrow">Race room</p>
+            <p className="eyebrow lobby-eyebrow">{room.championship ? `Championship · round ${room.championship.round} / 3` : "Race room"}</p>
             <h2>{track.name}</h2>
           </div>
           <div className="topline-actions">
@@ -839,10 +832,13 @@ function LobbyDisplay({
         </div>
 
         <div className="settings-strip" aria-label="Race settings">
-          <SettingChip label="Laps" value={String(room.settings.lapCount)} />
+          {room.settings.equalPace && <SettingChip label="Pace" value="Equal" />}
+          {room.settings.championship && <SettingChip label="Session" value="3 races" />}
+          {room.settings.changingWeather && <SettingChip label="Weather" value="Changing" />}
+          <SettingChip label={track.finishFraction ? "Format" : "Laps"} value={track.finishFraction ? "One-way run" : String(room.settings.lapCount)} />
           <SettingChip label="Tutorial" value={room.settings.tutorialEnabled ? "On" : "Off"} />
           <SettingChip label="Rain" value={room.settings.rain ? "Wet grip" : "Off"} />
-          <SettingChip label="Start" value={room.settings.warmupStart ? "Warm-up / Flying" : "Grid"} />
+          <SettingChip label="Start" value={room.settings.warmupStart && !track.finishFraction ? "Warm-up / Flying" : "Grid"} />
           <SettingChip label="Cars" value={room.settings.ghostMode ? "Ghost" : "Collide"} />
           <SettingChip label="Assist" value={room.settings.stabilityAssist ? "Gentle" : "Off"} />
           <SettingChip label="Reset" value={room.settings.resetEnabled ? "On" : "Crash-out"} />
@@ -923,8 +919,9 @@ function PlayerGrid({ room }: { room: RoomState }) {
 }
 
 function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayGroupId?: string; send: ReturnType<typeof useGameSocket>["send"] }) {
-  const localPlayers = room.players.filter((player) => player.displayGroupId === displayGroupId);
-  const panes = (localPlayers.length ? localPlayers : room.players).slice(0, 4);
+  const racers = room.players.filter(player => room.cars.some(car => car.playerId === player.id));
+  const localPlayers = racers.filter((player) => player.displayGroupId === displayGroupId);
+  const panes = (localPlayers.length ? localPlayers : racers).slice(0, 4);
   const countdown = room.countdownEndsAt ? Math.max(0, Math.ceil((room.countdownEndsAt - currentServerTimeMs()) / 1000)) : 0;
   const className = `race-grid panes-${Math.max(1, panes.length)}`;
   const paneCount = Math.max(1, panes.length);
@@ -940,7 +937,7 @@ function RaceDisplay({ room, displayGroupId, send }: { room: RoomState; displayG
   return (
     <main className="race-screen">
       <button type="button" className="race-exit" onClick={() => send({ type: "display_return_lobby" })}>
-        <RotateCcw size={18} /> Exit Race
+        <RotateCcw size={18} /> {room.championship ? "Abort round" : "Exit Race"}
       </button>
       <div className={className}>
         {panes.map((player) => (
@@ -962,7 +959,8 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
   }>({ autoSpectateSuppressed: false });
   const spectateTargets = useMemo(() => raceSpectateTargets(room, sourcePlayer.id), [room, sourcePlayer.id]);
   const spectateTargetsRef = useRef(spectateTargets);
-  const finishKey = room.phase === "racing" && sourceCar?.finished ? `${sourcePlayer.id}:${sourceCar.finishTime ?? "finished"}` : undefined;
+  const driverDone = sourceCar?.finished || sourceCar?.dnf || (sourceCar?.crashed && !room.settings.resetEnabled);
+  const finishKey = room.phase === "racing" && driverDone ? `${sourcePlayer.id}:${sourceCar?.finishTime ?? "out"}` : undefined;
   const currentSpectateState = spectateState.finishKey === finishKey ? spectateState : undefined;
   const selectedSpectatePlayerId = currentSpectateState?.playerId;
   const autoSpectateSuppressed = currentSpectateState?.autoSpectateSuppressed ?? false;
@@ -971,7 +969,7 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
     : undefined;
   const focusPlayerId = resolvedSpectatePlayerId ?? sourcePlayer.id;
   const spectatedPlayer = resolvedSpectatePlayerId ? room.players.find((item) => item.id === resolvedSpectatePlayerId) : undefined;
-  const showWatchRacePrompt = Boolean(sourceCar?.finished && autoSpectateSuppressed && !resolvedSpectatePlayerId && spectateTargets[0]);
+  const showWatchRacePrompt = Boolean(driverDone && autoSpectateSuppressed && !resolvedSpectatePlayerId && spectateTargets[0]);
   const showRearView = rearViewVisible(sourcePlayer.rearViewMode ?? "auto", room, focusPlayerId);
   const paneClassName = ["race-pane", paneCount > 1 ? "race-pane-split" : "", showRearView ? "race-pane-has-rear-view" : ""].filter(Boolean).join(" ");
 
@@ -1006,13 +1004,14 @@ function RacePane({ room, sourcePlayer, paneCount }: { room: RoomState; sourcePl
 
   return (
     <div className={paneClassName}>
-      <RaceCanvas room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} />
+      <RaceCanvas room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} cameraMotion={sourcePlayer.cameraMotion ?? true} />
       {room.settings.rain && <div className="rain-visor" aria-hidden />}
       <RaceHud room={room} focusPlayerId={focusPlayerId} />
-      {showRearView && <RaceRearView room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} />}
+      <DrivingCoach room={room} focusPlayerId={focusPlayerId} />
+      {showRearView && <RaceRearView room={room} focusPlayerId={focusPlayerId} paneCount={paneCount} cameraMotion={sourcePlayer.cameraMotion ?? true} />}
       <RaceTipRiskToast room={room} focusPlayerId={focusPlayerId} />
       <RaceMiniMap room={room} focusPlayerId={focusPlayerId} />
-      <RaceLeaderboard room={room} focusPlayerId={focusPlayerId} />
+      <RaceLeaderboard room={room} focusPlayerId={focusPlayerId} compact={paneCount > 1} />
       {spectatedPlayer && (
         <RaceSpectateControls
           activePlayers={spectateTargets}
@@ -1067,7 +1066,7 @@ function RaceSpectateControls({
         </button>
       )}
       <button type="button" className="race-spectate-return" onClick={onReturn}>
-        <RotateCcw size={14} /> My finish
+        <RotateCcw size={14} /> My car
       </button>
     </div>
   );
@@ -1131,7 +1130,7 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
   const player = room.players.find((item) => item.id === focusPlayerId);
   const car = room.cars.find((item) => item.playerId === focusPlayerId);
   const speed = car ? Math.round(speedToKmh(car.speed)) : 0;
-  const lapText = raceHudStatusText(car, room.settings.lapCount);
+  const lapText = TRACKS[room.settings.trackId].finishFraction && isActiveRacingCar(car) ? "One-way run" : raceHudStatusText(car, room.settings.lapCount);
   return (
     <div className="race-hud">
       <div><span className="swatch" style={{ background: player?.color }} />{player?.name}</div>
@@ -1139,6 +1138,37 @@ function RaceHud({ room, focusPlayerId }: { room: RoomState; focusPlayerId: stri
       <div>{speed} km/h</div>
     </div>
   );
+}
+
+function DrivingCoach({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+  const car = room.cars.find(c => c.playerId === focusPlayerId);
+  const player = room.players.find(p => p.id === focusPlayerId);
+  const track = TRACKS[room.settings.trackId];
+  if (!car || room.phase !== "racing" || car.finished || car.crashed || car.dnf) return null;
+  const elapsed = car.timedLapStarted && room.raceStartedAt ? Math.max(0, (currentServerTimeMs() - room.raceStartedAt) / 1000 - car.currentLapStartedAt) : 0;
+  const personal = readPersonalLap(practiceKey(track, car, room.settings, `${player?.name}:${player?.color}`));
+  const advice = player?.cornerGuide ? cornerAdvice(track, car) : undefined;
+  const overlaps = room.settings.ghostMode ? [] : room.cars.filter(other => {
+    if (other.playerId === car.playerId || other.finished || other.crashed || other.dnf || Math.abs(other.y - car.y) > 2.4) return false;
+    const dx = other.x - car.x, dz = other.z - car.z;
+    const ahead = dx * Math.sin(car.heading) + dz * Math.cos(car.heading);
+    const side = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
+    return Math.abs(ahead) < 3.4 && Math.abs(side) > 0.8 && Math.abs(side) < 4.5;
+  });
+  const overlapSides = new Set(overlaps.map(other => (other.x-car.x)*Math.cos(car.heading)-(other.z-car.z)*Math.sin(car.heading) > 0 ? "right" : "left"));
+  return <>
+    {Array.from(overlapSides).map(side => <div key={side} className={`overlap-indicator ${side}`} aria-label={`Car alongside on the ${side}`}><span />CAR {side.toUpperCase()}</div>)}
+    <div className="lap-telemetry" aria-label="Lap timing">
+      <span>{car.timedLapStarted ? track.finishFraction ? "RUN TIME" : "LAP TIME" : "WARM-UP"}<strong>{formatLapTime(elapsed)}</strong></span>
+      {(car.bestLapTime || personal) && <span>BEST<strong>{formatLapTime(Math.min(car.bestLapTime ?? Infinity, personal?.time ?? Infinity))}</strong></span>}
+      {car.lastLapTime && <span>LAST<strong>{formatLapTime(car.lastLapTime)}</strong></span>}
+      {player?.practiceGhost && !room.settings.changingWeather && <span className="practice-label">{personal ? "PB GHOST" : "GHOST"}<strong>{personal ? "Ready" : "Set a lap"}</strong></span>}
+    </div>
+    {advice && <div className={advice.braking ? "corner-advice braking" : "corner-advice"}>
+      {advice.direction === "LEFT" ? <ArrowLeft size={18} /> : <ArrowRight size={18} />}
+      <span>{advice.braking ? "BRAKE" : advice.sharp ? "TIGHT" : "TURN"} · {advice.direction}</span>
+    </div>}
+  </>;
 }
 
 function RaceTipRiskToast({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
@@ -1180,8 +1210,8 @@ function RaceTipRiskToast({ room, focusPlayerId }: { room: RoomState; focusPlaye
 function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
   const track = TRACKS[room.settings.trackId];
   const { bounds, points } = useMemo(() => {
-    const bounds = getTrackBounds(track);
-    const points = sampleTrackVisuals(track, 4)
+    const bounds = track.finishFraction ? boundsFromSamples(courseMapSamples(track)) : getTrackBounds(track);
+    const points = courseMapSamples(track)
       .map((point) => `${projectMiniX(point.x, bounds)},${projectMiniY(point.z, bounds)}`)
       .join(" ");
     return { bounds, points };
@@ -1190,6 +1220,7 @@ function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: 
     <svg className="race-minimap" viewBox="0 0 210 150" aria-label="Race minimap">
       <polyline points={points} fill="none" stroke="rgba(255,250,240,0.28)" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
       <polyline points={points} fill="none" stroke="#f1eadc" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      {track.finishFraction && <rect x={projectMiniX(sampleTrack(track, raceCourseLength(track)).x, bounds)-4} y={projectMiniY(sampleTrack(track, raceCourseLength(track)).z, bounds)-4} width={8} height={8} fill="#f5ecd8" stroke="#172e2b" strokeWidth={2} />}
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
         return (
@@ -1208,10 +1239,11 @@ function RaceMiniMap({ room, focusPlayerId }: { room: RoomState; focusPlayerId: 
   );
 }
 
-function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayerId: string }) {
+function RaceLeaderboard({ room, focusPlayerId, compact = false }: { room: RoomState; focusPlayerId: string; compact?: boolean }) {
   const track = TRACKS[room.settings.trackId];
-  const totalLength = trackMetrics(track).totalLength;
+  const totalLength = raceCourseLength(track);
   const rows = room.players
+    .filter(player => room.cars.some(car => car.playerId === player.id))
     .map((player) => {
       const car = room.cars.find((item) => item.playerId === player.id);
       const distance = raceDistance(car, room.settings.lapCount, totalLength);
@@ -1219,10 +1251,15 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
     })
     .sort((a, b) => {
       const statusScore = (item: typeof a) => item.car?.finished ? 3 : item.car?.crashed ? 1 : item.car?.dnf ? 0 : 2;
-      return statusScore(b) - statusScore(a) || b.distance - a.distance;
+      return statusScore(b) - statusScore(a) || (a.car?.finished && b.car?.finished ? (a.car.finishTime ?? Infinity) - (b.car.finishTime ?? Infinity) : b.distance - a.distance);
     });
 
   if (rows.length < 2) return null;
+  if (compact) {
+    const position = rows.findIndex(r => r.player.id === focusPlayerId);
+    const ahead = position > 0 ? rows[position - 1] : undefined;
+    return <div className="race-position" aria-label={`Position ${position+1} of ${rows.length}`}><strong>P{position+1}<small> / {rows.length}</small></strong><span>{ahead ? `Ahead: ${ahead.player.name}` : "Leading"}</span></div>;
+  }
   return (
     <ol className="race-leaderboard" aria-label="Race leaderboard">
       {rows.map(({ player, car }, index) => (
@@ -1230,7 +1267,7 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
           <span>{index + 1}</span>
           <i style={{ background: player.color }} />
           <strong>{player.name}</strong>
-          <em>{raceStatusText(car, room.settings.lapCount)}</em>
+          <em>{TRACKS[room.settings.trackId].finishFraction && isActiveRacingCar(car) ? "run" : raceStatusText(car, room.settings.lapCount)}</em>
         </li>
       ))}
     </ol>
@@ -1238,7 +1275,7 @@ function RaceLeaderboard({ room, focusPlayerId }: { room: RoomState; focusPlayer
 }
 
 function raceSpectateTargets(room: RoomState, sourcePlayerId: string) {
-  const totalLength = trackMetrics(TRACKS[room.settings.trackId]).totalLength;
+  const totalLength = raceCourseLength(TRACKS[room.settings.trackId]);
   return room.players
     .map((player) => {
       const car = room.cars.find((item) => item.playerId === player.id);
@@ -1262,7 +1299,10 @@ function isActiveRacingCar(car: CarState | undefined): car is CarState {
 
 function raceDistance(car: CarState | undefined, lapCount: number, totalLength: number) {
   if (!car) return 0;
-  return car.timedLapStarted ? (Math.min(car.lap, lapCount + 1) - 1) * totalLength + car.progress : car.progress - totalLength;
+  if (!car.timedLapStarted) return car.distanceThisLap - totalLength;
+  // Cars waiting behind the line must not appear to lead before their first crossing.
+  if (car.nextCheckpoint === 0 && car.distanceThisLap < totalLength * 0.1 && car.progress > totalLength * 0.8) return (car.lap - 1) * totalLength - 1;
+  return (Math.min(car.lap, lapCount + 1) - 1) * totalLength + car.progress;
 }
 
 function raceHudStatusText(car: CarState | undefined, lapCount: number) {
@@ -1275,6 +1315,8 @@ function raceHudStatusText(car: CarState | undefined, lapCount: number) {
 }
 
 function ResultsDisplay({ room, send, themeClass }: { room: RoomState; send: ReturnType<typeof useGameSocket>["send"]; themeClass: string }) {
+  const [replayOpen, setReplayOpen] = useState(false);
+  const replay = readRaceReplay(room.roomCode, room.raceStartedAt);
   const vip = room.players.find((player) => player.isVIP);
   const podium = room.results.slice(0, 3);
   return (
@@ -1305,13 +1347,58 @@ function ResultsDisplay({ room, send, themeClass }: { room: RoomState; send: Ret
             </li>
           ))}
         </ol>
-        <p>VIP: {vip?.name ?? "none"}. Return to lobby keeps the same room and drivers.</p>
+        {replay && <button type="button" className="secondary" onClick={() => setReplayOpen(true)}>Watch the first finish <Play size={16} /></button>}
+        <RaceAwards room={room} />
+        {room.championship && <SeriesStandings room={room} />}
+        {room.championship && room.championship.round < 3 && <><p>Vote for the next track on your phone, then continue to the lobby to tune your car.</p><button type="button" className="primary" onClick={() => send({ type: "advance_championship" })}>Next round <ArrowRight size={18} /></button></>}
+        <p>VIP: {vip?.name ?? "none"}. {room.championship && room.championship.round < 3 ? "Return to lobby ends this championship." : "Return to lobby keeps the same room and drivers."}</p>
         <button type="button" className="secondary" onClick={() => send({ type: "display_return_lobby" })}>
           <RotateCcw size={18} /> Return to Lobby
         </button>
       </section>
+      {replayOpen && <ReplayDialog room={room} onClose={() => setReplayOpen(false)} render={(replayRoom, focusId) => <RaceCanvas room={replayRoom} focusPlayerId={focusId} paneCount={1} replay />} />}
     </main>
   );
+}
+
+function RaceAwards({ room }: { room: RoomState }) {
+  if (!room.awards?.length) return null;
+  return <div className="race-awards">{room.awards.map(award => <div key={award.title}>
+    <span>{award.title}</span><strong>{room.players.find(p => p.id === award.playerId)?.name ?? "Driver"}</strong><small>{award.detail}</small>
+  </div>)}</div>;
+}
+
+function SeriesStandings({ room }: { room: RoomState }) {
+  const series = room.championship;
+  if (!series) return null;
+  return <section className="series-standings"><h3>{series.round >= 3 ? "Championship complete" : `Championship · round ${series.round} / 3`}</h3>
+    <ol>{series.standings.map(s => <li key={s.playerId}><span>{series.standings.findIndex(row => row.points === s.points && row.wins === s.wins) + 1}</span><i className="swatch" style={{background:s.color}} /><strong>{s.name}</strong><b>{s.points} pts</b></li>)}</ol>
+    <small>12 · 9 · 7 · 5 · 4 · 3 · 2 · 1 points for finishers. Tied points use race wins; equal wins share a place.</small>
+  </section>;
+}
+
+function ControllerResults({ room, player, send }: { room: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"] }) {
+  const series = room.championship;
+  const result = room.results.find(r => r.playerId === player?.id);
+  const place = room.results.findIndex(r => r.playerId === player?.id) + 1;
+  return <main className="phone results-phone">
+    <p className="eyebrow">{series ? `Round ${series.round} / 3` : "Race complete"}</p>
+    <h1>{result?.status === "finished" ? `P${place} · ${player?.name}` : result?.status === "crashed" ? "Quite an entrance." : "See you on the grid."}</h1>
+    {result?.totalTime !== undefined && <p>{formatLapTime(result.totalTime)} total{result.bestLapTime ? ` · ${formatLapTime(result.bestLapTime)} best ${TRACKS[room.settings.trackId].finishFraction ? "run" : "lap"}` : ""}</p>}
+    <RaceAwards room={room} />
+    {series && <SeriesStandings room={room} />}
+    {series && series.round < 3 && <section className="track-vote"><h2>Where next?</h2><p>One vote per connected driver. The VIP opens the next lobby when everyone is ready.</p><div className="vote-grid">
+      {(Object.keys(TRACKS) as TrackId[]).map(id => {
+        const votes = Object.entries(series.votes).filter(([playerId, vote]) => vote === id && room.players.some(p => p.id === playerId && p.connected)).length;
+        const selected = player && series.votes[player.id] === id;
+        return <button type="button" key={id} className={selected ? "selected" : undefined} aria-pressed={Boolean(selected)} onClick={() => send({ type: "vote_track", trackId: id })}><strong>{TRACKS[id].name}</strong><small>{votes} vote{votes === 1 ? "" : "s"}{selected ? " · yours" : ""}</small></button>;
+      })}
+    </div></section>}
+    {player?.isVIP ? <div className="result-actions">
+      {series && series.round < 3 && <button type="button" className="primary" onClick={() => send({ type: "advance_championship" })}>Next round <ArrowRight size={18} /></button>}
+      <button type="button" className="secondary" onClick={() => send({ type: "vip_return_lobby" })}>{series && series.round < 3 ? "End championship" : "Return to lobby"}</button>
+    </div> : <p className="phone-note">Waiting for the VIP to open the next lobby. Your driver stays connected.</p>}
+  </main>;
 }
 
 function ControllerApp() {
@@ -1424,10 +1511,14 @@ function ControllerApp() {
     return <ControllerTutorial room={game.room} player={player} send={game.send} steeringLevel={steeringLevel} />;
   }
 
+  if (game.room?.phase === "results") return <ControllerResults room={game.room} player={player} send={game.send} />;
+
   return <ControllerLobby room={game.room} player={player} send={game.send} feedback={game.feedback} joinStatus={joinStatus} browserNotice={browserNotice} steeringLevel={steeringLevel} onSteeringLevelChange={setSteeringLevelClamped} />;
 }
 
 function ControllerLobby({ room, player, send, feedback, joinStatus, browserNotice, steeringLevel, onSteeringLevelChange }: { room?: RoomState; player?: Player; send: ReturnType<typeof useGameSocket>["send"]; feedback?: CarState; joinStatus?: string; browserNotice?: string; steeringLevel: number; onSteeringLevelChange: (value: number) => void }) {
+  const [lobbyTab, setLobbyTab] = useState<"drive" | "race">("drive");
+  useLayoutEffect(() => { window.scrollTo(0, 0); }, [lobbyTab]);
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [motionStatus, setMotionStatus] = useState(() => motionLobbyStatus());
   const [motionLevel, setMotionLevel] = useState(0);
@@ -1518,7 +1609,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         if (!explicitMotionPermission && !motionEnabled && motionDebug.request === "not requested") void requestLobbyMotion();
       }}
     >
-      <h1>{player?.isVIP ? "VIP Settings" : "Ready Room"}</h1>
+      <header className="phone-lobby-heading"><div><p className="eyebrow">ROOM {room?.roomCode}{player?.isVIP ? " · VIP" : ""}</p><h1>{lobbyTab === "race" ? "Race together." : "Your drive."}</h1></div><span className="swatch" style={{background:player?.color}} /></header>
+      {player?.isVIP && <div className="lobby-tabs" role="tablist" aria-label="Lobby settings">
+        <button type="button" role="tab" aria-selected={lobbyTab === "drive"} aria-controls="drive-settings" onClick={() => setLobbyTab("drive")}>Your car &amp; controls</button>
+        <button type="button" role="tab" aria-selected={lobbyTab === "race"} aria-controls="race-settings" onClick={() => setLobbyTab("race")}>Race settings</button>
+      </div>}
+      {(!player?.isVIP || lobbyTab === "drive") && <div id="drive-settings" className="drive-settings">
       {joinStatus && <small className="phone-note">{joinStatus}</small>}
       {explicitMotionPermission ? (
         <div className="motion-permission-card" role="status">
@@ -1549,11 +1645,12 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           <small className="phone-note">{motionStatus}</small>
         </>
       )}
-      <MotionDebugDetails debug={motionDebug} />
       <div className="motion-test">
         <span>Motion test</span>
         <div className="tilt-meter"><span style={{ transform: `translateX(${motionLevel * 42}px)` }} /></div>
       </div>
+      <BrowserRecommendationNotice notice={browserNotice} />
+      <details className="driving-options controller-device-options"><summary>Controller setup <span>Audio, haptics, sensitivity &amp; pedal preferences</span></summary>
       <Toggle
         label="Audio"
         value={audioEnabled}
@@ -1602,7 +1699,6 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         <Activity size={18} /> Test Haptics
       </button>
       <small className="phone-note">{hapticStatus}</small>
-      <BrowserRecommendationNotice notice={browserNotice} />
       <FeelPreview test={feelTest} />
       <SteeringSensitivityPreference value={steeringLevel} onChange={onSteeringLevelChange} />
       <Toggle label="Invert motion steering" value={invertMotionSteering} onChange={setInvertMotionSteering} />
@@ -1619,17 +1715,29 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
         onChange={setThrottleStart}
         description="How much throttle is applied the instant your thumb lands before you slide."
       />
-      {player && <VehicleLoadoutSelector vehicleId={player.vehicleId} setupId={player.carSetupId} color={player.color} send={send} />}
+      <MotionDebugDetails debug={motionDebug} />
+      </details>
+      {player && <VehicleLoadoutSelector vehicleId={player.vehicleId} setupId={player.carSetupId} color={player.color} equalPace={settings?.equalPace} send={send} />}
+      {player && <details className="driving-options">
+        <summary>View &amp; practice <span>Personal preferences</span></summary>
+        <Toggle label="Corner hints" value={player.cornerGuide ?? false} onChange={(cornerGuide) => send({ type: "set_view_options", cornerGuide })} />
+        <small className="phone-note">A small turn/brake hint on your display. Learn the track at your own pace.</small>
+        <Toggle label="Personal best ghost" value={player.practiceGhost ?? false} onChange={(practiceGhost) => send({ type: "set_view_options", practiceGhost })} />
+        <small className="phone-note">Chase your best uninterrupted lap or run, saved on this display for your name, color, car, setup and weather.</small>
+        <Toggle label="Camera movement" value={player.cameraMotion ?? true} onChange={(cameraMotion) => send({ type: "set_view_options", cameraMotion })} />
+        <small className="phone-note">Subtle braking and cornering motion. Turn off for a steadier view.</small>
       {player && <RearViewModeSelector value={player.rearViewMode ?? "auto"} send={send} />}
       {player && <CockpitStyleSelector value={player.cockpitStyle} send={send} />}
-      {player?.isVIP && settings && (
-        <div className="vip-controls">
+      </details>}
+      </div>}
+      {player?.isVIP && settings && lobbyTab === "race" && (
+        <div id="race-settings" className="vip-controls">
           <TrackPicker settings={settings} send={send} />
-          <Stepper label="Laps" value={settings.lapCount} min={1} max={9} onChange={(lapCount) => send({ type: "vip_set_settings", settings: { lapCount } })} />
+          {TRACKS[settings.trackId].finishFraction ? <p className="phone-note">Point-to-point · one run · grid start. Your circuit lap and flying-start choices are kept for circuit races.</p> : <Stepper label="Laps" value={settings.lapCount} min={1} max={9} onChange={(lapCount) => send({ type: "vip_set_settings", settings: { lapCount } })} />}
           <Toggle label="Tutorial" value={settings.tutorialEnabled} onChange={(tutorialEnabled) => send({ type: "vip_set_settings", settings: { tutorialEnabled } })} />
           <small className="phone-note">When on, everyone gets a short phone tutorial before the countdown. Default is on.</small>
-          <Toggle label="Warm-up / flying start" value={settings.warmupStart} onChange={(warmupStart) => send({ type: "vip_set_settings", settings: { warmupStart } })} />
-          <small className="phone-note">First pass is untimed. Your race starts when you cross the line at speed.</small>
+          {!TRACKS[settings.trackId].finishFraction && <Toggle label="Warm-up / flying start" value={settings.warmupStart} onChange={(warmupStart) => send({ type: "vip_set_settings", settings: { warmupStart } })} />}
+          {!TRACKS[settings.trackId].finishFraction && <small className="phone-note">First pass is untimed. Your race starts when you cross the line at speed.</small>}
           <Toggle label="Ghost cars" value={settings.ghostMode} onChange={(ghostMode) => send({ type: "vip_set_settings", settings: { ghostMode } })} />
           <small className="phone-note">Ghost cars disables car-to-car collisions. Walls and off-track still matter.</small>
           <Toggle label="Rain" value={settings.rain} onChange={(rain) => send({ type: "vip_set_settings", settings: { rain } })} />
@@ -1638,19 +1746,27 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           <small className="phone-note">Gentle assist softly aligns the car toward the road direction so steering is more forgiving.</small>
           <Toggle label="Reset mode" value={settings.resetEnabled} onChange={(resetEnabled) => send({ type: "vip_set_settings", settings: { resetEnabled } })} />
           <small className="phone-note">Reset mode respawns crashes. Off-track reset appears after 5 seconds in the grass.</small>
-          <button type="button"
-            className="primary"
-            onClick={async () => {
-              if (!(await prepareToDrive())) return;
-              send({ type: "vip_start_race" });
-            }}
-          >
-            <Flag size={18} /> Start Race
-          </button>
+          <details className="driving-options race-extras"><summary>Race extras <span>Optional · your settings stay yours</span></summary>
+            <Toggle label="Equal pace" value={settings.equalPace ?? false} onChange={(equalPace) => send({ type: "vip_set_settings", settings: { equalPace } })} />
+            <small className="phone-note">Bring the vehicles closer on the straights. Weight, steering and setup choices still matter.</small>
+            <Toggle label="Three-race championship" value={settings.championship ?? false} onChange={(championship) => send({ type: "vip_set_settings", settings: { championship } })} />
+            <small className="phone-note">Keep points across three races. Everyone votes for the next track between rounds.</small>
+            <Toggle label="Changing weather" value={settings.changingWeather ?? false} onChange={(changingWeather) => send({ type: "vip_set_settings", settings: { changingWeather } })} />
+            <small className="phone-note">Rain rolls in, or clears if you start wet. Grip changes gradually during the race. Ghost recording pauses for changing weather.</small>
+          </details>
+
         </div>
       )}
+      {player?.isVIP && <div className="lobby-action">
+        <small>{settings ? TRACKS[settings.trackId].name : "Choose a track"}{room?.championship ? ` · Round ${room.championship.round} / 3` : ""}</small>
+        <button type="button" className={lobbyTab === "drive" ? "secondary" : "primary"} onClick={async () => {
+          if (lobbyTab === "drive") { setLobbyTab("race"); return; }
+          if (!(await prepareToDrive())) return;
+          send({ type: "vip_start_race" });
+        }}>{lobbyTab === "drive" ? <>Continue <ArrowRight size={18} /></> : <><Flag size={18} /> Start Race</>}</button>
+      </div>}
       {!player?.isVIP && (
-        <>
+        <div className="lobby-action">
           <button type="button"
             className="primary ready-button"
             onClick={async () => {
@@ -1660,8 +1776,8 @@ function ControllerLobby({ room, player, send, feedback, joinStatus, browserNoti
           >
             {player?.isReady ? "I'm not ready" : "I'm ready"}
           </button>
-          {player?.isReady && <small className="phone-note">Ready. Waiting for the VIP to start the race.</small>}
-        </>
+          <small>{player?.isReady ? "Ready. Waiting for the VIP." : "Pick your car, then get ready."}</small>
+        </div>
       )}
       <small className="phone-note">Use earphones for clearer engine, tire, curb, nearby car, and impact feedback.</small>
       {feedback && <small>{Math.round(speedToKmh(feedback.speed))} km/h</small>}
@@ -2007,9 +2123,10 @@ function FeelPreview({ test }: { test: { id: number; label: string } }) {
   );
 }
 
-function VehicleLoadoutSelector({ vehicleId, setupId, color, send }: { vehicleId: VehicleId; setupId: CarSetupId; color: string; send: ReturnType<typeof useGameSocket>["send"] }) {
+function VehicleLoadoutSelector({ vehicleId, setupId, color, equalPace, send }: { vehicleId: VehicleId; setupId: CarSetupId; color: string; equalPace?: boolean; send: ReturnType<typeof useGameSocket>["send"] }) {
   const selectedVehicle = getVehicle(vehicleId);
-  const selectedSetup = getVehicleSetup(selectedVehicle.id, setupId);
+  const baselineSetup = getVehicleSetup(selectedVehicle.id, setupId);
+  const selectedSetup = equalPace ? { ...baselineSetup, stats: { ...baselineSetup.stats, topSpeedKmh: Math.round(180 * baselineSetup.multipliers.maxSpeed) } } : baselineSetup;
   const setups = getVehicleSetups(selectedVehicle.id);
   const hasSetupChoices = setups.length > 1;
   return (
@@ -2022,7 +2139,7 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, send }: { vehicleId
         </div>
         <small>{selectedSetup.stats.topSpeedKmh} km/h dry top</small>
       </div>
-      <small className="phone-note">{selectedVehicle.description}</small>
+      <small className="phone-note">{equalPace ? "Equal pace is on: a shared 180 km/h base before setup and weather. Each car keeps its steering, weight and character." : selectedVehicle.description}</small>
       <div className="vehicle-grid">
         {VEHICLE_ORDER.map((id) => {
           const vehicle = VEHICLES[id];
@@ -2046,25 +2163,10 @@ function VehicleLoadoutSelector({ vehicleId, setupId, color, send }: { vehicleId
         <small>{selectedSetup.stats.difficulty}/10 difficulty</small>
       </div>
       {!hasSetupChoices && <small className="phone-note">This vehicle has one realistic baseline setup, so there is nothing to tune before the race.</small>}
-      <div className="setup-grid">
-        {setups.map((setup) => hasSetupChoices ? (
-          <button type="button"
-            key={setup.id}
-            className={setup.id === selectedSetup.id ? "setup-card active" : "setup-card"}
-            onClick={() => send({ type: "set_car_setup", carSetupId: setup.id })}
-          >
-            <strong>{setup.name}</strong>
-            <small>{setup.description}</small>
-            <SetupStats setup={setup} />
-          </button>
-        ) : (
-          <div key={setup.id} className="setup-card locked">
-            <strong>{setup.name}</strong>
-            <small>{setup.description}</small>
-            <SetupStats setup={setup} />
-          </div>
-        ))}
-      </div>
+      {hasSetupChoices && <div className="setup-choices" aria-label="Tuning setup">
+        {setups.map(setup => <button type="button" key={setup.id} aria-pressed={setup.id === selectedSetup.id} onClick={() => send({ type: "set_car_setup", carSetupId: setup.id })}>{setup.shortName}</button>)}
+      </div>}
+      <div className="setup-summary"><small>{selectedSetup.description}</small><SetupStats setup={selectedSetup} /></div>
     </section>
   );
 }
@@ -2073,8 +2175,10 @@ function CarSetupPreview({ vehicle, setup, color }: { vehicle: VehicleDefinition
   return (
     <div className="car-preview">
       <Canvas camera={{ position: [3.2, 2.1, 4.6], fov: 34 }} dpr={[1, 1.5]} shadows={false}>
-        <color attach="background" args={["#181b21"]} />
-        <ambientLight intensity={0.82} />
+        <color attach="background" args={["#253338"]} />
+        <ambientLight intensity={0.85} />
+        <hemisphereLight args={["#e5f4ff", "#63755b", 0.75]} />
+        <directionalLight position={[-3, 3, -4]} color="#bce3ed" intensity={1.6} />
         <directionalLight position={[3, 5, 4]} intensity={1.35} />
         <CarPreviewScene vehicleId={vehicle.id} color={color} />
       </Canvas>
@@ -2130,7 +2234,7 @@ function CarPreviewScene({ vehicleId, color }: { vehicleId: VehicleId; color: st
     <group ref={group} position={[0, -0.18, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]} receiveShadow>
         <circleGeometry args={[2.7, 48]} />
-        <meshStandardMaterial color="#22262c" roughness={0.82} />
+        <meshStandardMaterial color="#465753" roughness={0.82} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
         <ringGeometry args={[1.45, 2.1, 48]} />
@@ -2210,8 +2314,8 @@ function Stepper({ label, value, min, max, onChange }: { label: string; value: n
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
   return (
-    <button type="button" className={value ? "toggle on" : "toggle"} onClick={() => onChange(!value)}>
-      <span>{label}</span><strong>{value ? "On" : "Off"}</strong>
+    <button type="button" className={value ? "toggle on" : "toggle"} role="switch" aria-checked={value} onClick={() => onChange(!value)}>
+      <span>{label}</span><span className="toggle-state" aria-hidden="true"><strong>{value ? "On" : "Off"}</strong><i className="switch-track"><i /></i></span>
     </button>
   );
 }
@@ -2227,6 +2331,8 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
   const [hapticStatus, setHapticStatus] = useState(() => hapticShortStatus());
   const [motionListenToken, setMotionListenToken] = useState(0);
   const [motionDebug, setMotionDebug] = useState(motionDebugInitial);
+  const reversingRef = useRef(false);
+  const [reversing, setReversing] = useState(false);
   const steerRef = useRef(0);
   const hasMotionRef = useRef(false);
   const lastRawSteerRef = useRef(initialMotionCalibrationRef.current?.neutral ?? 0);
@@ -2399,7 +2505,8 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       const activePedals = pedalsRef.current;
       const touchActive = Math.abs(touchSteerRef.current) > 0.03 || performance.now() < touchSteerOverrideUntilRef.current;
       const steer = touchActive ? touchSteerRef.current : hasMotionRef.current && Math.abs(steerRef.current) > 0.03 ? steerRef.current : 0;
-      const input: InputFrame = { seq: seqRef.current, steer, throttle: activePedals.throttle, brake: activePedals.brake };
+      const inactive = activeFeedback && (activeFeedback.finished || activeFeedback.dnf || activeFeedback.crashed);
+      const input: InputFrame = { seq: seqRef.current, steer: inactive ? 0 : steer, reverse: !inactive && reversingRef.current, throttle: inactive ? 0 : reversingRef.current ? 1 : activePedals.throttle, brake: inactive ? 0 : reversingRef.current ? 0 : activePedals.brake };
       seqRef.current += 1;
       send({ type: "input_frame", input });
       if (audioEnabled) updateControllerAudio(audioRef.current, activeFeedback, roomRef.current, activePedals, crashEventsRef.current, nearbyAudioCarsRef.current, nearbyCrashEventsRef.current, countdownMarkRef.current);
@@ -2427,11 +2534,35 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
     setTouchSteer(value);
   };
 
+  const reverseAvailable = room.phase === "racing" && car && !car.finished && !car.crashed && !car.dnf && ((car.surface === "grass" && car.speed < 3) || reversing);
+  const stopReversing = () => { reversingRef.current = false; setReversing(false); };
+  useEffect(() => {
+    if (car?.crashed || car?.finished || car?.dnf) { reversingRef.current = false; setReversing(false); }
+  }, [car?.crashed, car?.finished, car?.dnf]);
+
   const armControllerDevice = () => {
     if (explicitMotionPermission) return;
     if (audioEnabled) audioRef.current = unlockControllerAudio();
     requestRaceMotion();
   };
+
+  const raceOverForDriver = car && (car.finished || car.dnf || (car.crashed && !room.settings.resetEnabled));
+  useEffect(() => {
+    if (!raceOverForDriver) return;
+    setPedals({ throttle: 0, brake: 0 });
+    pedalsRef.current = { throttle: 0, brake: 0 };
+    steerRef.current = 0;
+    touchSteerRef.current = 0;
+    setTouchSteer(0);
+    reversingRef.current = false;
+  }, [Boolean(raceOverForDriver)]);
+  if (raceOverForDriver) return <main className="phone driver-finish">
+    <p className="eyebrow">{car.finished ? "Chequered flag" : "Race status"}</p>
+    <h1>{car.finished ? "Finished!" : car.crashed ? "Out of this race." : "Race ended."}</h1>
+    {car.finishTime !== undefined && <strong>{formatLapTime(car.finishTime)}</strong>}
+    <p>{car.finished ? "Nice run. Your display follows the remaining racers." : "Watch the rest of the race on the display."}</p>
+    <small>Keep this phone connected. Results will appear when everyone finishes.</small>
+  </main>;
 
   return (
     <main
@@ -2467,7 +2598,7 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       <button type="button" className="calibrate" onClick={calibrate}>{calibrationLabel}</button>
       <div className="telemetry">
         <span>{Math.round(speedToKmh(car?.speed ?? 0))} km/h</span>
-        <span>{car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
+        <span>{TRACKS[room.settings.trackId].finishFraction ? "One-way run" : car && !car.timedLapStarted ? "Warm-up" : `Lap ${car?.lap ?? 1}/${room.settings.lapCount}`}</span>
         <button type="button"
           onClick={() => {
             requestRaceMotion();
@@ -2500,10 +2631,15 @@ function RaceController({ send, feedback, crashEvents, nearbyAudioCars, nearbyCr
       )}
       <PedalZone side="brake" value={pedals.brake} firstTap={brakeStart} onChange={(brake) => setPedals((current) => ({ ...current, brake }))} />
       <PedalZone side="throttle" value={pedals.throttle} firstTap={throttleStart} onChange={(throttle) => setPedals((current) => ({ ...current, throttle }))} />
+      {reverseAvailable && <button type="button" className={reversing ? "reverse-control active" : "reverse-control"} aria-label="Hold to reverse" onContextMenu={event => event.preventDefault()}
+        onPointerDown={event => { event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); reversingRef.current = true; setReversing(true); }}
+        onPointerUp={stopReversing} onPointerCancel={stopReversing} onLostPointerCapture={stopReversing}>
+        <strong>R</strong><span>{reversing ? "Reversing" : "Hold to reverse"}</span>
+      </button>}
       <div className="steer-touch">
-        <button type="button" onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
+        <button type="button" aria-label="Steer left" onPointerDown={() => setTouchSteering(-1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowLeft /></button>
         <div className="tilt-meter"><span style={{ transform: `translateX(${(touchSteer || steerUi) * 42}px)` }} /></div>
-        <button type="button" onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
+        <button type="button" aria-label="Steer right" onPointerDown={() => setTouchSteering(1)} onPointerUp={() => setTouchSteering(0)} onPointerCancel={() => setTouchSteering(0)} onPointerLeave={() => setTouchSteering(0)}><ArrowRight /></button>
       </div>
     </main>
   );
@@ -2568,24 +2704,25 @@ const REAR_VIEW_MAX_DISTANCE: Record<RaceRenderQuality, number> = {
   split: 220
 };
 
-function RaceCanvas({ room, focusPlayerId, paneCount }: { room: RoomState; focusPlayerId: string; paneCount: number }) {
+function RaceCanvas({ room, focusPlayerId, paneCount, replay = false, cameraMotion }: { room: RoomState; focusPlayerId: string; paneCount: number; replay?: boolean; cameraMotion?: boolean }) {
   const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
   return (
     <Canvas
       shadows={quality === "full"}
       dpr={quality === "split" ? [0.75, 1] : [1, 1.35]}
       gl={{ antialias: quality === "full", powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
-      camera={{ fov: 76, near: 0.1, far: 1500 }}
+      camera={{ fov: replay ? 54 : 76, near: 0.1, far: 1500 }}
     >
       <fog attach="fog" args={[racePalette(room.settings.trackId, room.settings.rain).fog, room.settings.rain ? 55 : 130, room.settings.rain ? 290 : 650]} />
-      <MotorsportSky trackId={room.settings.trackId} rain={room.settings.rain} />
-      <MotorsportLight trackId={room.settings.trackId} rain={room.settings.rain} shadows={quality === "full"} />
-      <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
+      <AdaptiveResolution split={quality === "split"} />
+      <MotorsportSky trackId={room.settings.trackId} rain={room.settings.rain} wetness={room.settings.wetness} />
+      <MotorsportLight trackId={room.settings.trackId} rain={room.settings.rain} wetness={room.settings.wetness} shadows={quality === "full"} />
+      <RaceScene room={room} focusPlayerId={focusPlayerId} quality={quality} replay={replay} cameraMotion={cameraMotion} />
     </Canvas>
   );
 }
 
-function RaceRearView({ room, focusPlayerId, paneCount }: { room: RoomState; focusPlayerId: string; paneCount: number }) {
+function RaceRearView({ room, focusPlayerId, paneCount, cameraMotion }: { room: RoomState; focusPlayerId: string; paneCount: number; cameraMotion?: boolean }) {
   if (!room.cars.some((car) => car.playerId === focusPlayerId)) return null;
   const quality: RaceRenderQuality = paneCount > 1 ? "split" : "full";
   return (
@@ -2596,20 +2733,22 @@ function RaceRearView({ room, focusPlayerId, paneCount }: { room: RoomState; foc
         gl={{ antialias: false, powerPreference: "high-performance" }}
         camera={{ fov: 32, near: 0.1, far: quality === "split" ? 220 : 300 }}
       >
-        <color attach="background" args={[room.settings.rain ? "#67727b" : "#94bfd6"]} />
-        <fog attach="fog" args={[room.settings.rain ? "#7c858c" : "#a9cce0", room.settings.rain ? 28 : 58, room.settings.rain ? 140 : 240]} />
-        <ambientLight intensity={room.settings.rain ? 0.64 : 0.78} />
-        <hemisphereLight args={[room.settings.rain ? "#c6d0d8" : "#def3ff", "#4e6047", room.settings.rain ? 0.42 : 0.34]} />
-        <directionalLight position={[-14, 24, -12]} intensity={room.settings.rain ? 0.52 : 0.94} />
-        <RaceRearViewScene room={room} focusPlayerId={focusPlayerId} quality={quality} />
+        <fog attach="fog" args={[racePalette(room.settings.trackId, room.settings.rain).fog, room.settings.rain ? 28 : 58, room.settings.rain ? 180 : 280]} />
+        <MotorsportSky trackId={room.settings.trackId} rain={room.settings.rain} wetness={room.settings.wetness} />
+        <ambientLight intensity={0.65} />
+        <hemisphereLight args={["#dcebf1", "#657457", 0.8]} />
+        <directionalLight position={[-38, 55, -32]} color={racePalette(room.settings.trackId, room.settings.rain).sun} intensity={room.settings.rain ? 0.9 : 2} />
+        <RaceRearViewScene room={room} focusPlayerId={focusPlayerId} quality={quality} cameraMotion={cameraMotion} />
       </Canvas>
     </div>
   );
 }
 
-function RaceRearViewScene({ room, focusPlayerId, quality }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality }) {
+function RaceRearViewScene({ room, focusPlayerId, quality, cameraMotion }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality; cameraMotion?: boolean }) {
   const { camera } = useThree();
+  const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)"), []);
   const track = TRACKS[room.settings.trackId];
+  const sceneryTrack = track.id === "passage" ? PASSAGE_SCENERY_TRACK : track;
   const focus = room.cars.find((car) => car.playerId === focusPlayerId);
   const cars = useMemo(() => focus ? rearViewCars(room.cars, focus, quality) : [], [focus, quality, room.cars]);
   const smoothFocus = useRef<{ playerId: string; x: number; y: number; z: number; heading: number; surface: CarState["surface"]; impact: number; slip: number } | undefined>(undefined);
@@ -2642,7 +2781,8 @@ function RaceRearViewScene({ room, focusPlayerId, quality }: { room: RoomState; 
     const renderFocus = smoothFocus.current;
     const forwardX = Math.sin(renderFocus.heading);
     const forwardZ = Math.cos(renderFocus.heading);
-    const shake = (renderFocus.surface === "curb" ? 0.025 : 0) + renderFocus.impact * 0.055 + renderFocus.slip * 0.012;
+    const motionEnabled = (cameraMotion ?? true) && !reducedMotion.matches;
+    const shake = motionEnabled ? (renderFocus.surface === "curb" ? 0.025 : 0) + renderFocus.impact * 0.055 + renderFocus.slip * 0.012 : 0;
 
     camera.position.set(
       renderFocus.x + forwardX * profile.forwardOffset,
@@ -2658,8 +2798,8 @@ function RaceRearViewScene({ room, focusPlayerId, quality }: { room: RoomState; 
 
   return (
     <>
-      <TrackMesh track={track} rain={room.settings.rain} detail="mirror" />
-      <TrackProps track={track} rain={room.settings.rain} detail="mirror" />
+      <TrackMesh track={sceneryTrack} rain={room.settings.rain} wetness={room.settings.wetness} detail="mirror" />
+      <TrackProps track={sceneryTrack} rain={room.settings.rain} detail="mirror" />
       {cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
         const color = player?.color ?? "#ff3b5c";
@@ -2670,6 +2810,7 @@ function RaceRearViewScene({ room, focusPlayerId, quality }: { room: RoomState; 
           </group>
         );
       })}
+      {track.finishFraction && <JourneyFinish track={track} />}
       <CrashExplosions events={room.crashEvents} track={track} />
     </>
   );
@@ -2706,9 +2847,11 @@ function rearViewCameraProfile(vehicleId: VehicleId) {
   return { height: 1.28, forwardOffset: 0.7, lookBack: 34, lookHeight: 0.86 };
 }
 
-function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality }) {
+function RaceScene({ room, focusPlayerId, quality, replay = false, cameraMotion }: { room: RoomState; focusPlayerId: string; quality: RaceRenderQuality; replay?: boolean; cameraMotion?: boolean }) {
   const { camera } = useThree();
+  const reducedMotion = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)"), []);
   const track = TRACKS[room.settings.trackId];
+  const sceneryTrack = track.id === "passage" ? PASSAGE_SCENERY_TRACK : track;
   const focus = room.cars.find((car) => car.playerId === focusPlayerId);
   const smoothFocus = useRef<{ playerId: string; x: number; y: number; z: number; heading: number; surface: CarState["surface"]; impact: number; slip: number } | undefined>(undefined);
 
@@ -2737,38 +2880,46 @@ function RaceScene({ room, focusPlayerId, quality }: { room: RoomState; focusPla
 
     const renderFocus = smoothFocus.current;
     const cameraProfile = getVehicle(focus.vehicleId).camera;
-    const shake = (renderFocus.surface === "curb" ? 0.05 : 0) + renderFocus.impact * 0.12 + renderFocus.slip * 0.025;
+    if (replay) {
+      camera.position.set(renderFocus.x - Math.sin(renderFocus.heading) * 9 + Math.cos(renderFocus.heading) * 5, renderFocus.y + 4.6, renderFocus.z - Math.cos(renderFocus.heading) * 9 - Math.sin(renderFocus.heading) * 5);
+      camera.lookAt(renderFocus.x, renderFocus.y + 0.5, renderFocus.z);
+      return;
+    }
+    const motionEnabled = (cameraMotion ?? room.players.find(p => p.id === focusPlayerId)?.cameraMotion ?? true) && !reducedMotion.matches;
+    const shake = motionEnabled ? (renderFocus.surface === "curb" ? 0.05 : 0) + renderFocus.impact * 0.12 + renderFocus.slip * 0.025 : 0;
     camera.position.set(
       renderFocus.x - Math.sin(renderFocus.heading) * cameraProfile.back + Math.sin(renderFocus.heading + Math.PI / 2) * cameraProfile.lateral,
       renderFocus.y + cameraProfile.height + Math.sin(performance.now() / 35) * shake,
       renderFocus.z - Math.cos(renderFocus.heading) * cameraProfile.back
     );
     const gradeLook = cameraRoadLook(track, focus, cameraProfile.lookAhead);
-    camera.lookAt(renderFocus.x + Math.sin(renderFocus.heading) * cameraProfile.lookAhead, renderFocus.y + cameraProfile.lookHeight + gradeLook - (focus.longitudinalLoad ?? 0) * 0.18, renderFocus.z + Math.cos(renderFocus.heading) * cameraProfile.lookAhead);
-    camera.rotateZ(-(focus.lateralLoad ?? 0) * 0.012);
+    camera.lookAt(renderFocus.x + Math.sin(renderFocus.heading) * cameraProfile.lookAhead, renderFocus.y + cameraProfile.lookHeight + gradeLook + (motionEnabled ? (focus.longitudinalLoad ?? 0) * 0.12 : 0), renderFocus.z + Math.cos(renderFocus.heading) * cameraProfile.lookAhead);
+    if (motionEnabled) camera.rotateZ(-(focus.lateralLoad ?? 0) * 0.012);
   });
 
   return (
     <>
-      <TrackMesh track={track} rain={room.settings.rain} />
-      <TrackProps track={track} rain={room.settings.rain} />
+      <TrackMesh track={sceneryTrack} rain={room.settings.rain} wetness={room.settings.wetness} />
+      <TrackProps track={sceneryTrack} rain={room.settings.rain} />
       <RoadsideGrass track={track} rain={room.settings.rain} />
       <DynamicSkidMarks cars={room.cars} rain={room.settings.rain} quality={quality} track={track} />
-      {room.settings.rain && focus && <RainStreaks focus={focus} count={quality === "split" ? 90 : 240} />}
+      {(room.settings.wetness ?? (room.settings.rain ? 1 : 0)) > 0.1 && focus && <RainStreaks focus={focus} wetness={room.settings.wetness} count={quality === "split" ? 90 : 240} />}
       {!room.settings.rain && track.id === "sakura" && focus && <SakuraPetals focus={focus} count={quality === "split" ? 24 : 60} />}
       <CarGroundShadows cars={room.cars} />
+      {focus && room.players.find(p => p.id === focusPlayerId)?.practiceGhost && <PersonalGhost car={focus} track={track} settings={room.settings} raceStartedAt={room.raceStartedAt} now={currentServerTimeMs} identity={`${room.players.find(p => p.id === focusPlayerId)?.name}:${room.players.find(p => p.id === focusPlayerId)?.color}`} />}
       {room.cars.map((car) => {
         const player = room.players.find((item) => item.id === car.playerId);
         const color = player?.color ?? "#ff3b5c";
         return (
           <group key={car.playerId}>
             <CarEffects car={car} rain={room.settings.rain} color={color} />
-            <CarModel car={car} color={color} dimmed={car.playerId === focusPlayerId} />
+            <CarModel car={car} color={color} dimmed={!replay && car.playerId === focusPlayerId} translucent={room.settings.ghostMode && car.playerId !== focusPlayerId && Boolean(focus && Math.hypot(car.x - focus.x, car.z - focus.z, car.y - focus.y) < 7)} />
           </group>
         );
       })}
+      {track.finishFraction && <JourneyFinish track={track} />}
       <CrashExplosions events={room.crashEvents} track={track} />
-      {focus && (
+      {focus && !replay && (
         <Cockpit
           car={focus}
           color={room.players.find((item) => item.id === focusPlayerId)?.color ?? "#ff3b5c"}
@@ -3733,7 +3884,7 @@ function DevAssetCell({
   );
 }
 
-const TrackMesh = memo(function TrackMesh({ track, rain, detail = "full" }: { track: TrackDef; rain: boolean; detail?: "full" | "mirror" }) {
+const TrackMesh = memo(function TrackMesh({ track, rain, wetness, detail = "full" }: { track: TrackDef; rain: boolean; wetness?: number; detail?: "full" | "mirror" }) {
   const mirrorDetail = detail === "mirror";
   const bounds = useMemo(() => getTrackBounds(track), [track]);
   const elevatedTrack = track.id === "fjord" || track.id === "cloudline";
@@ -3800,7 +3951,7 @@ const TrackMesh = memo(function TrackMesh({ track, rain, detail = "full" }: { tr
         <LandscapeMaterial color={runoffColor} />
       </mesh>
       <mesh geometry={roadGeometry} receiveShadow>
-        <AsphaltMaterial rain={rain} />
+        <AsphaltMaterial rain={rain} wetness={wetness} />
       </mesh>
       {racingLineGeometry && (
         <mesh geometry={racingLineGeometry}>
@@ -5994,7 +6145,7 @@ function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }
   const startedAt = useMemo(() => performance.now(), []);
   const fire = useRef<THREE.MeshBasicMaterial>(null);
   const cap = useRef<THREE.MeshBasicMaterial>(null);
-  const smoke = useRef<THREE.MeshBasicMaterial>(null);
+  const smoke = useRef<Array<THREE.MeshBasicMaterial | null>>([]);
   const ring = useRef<THREE.MeshBasicMaterial>(null);
   const baseScale = 1.15 + event.severity * 0.95;
   const baseY = useMemo(() => event.y ?? nearestTrackPoint(track, { x: event.x, z: event.z }).y, [event.x, event.y, event.z, track]);
@@ -6006,8 +6157,8 @@ function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }
     group.current?.scale.setScalar(baseScale * (0.45 + age * 0.9));
     if (group.current) group.current.position.y = baseY + 0.18 + rise;
     if (fire.current) fire.current.opacity = Math.max(0, 1 - age * 1.65);
-    if (cap.current) cap.current.opacity = Math.max(0, 0.72 - age * 0.48);
-    if (smoke.current) smoke.current.opacity = Math.max(0, 0.46 - age * 0.34);
+    if (cap.current) cap.current.opacity = Math.max(0, 0.72 * (1 - age));
+    for (const material of smoke.current) if (material) material.opacity = Math.max(0, 0.42 * (1 - age));
     if (ring.current) ring.current.opacity = Math.max(0, pop * 0.42);
   });
 
@@ -6028,7 +6179,7 @@ function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }
       ].map(([x, y, z], index) => (
         <mesh key={index} position={[x, y, z]} scale={[0.85, 0.65, 0.85]}>
           <sphereGeometry args={[0.62, 12, 8]} />
-          <meshBasicMaterial ref={index === 0 ? smoke : undefined} color="#5c6062" transparent opacity={0.42} depthWrite={false} />
+          <meshBasicMaterial ref={(material) => { smoke.current[index] = material; }} color="#5c6062" transparent opacity={0.42} depthWrite={false} />
         </mesh>
       ))}
       <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -6040,45 +6191,13 @@ function CrashExplosion({ event, track }: { event: CrashEvent; track: TrackDef }
 }
 
 function CarEffects({ car, rain, color }: { car: CarState; rain: boolean; color: string }) {
-  const speedAmount = clamp(car.speed / 32, 0, 1);
-  const dustOpacity = car.surface === "grass" ? speedAmount * 0.26 : 0;
-  const sprayOpacity = rain && car.surface !== "grass" ? speedAmount * 0.22 : 0;
   const impactOpacity = car.impact > 0.35 ? clamp(car.impact, 0, 1) * 0.36 : 0;
-  if (dustOpacity <= 0 && sprayOpacity <= 0 && impactOpacity <= 0) return null;
-  return (
-    <group position={[car.x, car.y + 0.12, car.z]} rotation={[0, car.heading, 0]}>
-      {dustOpacity > 0 && (
-        <>
-          <mesh position={[-0.55, 0.02, -2.1]} rotation={[-Math.PI / 2, 0, 0.18]}>
-            <planeGeometry args={[1.25, 2.1]} />
-            <meshBasicMaterial color="#bca57b" transparent opacity={dustOpacity} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh position={[0.55, 0.02, -2.1]} rotation={[-Math.PI / 2, 0, -0.18]}>
-            <planeGeometry args={[1.25, 2.1]} />
-            <meshBasicMaterial color="#bca57b" transparent opacity={dustOpacity} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      )}
-      {sprayOpacity > 0 && (
-        <>
-          <mesh position={[-0.62, 0.08, -1.9]} rotation={[-Math.PI / 2, 0, 0.28]}>
-            <planeGeometry args={[0.9, 2.5]} />
-            <meshBasicMaterial color="#dbecef" transparent opacity={sprayOpacity} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh position={[0.62, 0.08, -1.9]} rotation={[-Math.PI / 2, 0, -0.28]}>
-            <planeGeometry args={[0.9, 2.5]} />
-            <meshBasicMaterial color="#dbecef" transparent opacity={sprayOpacity} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      )}
-      {impactOpacity > 0 && (
-        <mesh position={[0, 0.25, 0.2]}>
-          <sphereGeometry args={[1.15, 12, 8]} />
-          <meshBasicMaterial color={color} transparent opacity={impactOpacity} depthWrite={false} />
-        </mesh>
-      )}
-    </group>
-  );
+  return <>
+    <TireCloud car={car} rain={rain} />
+    {impactOpacity > 0 && <group position={[car.x, car.y + 0.12, car.z]} rotation={[0, car.heading, 0]}>
+      <mesh position={[0, 0.25, 0.2]}><sphereGeometry args={[1.15, 12, 8]} /><meshBasicMaterial color={color} transparent opacity={impactOpacity} depthWrite={false} /></mesh>
+    </group>}
+  </>;
 }
 
 type LiveSkidMark = {
@@ -6142,7 +6261,24 @@ function DynamicSkidMarks({ cars, rain, quality, track }: { cars: CarState[]; ra
   );
 }
 
-function CarModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
+function CarModel({ car, color, dimmed, translucent = false }: { car: CarState; color: string; dimmed?: boolean; translucent?: boolean }) {
+  const group = useRef<THREE.Group>(null);
+  useLayoutEffect(() => {
+    const originals: { material: THREE.Material; transparent: boolean; opacity: number; depthWrite: boolean }[] = [];
+    group.current?.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        originals.push({ material, transparent: material.transparent, opacity: material.opacity, depthWrite: material.depthWrite });
+        if (translucent) { material.transparent = true; material.opacity *= 0.23; material.depthWrite = false; material.needsUpdate = true; }
+      }
+    });
+    return () => { for (const o of originals) { o.material.transparent=o.transparent; o.material.opacity=o.opacity; o.material.depthWrite=o.depthWrite; o.material.needsUpdate=true; } };
+  }, [translucent, car.vehicleId]);
+  return <group ref={group}><VehicleModel car={car} color={color} dimmed={dimmed} /></group>;
+}
+
+function VehicleModel({ car, color, dimmed }: { car: CarState; color: string; dimmed?: boolean }) {
   if (car.vehicleId === "kart") return <KartModel car={car} color={color} dimmed={dimmed} />;
   if (car.vehicleId === "stockTruck") return <StockTruckModel car={car} color={color} dimmed={dimmed} />;
   if (car.vehicleId === "tukTuk") return <TukTukModel car={car} color={color} dimmed={dimmed} />;
@@ -7730,9 +7866,13 @@ function CockpitHand({ side, style }: { side: -1 | 1; style: Exclude<CockpitStyl
   );
 }
 
+function courseMapSamples(track: TrackDef) {
+  return Array.from({ length: 181 }, (_,i) => sampleTrack(track, raceCourseLength(track) * i / 180));
+}
+
 function MiniTrack({ track }: { track: TrackDef }) {
-  const { minX, maxX, minZ, maxZ } = getTrackBounds(track);
-  const points = sampleTrackVisuals(track, 3.8)
+  const { minX, maxX, minZ, maxZ } = track.finishFraction ? boundsFromSamples(courseMapSamples(track)) : getTrackBounds(track);
+  const points = courseMapSamples(track)
     .map((point) => `${((point.x - minX) / (maxX - minX || 1)) * 180 + 10},${((point.z - minZ) / (maxZ - minZ || 1)) * 110 + 10}`)
     .join(" ");
   return (
@@ -7753,7 +7893,10 @@ type TrackBounds = {
 };
 
 function getTrackBounds(track: TrackDef): TrackBounds {
-  const samples = sampleTrackVisuals(track, 4);
+  return boundsFromSamples(sampleTrackVisuals(track, 4));
+}
+
+function boundsFromSamples(samples: Array<{ x: number; y: number; z: number }>): TrackBounds {
   const xs = samples.map((point) => point.x);
   const ys = samples.map((point) => point.y);
   const zs = samples.map((point) => point.z);
@@ -8171,8 +8314,13 @@ function useGameSocket() {
           setJoinedToken(message.token);
           setNotice(undefined);
         }
-        if (message.type === "room_state") setRoom(message.state);
+        if (message.type === "room_state") {
+          if (!location.pathname.startsWith("/controller")) recordRaceReplay(message.state, message.serverNow);
+          if (message.state.phase === "lobby" || message.state.phase === "countdown") setFeedback(current => message.state.cars.find(car => car.playerId === current?.playerId));
+          setRoom(message.state);
+        }
         if (message.type === "race_snapshot") {
+          if (!location.pathname.startsWith("/controller")) recordRaceReplay(message.snapshot, message.serverNow);
           setRoom((current) => current && current.roomCode === message.snapshot.roomCode
             ? {
               ...current,
@@ -8953,6 +9101,7 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
     return;
   }
 
+  if (car?.finished || car?.dnf) { silenceControllerAudio(audio); return; }
   const now = audio.context.currentTime;
   const raceCar = car;
   const speed = raceCar?.speed ?? 0;
@@ -8967,21 +9116,21 @@ function updateControllerAudio(audio: ControllerAudio | null, car: CarState | un
   audio.engineOsc.type = profile.engineWave;
   const rev = clamp(speed / profile.revSpeedDivisor + throttle * profile.throttleRev, 0, profile.maxRev);
   audio.engineOsc.frequency.setTargetAtTime(profile.engineBaseHz + rev * profile.engineRangeHz, now, 0.055);
-  audio.engineGain.gain.setTargetAtTime(profile.baseGain + rev * profile.revGain, now, 0.08);
+  audio.engineGain.gain.setTargetAtTime(raceCar?.crashed ? 0 : profile.baseGain + rev * profile.revGain, now, 0.08);
 
-  const tireAmount = clamp(slip * 0.75 + (surface === "grass" ? 0.38 : 0) + (surface === "curb" ? 0.25 : 0), 0, 1);
+  const tireAmount = raceCar?.crashed ? 0 : clamp(slip * 0.75 + (surface === "grass" ? 0.38 : 0) + (surface === "curb" ? 0.25 : 0), 0, 1);
   audio.tireFilter.frequency.setTargetAtTime(profile.tireFilterBaseHz + speed * profile.tireFilterSpeedHz, now, 0.05);
   audio.tireGain.gain.setTargetAtTime(tireAmount * profile.tireGain, now, 0.04);
 
-  const brakeAmount = brake > 0.12 && speed > 4 ? brake * clamp(speed / 30, 0, 1) : 0;
+  const brakeAmount = !raceCar?.crashed && brake > 0.12 && speed > 4 ? brake * clamp(speed / 30, 0, 1) : 0;
   audio.brakeOsc.frequency.setTargetAtTime(profile.brakeBaseHz + brake * profile.brakeRangeHz + speed * 4, now, 0.05);
   audio.brakeGain.gain.setTargetAtTime(brakeAmount * profile.brakeGain, now, 0.04);
 
-  const curbAmount = surface === "curb" && speed > 4 ? clamp(speed / 35, 0.15, 1) : 0;
+  const curbAmount = !raceCar?.crashed && surface === "curb" && speed > 4 ? clamp(speed / 35, 0.15, 1) : 0;
   audio.curbOsc.frequency.setTargetAtTime(profile.curbHz, now, 0.03);
   audio.curbGain.gain.setTargetAtTime(curbAmount * profile.curbGain, now, 0.025);
 
-  if (impact > 0.18 && now - audio.lastImpactAt > 0.16) {
+  if (!raceCar?.crashed && impact > 0.18 && now - audio.lastImpactAt > 0.16) {
     audio.lastImpactAt = now;
     playCue(audio, "impact", impact * profile.impactGain);
   }
@@ -9245,7 +9394,7 @@ function driveHaptics(
     if (pulseHaptic(profile.crashPattern)) lastHapticAtRef.current = now;
     return;
   }
-  if (!car) return;
+  if (!car || car.finished || car.dnf || car.crashed) return;
   const speedKmh = speedToKmh(car.speed);
   if (car.impact > 0.2 && now - lastHapticAtRef.current > 240) {
     if (pulseHaptic(Math.round(profile.impactMs + car.impact * profile.impactScale))) lastHapticAtRef.current = now;
@@ -9265,6 +9414,10 @@ function driveHaptics(
   }
   if (car.surface === "grass" && speedKmh > 20 && now - lastHapticAtRef.current > 180) {
     if (pulseHaptic(profile.grassMs)) lastHapticAtRef.current = now;
+    return;
+  }
+  if ((car.gripUsage ?? 0) > 0.78 && car.slip < 0.5 && car.surface === "road" && speedKmh > 35 && now - lastHapticAtRef.current > 400) {
+    if (pulseHaptic(8)) lastHapticAtRef.current = now;
     return;
   }
   if (car.slip > 0.5 && speedKmh > 25 && now - lastHapticAtRef.current > 220) {
