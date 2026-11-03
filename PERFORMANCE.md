@@ -38,6 +38,25 @@ Main contributors found:
 - Personal ghost recordings are bounded to 4,001 frames per stored best. The ephemeral display replay is capped at 150 frames / nine seconds. Neither changes server race truth.
 - A baseline/upgraded four-pane comparison in software-only headless Chromium was slow for both. It establishes render/error coverage, not real hardware FPS or phone steering feel. Shared-canvas/engine migration remains a separate profiling decision.
 
+## Trackside artwork
+
+- Trees share baked branch/foliage geometry and materials, partitioned into 32 m world cells for normal frustum culling. Cells entirely beyond opaque linear fog are skipped; bounds include the small shader-driven leaf movement. The higher roads retain separate vertical cells.
+- Nearby pines form small groves on the existing shoulder shelf. Road-clearance helpers preserve the route's height layer. Distant Sakura trees use simpler crowns and do not cast shadows.
+- Bridge rails share instanced boxes. Cabin details and irregular mountain faces are baked into a few meshes with vertex colors rather than separate objects for every detail.
+- Water uses one fog-aware surface shader with distance-filtered ripples and grazing-angle color. It adds no reflection camera, render target, texture download or postprocessing pass. Water and foliage motion respect reduced-motion preferences.
+
+Matched dry solo captures at 1280×800 measured the following totals across two fixed driver views per track, including both the color and sun-shadow passes:
+
+| Track | Draw calls before → after | Submitted triangles before → after |
+| --- | --- | --- |
+| Sakura | 607 → 361 | 52,446 → 46,046 |
+| Alpine | 475 → 465 | 35,814 → 38,247 |
+| Fjord | 420 → 421 | 235,934 → 240,946 |
+| Causeway | 1,188 → 746 | 241,066 → 240,022 |
+| Cloudline | 676 → 630 | 526,966 → 528,526 |
+
+Across these ten views, draws fell 3,366→2,623 (22%) and triangles were effectively flat, 1,092,226→1,093,787 (+0.14%). Alpine/Fjord spend a little more geometry on groves and cabin details. These are submission counts, not a hardware frame-rate measurement.
+
 ## Current Optimizations
 
 The vehicle-art pass merges both rim faces and spokes into one draw, and replaces stacked body pieces with single profiled panels. Matched focused asset previews (including the same preview floor) measured:

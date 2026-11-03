@@ -92,3 +92,11 @@ Clean-search note: Formula and Kart touched grass at every tested lower `speedSc
 - Front/side views and native four-player wet rendering covered the shaped bodies, shared wheels, mirrors and translucent rivals without page/console/shader errors. A full dry Sakura run and finish replay completed with the new Formula artwork; the home preview was refreshed from actual driving.
 - Gemini reviewed visual coherence/readability. Inboard rim contrast and tire-mark placement were refined. Its alleged tuk-tuk ceiling artifact was traced to the existing track's torii beam/lanterns, rather than passenger-cabin geometry.
 - This pass changes visual assets only; shared physics, vehicle tuning, collision dimensions, controls and race rules are unchanged. The previous gameplay matrix was not rerun for these art changes.
+
+## 2026-11-03 — Trackside artwork
+
+- Matched driver-camera fixtures cover two views each on Sakura, Alpine, Fjord, Causeway and Cloudline with no page/console/shader errors. Combined color/shadow submissions fell 3,366→2,623 across these ten views; triangles changed +0.14%. These fixed-pose artwork comparisons are separate from live driven checks.
+- Native driving covered a full Alpine finish and representative Fjord (through 69%), Causeway (70%) and Cloudline (56%, over 8 km) sections. Four different vehicles also rendered in wet Causeway split-screen with all eight race/mirror canvases and no page, console or shader errors.
+- Gemini reviewed visual coherence and driving readability. The pass retained clear track edges and sightlines; nearby snow faces and pine clusters were refined after review. Sakura keeps its rounded, faceted hills.
+- Typecheck and production build passed. No new CI, test dependency, physics, collision, control or race-rule changes. Generated captures and exploratory helpers remain ignored; hardware FPS still requires a real-device check.
+- Browser captures isolate external widgets. An additional unblocked home check traced `Unexpected identifier 'a'` to line 7 of the existing hosted Vibe Jam widget; its script currently fails standalone syntax parsing. The competition snippet is unchanged by this pass, and the home/podium still render.
