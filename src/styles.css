@@ -1446,6 +1446,18 @@ input {
   grid-template-rows: repeat(2, 1fr);
 }
 
+.panes-3 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.panes-3 > .race-pane {
+  grid-column: span 2;
+}
+
+.panes-3 > .race-pane:last-child {
+  grid-column: 2 / span 2;
+}
+
 .race-pane {
   position: relative;
   min-height: 0;
@@ -3380,6 +3392,15 @@ input {
   .panes-3,
   .panes-4 {
     grid-template-columns: 1fr;
+  }
+
+  .panes-3 {
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .panes-3 > .race-pane,
+  .panes-3 > .race-pane:last-child {
+    grid-column: auto;
   }
 }
 

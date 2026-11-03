@@ -34,7 +34,7 @@ Main contributors found:
 
 - Rain, petals, roadside grass, and soft tire wakes use instancing. Surface detail/wet sheen and distant skybox ridges use inexpensive shaders rather than reflection passes or a longer prop draw distance.
 - Sun-shadow coverage follows the cockpit on long/elevated routes; split-screen retains the shadow-free tier with grade-aligned grounding blobs.
-- Sustained low frame rate can lower 3D pixel ratio to 0.6 in split-screen or 0.8 solo. DOM instruments stay crisp; mirrors remain lightweight.
+- Adaptive resolution requests a lower 3D pixel ratio under sustained load, down to 0.6 in split-screen or 0.8 solo. The local profiling below found these reductions can be reset by live canvas updates; persistence needs a follow-up fix. DOM instruments stay crisp; mirrors remain lightweight.
 - Personal ghost recordings are bounded to 4,001 frames per stored best. The ephemeral display replay is capped at 150 frames / nine seconds. Neither changes server race truth.
 - A baseline/upgraded four-pane comparison in software-only headless Chromium was slow for both. It establishes render/error coverage, not real hardware FPS or phone steering feel. Shared-canvas/engine migration remains a separate profiling decision.
 
@@ -60,6 +60,39 @@ Across these ten views, draws fell 3,366→2,623 (22%) and triangles were effect
 The following landscape/route pass adds coastal deck/pier/shoreline geometry, authored cuttings, a stone arch and harbor setting. At the same ten fixed views, combined color/shadow draws changed 2,623→2,621 and triangles 1,093,787→1,098,867 (+0.46%). Shoreline geometry and fewer high-elevation trees offset the new landmarks. These counts do not establish hardware FPS.
 
 Route variants share the original scenery family and control points. Terrain probes protect other road layers; generated ribbons and new landscape buffers are disposed on replacement/unmount. Cosmetic suspension uses bounded substeps without React frame state. Engine voices run on the phone with native Web Audio nodes and reuse the tire noise buffer; no audio media downloads or new application dependencies are required.
+
+## Local production profiling — 2026-11-03
+
+Measured the production build on this workspace's four-vCPU AMD EPYC host (Node 22.23.4). Each server scenario used a fresh process, separate WebSocket driving clients, wet Cloudline, ghost cars and reset enabled, and legal groups of at most four drivers per display. Sampling followed eight seconds of warmup: ten seconds normally, twenty seconds with CPU sampling for the 64-driver stress case. Event-loop delay was sampled at 1 ms resolution. These short runs describe this machine and workload, not a production capacity guarantee.
+
+| Rooms × drivers | CPU, % of one core | Event-loop delay p95 | Display / phone updates per second | Server RSS |
+| --- | --- | --- | --- | --- |
+| 1 × 1 | 6.0% | 1.49 ms | 30.2 / 19.9 | 88.5 MB |
+| 1 × 4 | 15.9% | 2.59 ms | 30.2 / 20.0 | 93.6 MB |
+| 1 × 8 | 27.5% | 4.06 ms | 30.1 / 19.9 | 97.0 MB |
+| 2 × 8 | 46.9% | 7.40 ms | 29.7 / 19.6 | 101.5 MB |
+| 8 × 8 | 103.1% | 459 ms | 1.2 / 1.1 | 110.5 MB |
+
+The overloaded case spent about 93% of sampled time in `nearestTrackPoint`, `distance3D` and `angleLerp`, with another 4% in garbage collection. Nearest-road lookup scans every smoothed segment and calculates a complete candidate for each one. A measured follow-up should first reduce that search/calculation work while preserving height-layer selection, resets and wall behavior. The 64-driver case had all cars active but could no longer sustain the configured update rates; the CPU figure can exceed 100% because it includes process helper threads.
+
+Application JSON traffic averaged 124 kB/s per display and 40 kB/s per phone in the four-driver room; the eight-driver room used 241 kB/s per display and 49 kB/s per phone. This includes full room updates and nearby audio descriptors, excludes WebSocket/TLS overhead, and uses uncompressed local connections. It does not measure internet latency or packet loss.
+
+Production browser probes used fresh contexts, fixed driving poses at 1280×800, five seconds of warmup and twelve-second frame samples. Solo Keys was dry; multiplayer views used rain, with mirrors enabled except for an explicit four-player comparison. These are rendering fixtures, not additional completed races. Chromium reported ANGLE/SwiftShader with no hardware GPU. Observed animation rates were only 1.4–2.9 Hz, so their frame times cannot establish laptop performance. Adaptive resolution changed one three-player pane during sampling; the four-player mirror comparison retained matching main-view pixel sizes.
+
+The sampled pane returned from 0.85 DPR to 1.0. Source inspection confirmed that `AdaptiveResolution` changes Fiber's internal DPR while `RaceCanvas` continues supplying its original DPR range on live updates; the installed Fiber canvas reconfiguration reapplies that range. Keeping the selected DPR consistent between the canvas prop and adaptive logic is a concrete follow-up, separate from the larger shared-renderer candidate.
+
+| Display fixture | WebGL contexts | Tracked geometry-buffer allocation | Observed JS heap |
+| --- | --- | --- | --- |
+| Keys, solo, no mirror | 1 | 4.5 MB | 33 MB |
+| Keys, two players + mirrors | 4 | 13.1 MB | 65 MB |
+| Keys, three players + mirrors | 6 | 22.4 MB | 125 MB |
+| Keys, four players + mirrors | 8 | 30.9 MB | 169 MB |
+| Keys, four players, mirrors off | 4 | 20.5 MB | 120 MB |
+| Cloudline, four players + mirrors | 8 | 62.0 MB | 113 MB |
+
+Buffer totals track WebGL buffer allocations, excluding textures, framebuffers and driver overhead. JS heaps were not forced to the same garbage-collection point and are observations rather than retained-memory/leak measurements. The repeated scene resources make a shared renderer/scene worth a focused prototype; every camera would still incur its own visible draw work. No page/console/shader errors occurred in these six display configurations. Generated captures and profiles remain ignored.
+
+An actual controller page joined a four-driver room, unlocked audio through Test Audio, and ran parked in the race for twelve seconds. It received 20.1 feedback messages/s with no 3D canvas. JavaScript took about 13 ms per second and renderer-main-thread CPU about 39 ms per second, excluding audio/other threads. In a targeted collection check, listeners returned to 202 after garbage collection and the collected JS heap changed from 7.0 to 7.3 MB. This short stationary check does not establish mobile battery use, sensor cost or long-session memory behavior; it makes a broad controller React rewrite a lower priority than the measured server search work.
 
 ## Current Optimizations
 
@@ -307,7 +340,7 @@ Tradeoff:
 
 ## Bundle Size Note
 
-`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The last checked production build on 2026-05-17 was about 1.35 MB minified and about 369 kB gzipped for the main JS asset.
+`npm run build` currently warns that the main client bundle is larger than Vite's default 500 kB chunk warning threshold. The checked production build on 2026-11-03 was about 1.40 MB minified and about 393 kB gzipped for the main JS asset. Gzip size is the build estimate; actual transfer size depends on hosting compression.
 
 This is not a build failure and is expected with the current architecture because React, Three.js, React Three Fiber, QR code rendering, icons, the display app, controller app, and race scene all ship in one client bundle.
 
